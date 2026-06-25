@@ -1,0 +1,15 @@
+<app-sub-nav
+  [items]="subNavItems"
+  [activeId]="activeSubTab()"
+  (itemSelected)="onSubNavSelect($event)"
+/>
+
+<section class="payroll-content">
+  @if (activeSubTab() === 'monthly') {
+    <app-monthly-payroll-table />
+  } @else if (activeSubTab() === 'bonus') {
+    <app-compensation-entry-table compensationType="bonus" />
+  } @else {
+    <app-monthly-insurance-premium-table />
+  }
+</section>

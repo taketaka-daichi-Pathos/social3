@@ -1,0 +1,203 @@
+<section class="revision">
+  <header class="revision__header">
+    <div>
+      <h1 class="revision__title">随時改定・算定基礎</h1>
+      <p class="revision__description">
+        月次給与データに基づき、算定基礎（定時決定）と随時改定（月額変更）の判定結果を表示します。
+      </p>
+    </div>
+
+    <div class="revision__year-picker">
+      <label class="revision__year-label" for="revisionTargetYear">対象年</label>
+      <app-year-select
+        inputId="revisionTargetYear"
+        selectClass="revision__year-select"
+        [value]="targetYear()"
+        (valueChange)="onYearSelected($event)"
+      />
+    </div>
+  </header>
+
+  <app-sub-nav
+    [items]="subNavItems"
+    [activeId]="activeSubTab()"
+    (itemSelected)="onSubNavSelect($event)"
+  />
+
+  @if (loadError()) {
+    <p class="revision__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="revision__status">計算中...</p>
+  } @else if (activeSubTab() === 'annual') {
+    <section class="revision__panel">
+      <div class="revision__panel-head">
+        <h2 class="revision__panel-title">算定基礎（定時決定）</h2>
+        <p class="revision__panel-note">
+          {{ targetYear() }}年 算定基礎 ／ 対象月: {{ determinationMonthsLabel() }} ／ 適用開始:
+          {{ targetYear() }}年9月（10月納付分〜）
+        </p>
+      </div>
+
+      @if (annualResults().length === 0) {
+        <p class="revision__status">表示する従業員がいません</p>
+      } @else {
+        <div class="revision__table-wrap">
+          <table class="revision__table">
+            <thead>
+              <tr>
+                <th>社員番号</th>
+                <th>名前</th>
+                <th>ステータス</th>
+                <th>対象月の給与</th>
+                <th>平均総支給</th>
+                <th>現在等級（健保/厚年）</th>
+                <th>改定後（健保/厚年）</th>
+                <th>除外理由</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of annualResults(); track row.employeeId) {
+                <tr [class.revision__row--muted]="row.status === 'excluded'">
+                  <td>{{ row.employeeNumber }}</td>
+                  <td class="revision__cell-name">{{ row.employeeName }}</td>
+                  <td>
+                    <span [class]="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                  </td>
+                  <td>
+                    <div class="revision__month-list">
+                      @for (month of row.monthDetails; track month.yearMonth) {
+                        <div
+                          class="revision__month-chip"
+                          [class.revision__month-chip--excluded]="!month.included"
+                        >
+                          <span>{{ formatMonth(month.yearMonth) }}</span>
+                          <span>{{ month.baseDays }}日 / ¥{{ month.totalPayment | number }}</span>
+                          @if (month.note) {
+                            <span class="revision__chip-note">{{ month.note }}</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </td>
+                  <td class="revision__cell-amount">
+                    @if (row.averagePayment != null) {
+                      ¥{{ row.averagePayment | number }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    ¥{{ row.currentHealthStandard | number }} / ¥{{ row.currentPensionStandard | number }}
+                  </td>
+                  <td>
+                    @if (row.proposedHealthStandard != null) {
+                      ¥{{ row.proposedHealthStandard | number }} / ¥{{ row.proposedPensionStandard | number }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    @if (row.exclusionLabels.length > 0) {
+                      <div class="revision__badges">
+                        @for (label of row.exclusionLabels; track label) {
+                          <span class="revision__badge revision__badge--excluded">{{ label }}</span>
+                        }
+                      </div>
+                    } @else {
+                      —
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  } @else {
+    <section class="revision__panel">
+      <div class="revision__panel-head">
+        <h2 class="revision__panel-title">随時改定（月額変更）</h2>
+        <p class="revision__panel-note">{{ occasionalPanelNote() }}</p>
+      </div>
+
+      @if (occasionalResults().length === 0) {
+        <p class="revision__status">固定的賃金の変動は検出されませんでした</p>
+      } @else {
+        <div class="revision__table-wrap">
+          <table class="revision__table">
+            <thead>
+              <tr>
+                <th>社員番号</th>
+                <th>名前</th>
+                <th>変動月</th>
+                <th>ステータス</th>
+                <th>対象3ヶ月</th>
+                <th>平均総支給</th>
+                <th>等級差</th>
+                <th>適用月</th>
+                <th>除外理由</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of occasionalResults(); track row.employeeId + row.changeMonth) {
+                <tr [class.revision__row--muted]="row.status === 'excluded'">
+                  <td>{{ row.employeeNumber }}</td>
+                  <td class="revision__cell-name">{{ row.employeeName }}</td>
+                  <td>{{ formatMonth(row.changeMonth) }}</td>
+                  <td>
+                    <span [class]="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                  </td>
+                  <td>
+                    <div class="revision__month-list">
+                      @for (month of row.monthDetails; track month.yearMonth) {
+                        <div
+                          class="revision__month-chip"
+                          [class.revision__month-chip--excluded]="!month.included"
+                        >
+                          <span>{{ formatMonth(month.yearMonth) }}</span>
+                          <span>{{ month.baseDays }}日 / ¥{{ month.totalPayment | number }}</span>
+                          @if (month.note) {
+                            <span class="revision__chip-note">{{ month.note }}</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </td>
+                  <td class="revision__cell-amount">
+                    @if (row.averagePayment != null) {
+                      ¥{{ row.averagePayment | number }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>{{ row.gradeDifference ?? '—' }}</td>
+                  <td>
+                    @if (row.applicationMonth) {
+                      {{ formatMonth(row.applicationMonth) }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    @if (row.exclusionLabels.length > 0) {
+                      <div class="revision__badges">
+                        @for (label of row.exclusionLabels; track label) {
+                          <span class="revision__badge revision__badge--excluded">{{ label }}</span>
+                        }
+                      </div>
+                    } @else {
+                      —
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</section>

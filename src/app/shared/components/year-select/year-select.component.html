@@ -1,0 +1,32 @@
+<div class="year-select" [class.year-select--open]="open()">
+  <button
+    type="button"
+    [class]="['year-select__trigger', selectClass()]"
+    [id]="inputId() || null"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="listbox"
+    (click)="toggle()"
+  >
+    <span>{{ value() }}年</span>
+    <span class="year-select__chevron" aria-hidden="true">▾</span>
+  </button>
+
+  @if (open()) {
+    <ul class="year-select__list" role="listbox" [attr.aria-activedescendant]="inputId()">
+      @for (year of yearOptions(); track year) {
+        <li role="presentation">
+          <button
+            type="button"
+            class="year-select__option"
+            [class.year-select__option--selected]="year === value()"
+            role="option"
+            [attr.aria-selected]="year === value()"
+            (click)="selectYear(year)"
+          >
+            {{ year }}年
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>

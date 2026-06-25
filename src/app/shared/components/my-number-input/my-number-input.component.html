@@ -1,0 +1,22 @@
+<div
+  class="my-number-input"
+  [class.my-number-input--invalid]="invalid()"
+  (paste)="onDigitPaste($event)"
+>
+  @for (digit of digits; track $index; let i = $index) {
+    <input
+      #digitInput
+      type="text"
+      class="my-number-input__digit"
+      [value]="digits[i]"
+      inputmode="numeric"
+      maxlength="1"
+      autocomplete="off"
+      [attr.aria-label]="'マイナンバー' + (i + 1) + '桁目'"
+      [disabled]="disabled"
+      (input)="onDigitInput(i, $event)"
+      (keydown)="onDigitKeydown(i, $event)"
+      (blur)="onBlur()"
+    />
+  }
+</div>

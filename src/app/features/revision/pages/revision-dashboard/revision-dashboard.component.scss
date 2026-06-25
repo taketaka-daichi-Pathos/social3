@@ -1,0 +1,202 @@
+@use '../../../../../styles/variables' as *;
+
+.revision {
+  padding: 1.5rem;
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1.25rem 1.5rem;
+    background: $color-bg-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+  }
+
+  &__title {
+    margin: 0 0 0.35rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  &__description {
+    margin: 0;
+    font-size: 0.875rem;
+    color: $color-text-muted;
+    line-height: 1.5;
+  }
+
+  &__year-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__year-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $color-text-muted;
+  }
+
+  &__year-select {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    font-size: 0.875rem;
+  }
+
+  &__alert {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid #fecaca;
+    border-radius: $radius-md;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.875rem;
+  }
+
+  &__status {
+    margin: 1rem 0 0;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: $color-text-muted;
+    background: $color-bg-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+  }
+
+  &__panel {
+    margin-top: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: #fff;
+  }
+
+  &__panel-head {
+    margin-bottom: 1rem;
+  }
+
+  &__panel-title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__panel-note {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+  }
+
+  &__table-wrap {
+    overflow-x: auto;
+  }
+
+  &__table {
+    width: 100%;
+    min-width: 64rem;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+
+    th,
+    td {
+      padding: 0.65rem 0.75rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    thead th {
+      background: #f8fafc;
+      color: $color-text-muted;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+  }
+
+  &__row--muted {
+    background: #f9fafb;
+    color: $color-text-muted;
+  }
+
+  &__cell-name {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  &__cell-amount {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  &__month-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__month-chip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: $radius-sm;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 0.6875rem;
+
+    &--excluded {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+  }
+
+  &__chip-note {
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-weight: 600;
+  }
+
+  &__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  &__badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &--eligible {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    &--applied {
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+    &--excluded {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    &--pending {
+      background: #fef3c7;
+      color: #b45309;
+    }
+  }
+}

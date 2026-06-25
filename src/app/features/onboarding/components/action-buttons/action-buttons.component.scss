@@ -1,0 +1,57 @@
+@use '../../../../../styles/variables' as *;
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: $color-bg-surface;
+  border-bottom: 1px solid $color-border;
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.1rem;
+    border: 2px solid transparent;
+    border-radius: $radius-md;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+
+    &:hover {
+      opacity: 0.92;
+    }
+
+    &:active {
+      transform: translateY(1px);
+    }
+
+    &--outline {
+      background: $color-bg-surface;
+      border-color: $color-primary;
+      color: $color-primary;
+    }
+
+    &--success {
+      background: $color-success;
+      color: #ffffff;
+    }
+
+    &--danger {
+      background: $color-danger;
+      color: #ffffff;
+    }
+
+    &--primary-dark {
+      background: $color-primary-dark;
+      color: #ffffff;
+    }
+  }
+
+  &__icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+}

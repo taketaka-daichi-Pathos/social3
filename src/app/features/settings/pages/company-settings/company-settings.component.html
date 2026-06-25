@@ -1,0 +1,340 @@
+<section class="company-settings">
+  <div class="company-settings__card">
+    <header class="company-settings__header">
+      <h2 class="company-settings__title">会社設定（事業所設定）</h2>
+      <p class="company-settings__description">
+        社会保険の届出に必要な事業所情報と料率を登録・更新します。
+      </p>
+    </header>
+
+    <nav class="company-settings__tabs" aria-label="設定カテゴリ">
+      <button
+        type="button"
+        class="company-settings__tab"
+        [class.company-settings__tab--active]="activeTab() === 'basic'"
+        (click)="setTab('basic')"
+      >
+        基本情報
+      </button>
+      <button
+        type="button"
+        class="company-settings__tab"
+        [class.company-settings__tab--active]="activeTab() === 'rates'"
+        (click)="setTab('rates')"
+      >
+        社会保険料率
+      </button>
+      <button
+        type="button"
+        class="company-settings__tab"
+        [class.company-settings__tab--active]="activeTab() === 'allowances'"
+        (click)="setTab('allowances')"
+      >
+        手当設定
+      </button>
+    </nav>
+
+    <form class="company-settings__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      @if (loading()) {
+        <p class="company-settings__status">会社情報を読み込み中...</p>
+      } @else if (loadError()) {
+        <p class="company-settings__error company-settings__error--banner">{{ loadError() }}</p>
+      } @else {
+        @if (activeTab() === 'basic') {
+          <div class="company-settings__grid">
+            <div class="company-settings__field company-settings__field--full">
+              <label class="company-settings__label" for="companyId">会社ID</label>
+              <input
+                id="companyId"
+                type="text"
+                class="company-settings__input company-settings__input--company-id"
+                formControlName="companyId"
+                placeholder="例: 12345"
+                spellcheck="false"
+                autocomplete="off"
+                maxlength="5"
+              />
+              <p class="company-settings__hint">登録時に採番されたIDです（変更できません）</p>
+              @if (showError('companyId')) {
+                <p class="company-settings__error">{{ errorMessage('companyId') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field company-settings__field--full">
+              <label class="company-settings__label" for="companyName">会社名</label>
+              <input
+                id="companyName"
+                type="text"
+                class="company-settings__input"
+                formControlName="companyName"
+                placeholder="例: 株式会社サンプル"
+                autocomplete="organization"
+              />
+              @if (showError('companyName')) {
+                <p class="company-settings__error">{{ errorMessage('companyName') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field company-settings__field--full">
+              <label class="company-settings__label" for="ownerName">事業主氏名</label>
+              <input
+                id="ownerName"
+                type="text"
+                class="company-settings__input"
+                formControlName="ownerName"
+                placeholder="例: 山田 太郎"
+                autocomplete="name"
+              />
+              @if (showError('ownerName')) {
+                <p class="company-settings__error">{{ errorMessage('ownerName') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <span class="company-settings__label" id="postalCodeLabel">郵便番号</span>
+              <app-postal-code-input
+                formControlName="postalCode"
+                aria-labelledby="postalCodeLabel"
+                [invalid]="showError('postalCode')"
+              />
+              @if (showError('postalCode')) {
+                <p class="company-settings__error">{{ errorMessage('postalCode') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="phoneNumber">電話番号</label>
+              <input
+                id="phoneNumber"
+                type="tel"
+                class="company-settings__input"
+                formControlName="phoneNumber"
+                placeholder="例: 03-1234-5678"
+                inputmode="tel"
+              />
+              @if (showError('phoneNumber')) {
+                <p class="company-settings__error">{{ errorMessage('phoneNumber') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="prefecture">都道府県</label>
+              <select id="prefecture" class="company-settings__select" formControlName="prefecture">
+                <option value="" disabled>選択してください</option>
+                @for (pref of prefectures; track pref.name) {
+                  <option [value]="pref.name">{{ pref.name }}</option>
+                }
+              </select>
+              @if (showError('prefecture')) {
+                <p class="company-settings__error">{{ errorMessage('prefecture') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="cityAddress">市区町村・番地</label>
+              <input
+                id="cityAddress"
+                type="text"
+                class="company-settings__input"
+                formControlName="cityAddress"
+                placeholder="例: 千代田区丸の内1-1-1"
+                autocomplete="street-address"
+              />
+              @if (showError('cityAddress')) {
+                <p class="company-settings__error">{{ errorMessage('cityAddress') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="prefectureCode">都道府県コード</label>
+              <input
+                id="prefectureCode"
+                type="text"
+                class="company-settings__input"
+                formControlName="prefectureCode"
+                placeholder="例: 13"
+                inputmode="numeric"
+                maxlength="2"
+              />
+              @if (showError('prefectureCode')) {
+                <p class="company-settings__error">{{ errorMessage('prefectureCode') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="districtCode">郡市区符号</label>
+              <input
+                id="districtCode"
+                type="text"
+                class="company-settings__input"
+                formControlName="districtCode"
+                placeholder="例: 01"
+                inputmode="numeric"
+                maxlength="2"
+              />
+              @if (showError('districtCode')) {
+                <p class="company-settings__error">{{ errorMessage('districtCode') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="referenceMark">整理記号</label>
+              <input
+                id="referenceMark"
+                type="text"
+                class="company-settings__input"
+                formControlName="referenceMark"
+                placeholder="例: ア-1234"
+              />
+              @if (showError('referenceMark')) {
+                <p class="company-settings__error">{{ errorMessage('referenceMark') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="officeNumber">事業所番号</label>
+              <input
+                id="officeNumber"
+                type="text"
+                class="company-settings__input"
+                formControlName="officeNumber"
+                placeholder="例: 12345"
+                inputmode="numeric"
+                maxlength="5"
+              />
+              @if (showError('officeNumber')) {
+                <p class="company-settings__error">{{ errorMessage('officeNumber') }}</p>
+              }
+            </div>
+          </div>
+        } @else if (activeTab() === 'rates') {
+          <div class="company-settings__grid">
+            <div class="company-settings__field company-settings__field--full">
+              <p class="company-settings__hint">
+                都道府県を変更すると、基本情報タブの「都道府県」に連動して健康保険料率が自動入力されます。
+              </p>
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="healthInsuranceRate">健康保険料率（%）</label>
+              <input
+                id="healthInsuranceRate"
+                type="number"
+                class="company-settings__input company-settings__input--rate"
+                formControlName="healthInsuranceRate"
+                placeholder="例: 9.85"
+                min="0"
+                step="0.01"
+              />
+              @if (showError('healthInsuranceRate')) {
+                <p class="company-settings__error">{{ errorMessage('healthInsuranceRate') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="longTermCareInsuranceRate">
+                介護保険料率（%）
+              </label>
+              <input
+                id="longTermCareInsuranceRate"
+                type="number"
+                class="company-settings__input company-settings__input--rate"
+                formControlName="longTermCareInsuranceRate"
+                placeholder="例: 1.62"
+                min="0"
+                step="0.01"
+              />
+              <p class="company-settings__hint">全国一律 1.62% が自動セットされます</p>
+              @if (showError('longTermCareInsuranceRate')) {
+                <p class="company-settings__error">{{ errorMessage('longTermCareInsuranceRate') }}</p>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="company-settings__allowances" formArrayName="allowances">
+            <p class="company-settings__hint company-settings__hint--section">
+              会社独自の手当を登録します。給与計算や従業員台帳で利用できます。
+            </p>
+
+            <div class="company-settings__allowance-header" aria-hidden="true">
+              <span>手当名</span>
+              <span>金額（円）</span>
+              <span></span>
+            </div>
+
+            <div class="company-settings__allowance-list">
+              @for (allowance of allowances.controls; track $index) {
+                <div class="company-settings__allowance-row" [formGroupName]="$index">
+                  <div class="company-settings__field">
+                    <label class="company-settings__sr-only" [for]="'allowanceName' + $index">
+                      手当名
+                    </label>
+                    <input
+                      [id]="'allowanceName' + $index"
+                      type="text"
+                      class="company-settings__input"
+                      formControlName="name"
+                      placeholder="手当名を入力"
+                    />
+                    @if (showAllowanceError($index, 'name')) {
+                      <p class="company-settings__error">
+                        {{ allowanceErrorMessage($index, 'name') }}
+                      </p>
+                    }
+                  </div>
+
+                  <div class="company-settings__field">
+                    <label class="company-settings__sr-only" [for]="'allowanceAmount' + $index">
+                      金額
+                    </label>
+                    <input
+                      [id]="'allowanceAmount' + $index"
+                      type="number"
+                      class="company-settings__input company-settings__input--amount"
+                      formControlName="amount"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                      inputmode="numeric"
+                    />
+                    @if (showAllowanceError($index, 'amount')) {
+                      <p class="company-settings__error">
+                        {{ allowanceErrorMessage($index, 'amount') }}
+                      </p>
+                    }
+                  </div>
+
+                  <button
+                    type="button"
+                    class="company-settings__remove-btn"
+                    aria-label="手当を削除"
+                    (click)="removeAllowance($index)"
+                  >
+                    <span class="company-settings__remove-icon" aria-hidden="true">🗑</span>
+                  </button>
+                </div>
+              }
+            </div>
+
+            <button type="button" class="company-settings__add-btn" (click)="addAllowance()">
+              ＋ 手当を追加
+            </button>
+          </div>
+        }
+
+        <div class="company-settings__actions">
+          @if (saveError()) {
+            <p class="company-settings__error company-settings__error--banner">{{ saveError() }}</p>
+          }
+          <button
+            type="submit"
+            class="company-settings__submit"
+            [disabled]="form.invalid || saving()"
+          >
+            {{ saving() ? '保存中...' : '設定を保存' }}
+          </button>
+        </div>
+      }
+    </form>
+  </div>
+</section>

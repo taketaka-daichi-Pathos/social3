@@ -1,1 +1,25 @@
-/* You can add global styles to this file, and also import other style files */
+@use 'styles/variables' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: $font-family;
+  font-size: 16px;
+  color: $color-text;
+  background: $color-bg-page;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+}

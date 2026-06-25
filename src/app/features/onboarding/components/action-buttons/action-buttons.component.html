@@ -1,0 +1,13 @@
+<div class="action-buttons" role="toolbar" aria-label="入社管理アクション">
+  @for (button of buttons(); track button.label) {
+    <button
+      type="button"
+      class="action-buttons__btn"
+      [class]="'action-buttons__btn--' + button.variant"
+      (click)="onButtonClick(button)"
+    >
+      <span class="action-buttons__icon" aria-hidden="true">{{ button.icon }}</span>
+      <span class="action-buttons__label">{{ button.label }}</span>
+    </button>
+  }
+</div>

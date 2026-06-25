@@ -1,0 +1,9 @@
+@use '../../../../../styles/variables' as *;
+
+:host {
+  display: block;
+}
+
+.dashboard-content {
+  padding: 0 0 2rem;
+}

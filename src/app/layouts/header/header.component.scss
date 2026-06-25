@@ -1,0 +1,44 @@
+@use '../../../styles/variables' as *;
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: $color-bg-surface;
+  border-bottom: 1px solid $color-border;
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: $color-primary-dark;
+    letter-spacing: 0.02em;
+  }
+
+  &__logout {
+    padding: 0.5rem 1.25rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #f5f5f5;
+    color: $color-text-muted;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: #eeeeee;
+    }
+  }
+}

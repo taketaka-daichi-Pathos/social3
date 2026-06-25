@@ -1,0 +1,77 @@
+@if (open()) {
+  <div
+    class="breakdown-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="breakdown-modal-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="breakdown-modal__panel">
+      <header class="breakdown-modal__header">
+        <div>
+          <p class="breakdown-modal__label">予定固定賃金の内訳</p>
+          <h2 id="breakdown-modal-title" class="breakdown-modal__title">{{ employeeName() }}</h2>
+        </div>
+        <button type="button" class="breakdown-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <form class="breakdown-modal__body" [formGroup]="form" (ngSubmit)="onConfirm()" novalidate>
+        <div class="breakdown-modal__field">
+          <label class="breakdown-modal__field-label" for="breakdownBaseSalary">基本給</label>
+          <input
+            id="breakdownBaseSalary"
+            type="number"
+            class="breakdown-modal__input"
+            formControlName="baseSalary"
+            min="0"
+            step="1"
+            inputmode="numeric"
+          />
+        </div>
+
+        <div formArrayName="allowances" class="breakdown-modal__allowance-list">
+          @for (allowance of allowances.controls; track allowance.controls.name.value; let i = $index) {
+            <div class="breakdown-modal__field" [formGroupName]="i">
+              <label class="breakdown-modal__field-label" [for]="'breakdownAllowance' + i">
+                {{ allowance.controls.name.value }}
+              </label>
+              <input
+                [id]="'breakdownAllowance' + i"
+                type="number"
+                class="breakdown-modal__input"
+                formControlName="amount"
+                min="0"
+                step="1"
+                inputmode="numeric"
+              />
+            </div>
+          }
+        </div>
+
+        @if (error()) {
+          <p class="breakdown-modal__error" role="alert">{{ error() }}</p>
+        }
+
+        <footer class="breakdown-modal__footer">
+          <button
+            type="button"
+            class="breakdown-modal__btn breakdown-modal__btn--ghost"
+            [disabled]="saving()"
+            (click)="close()"
+          >
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            class="breakdown-modal__btn breakdown-modal__btn--primary"
+            [disabled]="saving()"
+          >
+            {{ saving() ? '保存中...' : '確定' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+}

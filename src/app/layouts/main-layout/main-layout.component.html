@@ -1,0 +1,9 @@
+<div class="layout">
+  <app-header (logout)="onLogout()" />
+
+  <app-global-nav [items]="mainNavItems" />
+
+  <main class="layout__main">
+    <router-outlet />
+  </main>
+</div>

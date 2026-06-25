@@ -1,0 +1,25 @@
+<div
+  class="postal-code"
+  [class.postal-code--invalid]="invalid()"
+  (paste)="onDigitPaste($event)"
+>
+  @for (digit of digits; track $index; let i = $index) {
+    @if (i === 3) {
+      <span class="postal-code__separator" aria-hidden="true">-</span>
+    }
+    <input
+      #digitInput
+      type="text"
+      class="postal-code__digit"
+      [value]="digits[i]"
+      inputmode="numeric"
+      maxlength="1"
+      autocomplete="postal-code"
+      [attr.aria-label]="'郵便番号' + (i + 1) + '桁目'"
+      [disabled]="disabled"
+      (input)="onDigitInput(i, $event)"
+      (keydown)="onDigitKeydown(i, $event)"
+      (blur)="onBlur()"
+    />
+  }
+</div>

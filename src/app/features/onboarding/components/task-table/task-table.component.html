@@ -1,0 +1,38 @@
+<div class="task-table-wrapper">
+  <table class="task-table">
+    <thead>
+      <tr>
+        <th scope="col">メールアドレス</th>
+        <th scope="col">進捗フラグ</th>
+        <th scope="col">対応タスク</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (task of tasks(); track task.id) {
+        <tr>
+          <td>
+            <button
+              type="button"
+              class="task-table__email"
+              (click)="onEmailClick(task)"
+            >
+              {{ task.email }}
+            </button>
+          </td>
+          <td>
+            <app-status-badge
+              [label]="task.progressLabel"
+              [variant]="statusVariant(task.progressStatus)"
+              [icon]="statusIcon(task.progressStatus)"
+            />
+          </td>
+          <td class="task-table__description">{{ task.taskDescription }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="3" class="task-table__empty">タスクがありません</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

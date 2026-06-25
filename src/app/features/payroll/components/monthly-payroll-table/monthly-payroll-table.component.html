@@ -1,0 +1,185 @@
+<section class="payroll-table">
+  <header class="payroll-table__header">
+    <div>
+      <h2 class="payroll-table__title">月次給与</h2>
+      <p class="payroll-table__description">
+        {{ targetMonthLabel() }}の給与を入力・保存します。入社前の従業員は表示されません。
+      </p>
+    </div>
+
+    <div class="payroll-table__month-picker">
+      <span class="payroll-table__month-label">対象月</span>
+      <div class="payroll-table__month-controls">
+        <button
+          type="button"
+          class="payroll-table__month-nav"
+          aria-label="前月へ"
+          (click)="goToPreviousMonth()"
+        >
+          ◀ 前月
+        </button>
+
+        <div class="payroll-table__month-selects">
+          <label class="payroll-table__sr-only" for="payrollTargetYear">年</label>
+          <app-year-select
+            inputId="payrollTargetYear"
+            selectClass="payroll-table__month-select"
+            [value]="selectedYear()"
+            (valueChange)="onYearSelected($event)"
+          />
+
+          <label class="payroll-table__sr-only" for="payrollTargetMonth">月</label>
+          <select
+            id="payrollTargetMonth"
+            class="payroll-table__month-select"
+            [value]="selectedMonth()"
+            (change)="onMonthChange($event)"
+          >
+            @for (month of monthOptions; track month) {
+              <option [value]="month" [selected]="month === selectedMonth()">{{ month }}月</option>
+            }
+          </select>
+        </div>
+
+        <button
+          type="button"
+          class="payroll-table__month-nav"
+          aria-label="次月へ"
+          (click)="goToNextMonth()"
+        >
+          次月 ▶
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="payroll-table__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="payroll-table__status">読み込み中...</p>
+  } @else if (loadError() && entries.length === 0) {
+    <p class="payroll-table__status">データを表示できません</p>
+  } @else if (entries.length === 0) {
+    <p class="payroll-table__status">対象月に該当する従業員がいません</p>
+  } @else {
+    <div class="payroll-table__wrap" [formGroup]="form">
+      <table class="payroll-table__grid">
+        <colgroup>
+          <col class="payroll-table__col-number" />
+          <col class="payroll-table__col-name" />
+          <col class="payroll-table__col-fixed" />
+          <col class="payroll-table__col-amount" />
+          <col class="payroll-table__col-days" />
+          <col class="payroll-table__col-total" />
+          <col class="payroll-table__col-action" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>社員番号</th>
+            <th>名前</th>
+            <th class="payroll-table__th-amount">予定固定賃金</th>
+            <th class="payroll-table__th-amount">非固定的賃金</th>
+            <th class="payroll-table__th-days">基礎日数</th>
+            <th class="payroll-table__th-amount">合計</th>
+            <th class="payroll-table__th-action">操作</th>
+          </tr>
+        </thead>
+        <tbody formArrayName="entries">
+          @for (row of entries.controls; track row.controls.employeeId.value; let i = $index) {
+            <tr
+              class="payroll-table__row"
+              [class.payroll-table__row--locked]="isRowLocked(i)"
+              [class.payroll-table__row--pre-hire]="isRowBeforeHire(i)"
+              [formGroupName]="i"
+            >
+              <td class="payroll-table__cell-number">{{ row.controls.employeeNumber.value }}</td>
+              <td class="payroll-table__cell-name">{{ row.controls.employeeName.value }}</td>
+              <td class="payroll-table__cell-fixed">
+                <div class="payroll-table__fixed-summary">
+                  <span class="payroll-table__fixed-total">¥{{ rowFixedTotal(i) | number }}</span>
+                  @if (!isRowDisabled(i)) {
+                    <button
+                      type="button"
+                      class="payroll-table__edit-btn"
+                      (click)="openBreakdownModal(i)"
+                    >
+                      内訳を編集
+                    </button>
+                  }
+                </div>
+              </td>
+              <td class="payroll-table__cell-amount">
+                <input
+                  type="number"
+                  class="payroll-table__input"
+                  formControlName="nonFixedWages"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </td>
+              <td class="payroll-table__cell-days">
+                <input
+                  type="number"
+                  class="payroll-table__input payroll-table__input--days"
+                  formControlName="baseDays"
+                  min="0"
+                  max="31"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </td>
+              <td class="payroll-table__cell-total">¥{{ rowTotal(i) | number }}</td>
+              <td class="payroll-table__cell-action">
+                @if (isRowBeforeHire(i)) {
+                  <span class="payroll-table__pre-hire-badge" title="入社前のため操作不可">
+                    ※入社前のため操作不可
+                  </span>
+                } @else if (isRowLocked(i)) {
+                  <span class="payroll-table__locked-badge">保存済</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="payroll-table__save-btn"
+                    [disabled]="
+                      row.invalid ||
+                      isRowSaving(row.controls.employeeId.value) ||
+                      !canSaveRow(i)
+                    "
+                    (click)="onSaveRow(i)"
+                  >
+                    {{ isRowSaving(row.controls.employeeId.value) ? '保存中...' : '保存' }}
+                  </button>
+                }
+                @if (needsPreviousMonthSave(i)) {
+                  <p class="payroll-table__warning">前月の保存が必要です</p>
+                }
+                @if (rowError(row.controls.employeeId.value)) {
+                  <p class="payroll-table__row-error" role="alert">
+                    {{ rowError(row.controls.employeeId.value) }}
+                  </p>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+
+<app-payroll-breakdown-modal
+  [open]="breakdownModalOpen()"
+  [employeeName]="
+    breakdownRowIndex() != null
+      ? entries.at(breakdownRowIndex()!).controls.employeeName.value
+      : ''
+  "
+  [value]="breakdownValue()"
+  [saving]="breakdownSaving()"
+  [error]="breakdownError()"
+  (confirmed)="onBreakdownConfirmed($event)"
+  (closed)="onBreakdownModalClosed()"
+/>

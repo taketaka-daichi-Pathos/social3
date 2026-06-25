@@ -1,0 +1,15 @@
+<input
+  class="iso-date-input"
+  [class.iso-date-input--invalid]="invalid()"
+  [id]="inputId() || null"
+  type="text"
+  [value]="displayValue()"
+  [placeholder]="placeholder()"
+  inputmode="numeric"
+  maxlength="10"
+  autocomplete="off"
+  [disabled]="disabled"
+  (input)="onInput($event)"
+  (paste)="onPaste($event)"
+  (blur)="onBlur()"
+/>

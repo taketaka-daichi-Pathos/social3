@@ -1,0 +1,16 @@
+<nav class="sub-nav" aria-label="サブナビゲーション">
+  <ul class="sub-nav__list">
+    @for (item of items(); track item.id) {
+      <li class="sub-nav__item">
+        <button
+          type="button"
+          class="sub-nav__btn"
+          [class.sub-nav__btn--active]="item.id === activeId()"
+          (click)="onSelect(item)"
+        >
+          {{ item.label }}
+        </button>
+      </li>
+    }
+  </ul>
+</nav>

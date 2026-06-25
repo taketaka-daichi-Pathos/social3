@@ -1,0 +1,141 @@
+<section class="insurance-table">
+  <header class="insurance-table__header">
+    <div>
+      <h2 class="insurance-table__title">月次保険料</h2>
+      <p class="insurance-table__description">
+        {{ targetMonthLabel() }}の社会保険料一覧です。算定基礎・随時改定で決定された等級を反映して計算しています。
+      </p>
+    </div>
+
+    <div class="insurance-table__month-picker">
+      <span class="insurance-table__month-label">対象月</span>
+      <div class="insurance-table__month-controls">
+        <button type="button" class="insurance-table__month-nav" (click)="goToPreviousMonth()">
+          ◀ 前月
+        </button>
+
+        <div class="insurance-table__month-selects">
+          <app-year-select
+            selectClass="insurance-table__month-select"
+            [value]="selectedYear()"
+            (valueChange)="onYearSelected($event)"
+          />
+
+          <select
+            class="insurance-table__month-select"
+            [value]="selectedMonth()"
+            (change)="onMonthChange($event)"
+          >
+            @for (month of monthOptions; track month) {
+              <option [value]="month" [selected]="month === selectedMonth()">{{ month }}月</option>
+            }
+          </select>
+        </div>
+
+        <button type="button" class="insurance-table__month-nav" (click)="goToNextMonth()">
+          次月 ▶
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="insurance-table__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (cumulative(); as totals) {
+    <section class="insurance-table__cumulative">
+      <h3 class="insurance-table__cumulative-title">{{ fiscalYearLabel() }} 累計</h3>
+      <div class="insurance-table__cumulative-grid">
+        <div class="insurance-table__cumulative-card">
+          <span class="insurance-table__cumulative-label">個人負担 累計</span>
+          <span class="insurance-table__cumulative-value">¥{{ totals.employeeShare | number }}</span>
+        </div>
+        <div class="insurance-table__cumulative-card">
+          <span class="insurance-table__cumulative-label">会社負担 累計</span>
+          <span class="insurance-table__cumulative-value">¥{{ totals.employerShare | number }}</span>
+        </div>
+        <div class="insurance-table__cumulative-card insurance-table__cumulative-card--total">
+          <span class="insurance-table__cumulative-label">合計 累計</span>
+          <span class="insurance-table__cumulative-value">¥{{ totals.total | number }}</span>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (loading()) {
+    <p class="insurance-table__status">計算中...</p>
+  } @else if (rows().length === 0) {
+    <p class="insurance-table__status">{{ emptyMessage() }}</p>
+  } @else {
+    <div class="insurance-table__wrap">
+      <table class="insurance-table__grid">
+        <thead>
+          <tr>
+            <th rowspan="2">社員番号</th>
+            <th rowspan="2">名前</th>
+            <th rowspan="2">等級（健保/厚年）</th>
+            <th rowspan="2">適用</th>
+            <th colspan="3">健康保険</th>
+            <th colspan="3">介護保険</th>
+            <th colspan="3">厚生年金</th>
+            <th colspan="3">合計</th>
+          </tr>
+          <tr>
+            <th class="insurance-table__th-amount">個人</th>
+            <th class="insurance-table__th-amount">会社</th>
+            <th class="insurance-table__th-amount">計</th>
+            <th class="insurance-table__th-amount">個人</th>
+            <th class="insurance-table__th-amount">会社</th>
+            <th class="insurance-table__th-amount">計</th>
+            <th class="insurance-table__th-amount">個人</th>
+            <th class="insurance-table__th-amount">会社</th>
+            <th class="insurance-table__th-amount">計</th>
+            <th class="insurance-table__th-amount">個人</th>
+            <th class="insurance-table__th-amount">会社</th>
+            <th class="insurance-table__th-amount">計</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.employee.id) {
+            <tr>
+              <td>{{ row.employee.employeeNumber }}</td>
+              <td class="insurance-table__cell-name">
+                {{ row.employee.lastName }} {{ row.employee.firstName }}
+              </td>
+              <td>
+                {{ row.effective.healthGrade ?? '—' }} / {{ row.effective.pensionGrade ?? '—' }}
+              </td>
+              <td>
+                <span
+                  class="insurance-table__badge"
+                  [class.insurance-table__badge--revision]="row.effective.source !== 'employee_master'"
+                >
+                  {{ revisionSourceLabel(row.effective.source) }}
+                </span>
+              </td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.health.employeeShare | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.health.employerShare | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.health.total | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.longTermCare.employeeShare | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.longTermCare.employerShare | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.longTermCare.total | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.pension.employeeShare | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.pension.employerShare | number }}</td>
+              <td class="insurance-table__cell-amount">¥{{ row.premiums.pension.total | number }}</td>
+              <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                ¥{{ row.totals.employeeShare | number }}
+              </td>
+              <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                ¥{{ row.totals.employerShare | number }}
+              </td>
+              <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                ¥{{ row.totals.total | number }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

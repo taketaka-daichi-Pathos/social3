@@ -1,0 +1,46 @@
+@use '../../../../styles/variables' as *;
+
+:host {
+  display: inline-block;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: $radius-pill;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+
+  &__icon {
+    font-size: 0.875rem;
+  }
+
+  &--waiting {
+    background-color: $color-warning;
+    color: $color-warning-text;
+  }
+
+  &--in-progress {
+    background-color: $color-primary;
+    color: #ffffff;
+  }
+
+  &--completed {
+    background-color: #e8f5e9;
+    color: $color-success;
+  }
+
+  &--error {
+    background-color: #ffebee;
+    color: $color-danger;
+  }
+
+  &--neutral {
+    background-color: $color-nav-inactive;
+    color: $color-text-muted;
+  }
+}

@@ -1,0 +1,245 @@
+<section class="auth-page register-page">
+  <div class="auth-page__card register-page__card">
+    <header class="auth-page__header">
+      <div class="auth-page__brand">
+        <span aria-hidden="true">👑</span>
+        <span>労務管理システム</span>
+      </div>
+      <h1 class="auth-page__title">新規企業登録</h1>
+      <p class="auth-page__subtitle">会社情報とアカウント情報を入力して登録してください</p>
+    </header>
+
+    <form class="auth-page__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <h2 class="register-page__section-title">会社情報</h2>
+      <div class="register-page__grid">
+        <div class="auth-page__field register-page__field--full">
+          <label class="auth-page__label" for="companyName">会社名</label>
+          <input
+            id="companyName"
+            type="text"
+            class="auth-page__input"
+            formControlName="companyName"
+            placeholder="例: 株式会社サンプル"
+            autocomplete="organization"
+          />
+          @if (showError('companyName')) {
+            <p class="auth-page__error">{{ errorMessage('companyName') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field register-page__field--full">
+          <label class="auth-page__label" for="ownerName">事業主氏名</label>
+          <input
+            id="ownerName"
+            type="text"
+            class="auth-page__input"
+            formControlName="ownerName"
+            placeholder="例: 山田 太郎"
+            autocomplete="name"
+          />
+          @if (showError('ownerName')) {
+            <p class="auth-page__error">{{ errorMessage('ownerName') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <span class="auth-page__label" id="postalCodeLabel">郵便番号</span>
+          <app-postal-code-input
+            formControlName="postalCode"
+            aria-labelledby="postalCodeLabel"
+            [invalid]="showError('postalCode')"
+          />
+          @if (showError('postalCode')) {
+            <p class="auth-page__error">{{ errorMessage('postalCode') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="phoneNumber">電話番号</label>
+          <input
+            id="phoneNumber"
+            type="tel"
+            class="auth-page__input"
+            formControlName="phoneNumber"
+            placeholder="例: 03-1234-5678"
+            inputmode="tel"
+          />
+          @if (showError('phoneNumber')) {
+            <p class="auth-page__error">{{ errorMessage('phoneNumber') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field register-page__field--full">
+          <label class="auth-page__label" for="address">所在地</label>
+          <input
+            id="address"
+            type="text"
+            class="auth-page__input"
+            formControlName="address"
+            placeholder="例: 東京都千代田区丸の内1-1-1"
+            autocomplete="street-address"
+          />
+          @if (showError('address')) {
+            <p class="auth-page__error">{{ errorMessage('address') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="prefectureCode">都道府県コード</label>
+          <input
+            id="prefectureCode"
+            type="text"
+            class="auth-page__input"
+            formControlName="prefectureCode"
+            placeholder="例: 13"
+            inputmode="numeric"
+            maxlength="2"
+          />
+          @if (showError('prefectureCode')) {
+            <p class="auth-page__error">{{ errorMessage('prefectureCode') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="districtCode">郡市区符号</label>
+          <input
+            id="districtCode"
+            type="text"
+            class="auth-page__input"
+            formControlName="districtCode"
+            placeholder="例: 01"
+            inputmode="numeric"
+            maxlength="2"
+          />
+          @if (showError('districtCode')) {
+            <p class="auth-page__error">{{ errorMessage('districtCode') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="referenceMark">整理記号</label>
+          <input
+            id="referenceMark"
+            type="text"
+            class="auth-page__input"
+            formControlName="referenceMark"
+            placeholder="例: ア-1234"
+          />
+          @if (showError('referenceMark')) {
+            <p class="auth-page__error">{{ errorMessage('referenceMark') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="officeNumber">事業所番号</label>
+          <input
+            id="officeNumber"
+            type="text"
+            class="auth-page__input"
+            formControlName="officeNumber"
+            placeholder="例: 12345"
+            inputmode="numeric"
+            maxlength="5"
+          />
+          @if (showError('officeNumber')) {
+            <p class="auth-page__error">{{ errorMessage('officeNumber') }}</p>
+          }
+        </div>
+      </div>
+
+      <h2 class="register-page__section-title">アカウント情報</h2>
+      <div class="register-page__grid">
+        <div class="auth-page__field register-page__field--full">
+          <label class="auth-page__label" for="email">メールアドレス</label>
+          <input
+            id="email"
+            type="email"
+            class="auth-page__input"
+            formControlName="email"
+            placeholder="例: user@example.com"
+            autocomplete="email"
+          />
+          @if (showError('email')) {
+            <p class="auth-page__error">{{ errorMessage('email') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="password">パスワード</label>
+          <input
+            id="password"
+            type="password"
+            class="auth-page__input"
+            formControlName="password"
+            placeholder="パスワードを入力"
+            autocomplete="new-password"
+          />
+          @if (showError('password')) {
+            <p class="auth-page__error">{{ errorMessage('password') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="confirmPassword">パスワード（確認用）</label>
+          <input
+            id="confirmPassword"
+            type="password"
+            class="auth-page__input"
+            formControlName="confirmPassword"
+            placeholder="パスワードを再入力"
+            autocomplete="new-password"
+          />
+          @if (showError('confirmPassword')) {
+            <p class="auth-page__error">{{ errorMessage('confirmPassword') }}</p>
+          }
+          @if (showPasswordMismatch()) {
+            <p class="auth-page__error">パスワードが一致しません</p>
+          }
+        </div>
+      </div>
+
+      <div class="register-page__company-id">
+        <label class="auth-page__label" for="companyId">会社ID</label>
+        <div class="register-page__id-row">
+          <input
+            id="companyId"
+            type="text"
+            class="auth-page__input register-page__id-input"
+            formControlName="companyId"
+            placeholder="例: 12345"
+            inputmode="numeric"
+            maxlength="5"
+            readonly
+          />
+          <button
+            type="button"
+            class="register-page__generate"
+            (click)="generateCompanyId()"
+          >
+            再生成
+          </button>
+        </div>
+        <p class="register-page__hint">登録時に自動採番されます（5桁の数字）</p>
+        @if (showError('companyId')) {
+          <p class="auth-page__error">{{ errorMessage('companyId') }}</p>
+        }
+      </div>
+
+      <button
+        type="submit"
+        class="auth-page__submit"
+        [disabled]="form.invalid || saving()"
+      >
+        {{ saving() ? '登録中...' : '登録する' }}
+      </button>
+      @if (submitError()) {
+        <p class="auth-page__error register-page__submit-error">{{ submitError() }}</p>
+      }
+    </form>
+
+    <footer class="auth-page__footer">
+      すでにアカウントをお持ちの方は
+      <a class="auth-page__link" routerLink="/login">こちら（ログイン画面へ）</a>
+    </footer>
+  </div>
+</section>

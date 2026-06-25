@@ -1,0 +1,12 @@
+<app-action-buttons
+  [buttons]="actionButtons"
+  (buttonClick)="onActionClick($event)"
+/>
+
+<section class="dashboard-content">
+  <app-task-table
+    [tasks]="tasks"
+    (emailClick)="onEmailClick($event)"
+  />
+</section>
+

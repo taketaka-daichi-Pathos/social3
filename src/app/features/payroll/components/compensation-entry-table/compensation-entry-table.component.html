@@ -1,0 +1,150 @@
+<section class="comp-table">
+  <header class="comp-table__header">
+    <div>
+      <h2 class="comp-table__title">{{ titleLabel }}</h2>
+      <p class="comp-table__description">
+        {{ targetMonthLabel() }}の{{ titleLabel }}を入力・保存します。入社前の従業員は表示されません。
+      </p>
+    </div>
+
+    <div class="comp-table__month-picker">
+      <span class="comp-table__month-label">対象月</span>
+      <div class="comp-table__month-controls">
+        <button
+          type="button"
+          class="comp-table__month-nav"
+          aria-label="前月へ"
+          (click)="goToPreviousMonth()"
+        >
+          ◀ 前月
+        </button>
+
+        <div class="comp-table__month-selects">
+          <label class="comp-table__sr-only" for="bonusTargetYear">年</label>
+          <app-year-select
+            inputId="bonusTargetYear"
+            selectClass="comp-table__month-select"
+            [value]="selectedYear()"
+            (valueChange)="onYearSelected($event)"
+          />
+
+          <label class="comp-table__sr-only" for="bonusTargetMonth">月</label>
+          <select
+            id="bonusTargetMonth"
+            class="comp-table__month-select"
+            [value]="selectedMonth()"
+            (change)="onMonthChange($event)"
+          >
+            @for (month of monthOptions; track month) {
+              <option [value]="month" [selected]="month === selectedMonth()">{{ month }}月</option>
+            }
+          </select>
+        </div>
+
+        <button
+          type="button"
+          class="comp-table__month-nav"
+          aria-label="次月へ"
+          (click)="goToNextMonth()"
+        >
+          次月 ▶
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="comp-table__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="comp-table__status">読み込み中...</p>
+  } @else if (loadError() && entries.length === 0) {
+    <p class="comp-table__status">データを表示できません</p>
+  } @else if (entries.length === 0) {
+    <p class="comp-table__status">対象月に該当する従業員がいません</p>
+  } @else {
+    <form class="comp-table__form" [formGroup]="form" (ngSubmit)="onSave()" novalidate>
+      <div class="comp-table__wrap" [class.comp-table__wrap--locked]="locked()">
+        <table class="comp-table__grid">
+          <colgroup>
+            <col class="comp-table__col-number" />
+            <col class="comp-table__col-name" />
+            <col class="comp-table__col-amount" />
+            <col class="comp-table__col-amount" />
+            <col class="comp-table__col-total" />
+            <col class="comp-table__col-action" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>社員番号</th>
+              <th>名前</th>
+              <th class="comp-table__th-amount">総支給額</th>
+              <th class="comp-table__th-amount">非固定的賃金</th>
+              <th class="comp-table__th-amount">合計</th>
+              <th class="comp-table__th-action">操作</th>
+            </tr>
+          </thead>
+          <tbody formArrayName="entries">
+            @for (row of entries.controls; track row.controls.employeeId.value; let i = $index) {
+              <tr
+                class="comp-table__row"
+                [class.comp-table__row--pre-hire]="isRowBeforeHire(i)"
+                [formGroupName]="i"
+              >
+                <td class="comp-table__cell-number">{{ row.controls.employeeNumber.value }}</td>
+                <td class="comp-table__cell-name">{{ row.controls.employeeName.value }}</td>
+                <td class="comp-table__cell-amount">
+                  <input
+                    type="number"
+                    class="comp-table__input"
+                    formControlName="fixedWages"
+                    min="0"
+                    step="1"
+                    inputmode="numeric"
+                  />
+                </td>
+                <td class="comp-table__cell-amount">
+                  <input
+                    type="number"
+                    class="comp-table__input"
+                    formControlName="nonFixedWages"
+                    min="0"
+                    step="1"
+                    inputmode="numeric"
+                  />
+                </td>
+                <td class="comp-table__cell-total">¥{{ rowTotal(i) | number }}</td>
+                <td class="comp-table__cell-action">
+                  @if (isRowBeforeHire(i)) {
+                    <span class="comp-table__pre-hire-badge" title="入社前のため操作不可">
+                      ※入社前のため操作不可
+                    </span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="comp-table__actions">
+        @if (locked()) {
+          <span class="comp-table__locked-badge">保存済み（編集ロック中）</span>
+        }
+
+        @if (saveError()) {
+          <p class="comp-table__alert" role="alert">{{ saveError() }}</p>
+        }
+
+        <button
+          type="submit"
+          class="comp-table__save-btn"
+          [disabled]="!canSave() || saving()"
+        >
+          {{ saving() ? '保存中...' : '保存' }}
+        </button>
+      </div>
+    </form>
+  }
+</section>

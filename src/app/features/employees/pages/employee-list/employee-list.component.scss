@@ -1,0 +1,266 @@
+@use '../../../../../styles/variables' as *;
+
+.employee-list {
+  padding: 1.5rem;
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1.25rem 1.5rem;
+    background: $color-bg-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+  }
+
+  &__title {
+    margin: 0 0 0.35rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__description {
+    margin: 0;
+    font-size: 0.875rem;
+    color: $color-text-muted;
+  }
+
+  &__add-btn {
+    flex-shrink: 0;
+    padding: 0.55rem 1.1rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: $color-bg-surface;
+    color: $color-text;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+    }
+  }
+
+  &__alert {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #fecaca;
+    border-radius: $radius-md;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.875rem;
+  }
+
+  &__tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  &__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: $color-bg-surface;
+    color: $color-text-muted;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+
+    &--active {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+  }
+
+  &__tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__body {
+    padding: 1.25rem;
+    background: $color-bg-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+  }
+
+  &__empty {
+    margin: 0;
+    text-align: center;
+    color: $color-text-muted;
+    font-size: 0.875rem;
+  }
+}
+
+.emp-table-wrap {
+  overflow-x: auto;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: #fff;
+}
+
+.emp-table {
+  width: 100%;
+  min-width: 56rem;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  &__col-name {
+    width: 14%;
+  }
+
+  &__col-salary {
+    width: 12%;
+  }
+
+  &__col-grade {
+    width: 18%;
+  }
+
+  &__col-burden {
+    width: 18%;
+  }
+
+  &__col-total {
+    width: 10%;
+  }
+
+  &__col-action {
+    width: 10%;
+  }
+
+  thead {
+    background: #f8fafc;
+    border-bottom: 1px solid $color-border;
+  }
+
+  th {
+    padding: 0.75rem 1rem;
+    color: $color-text-muted;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  &__row {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.12s ease;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: #fafbfc;
+    }
+  }
+
+  td {
+    padding: 0.85rem 1rem;
+    color: $color-text;
+    vertical-align: middle;
+  }
+
+  &__name {
+    overflow: hidden;
+  }
+
+  &__employee-name {
+    display: block;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__employee-number {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__grade {
+    color: $color-text;
+    font-variant-numeric: tabular-nums;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  &__amount {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+
+    &--stacked {
+      white-space: normal;
+    }
+  }
+
+  &__amount-main {
+    display: block;
+    white-space: nowrap;
+  }
+
+  &__amount-breakdown {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: $color-text-muted;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  th#{&}__amount {
+    text-align: right;
+  }
+
+  &__action {
+    text-align: center;
+  }
+
+  th#{&}__action {
+    text-align: center;
+  }
+
+  &__detail-btn {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: $color-text;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+  }
+}

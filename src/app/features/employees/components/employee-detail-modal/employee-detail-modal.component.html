@@ -1,0 +1,157 @@
+@if (open() && employee(); as emp) {
+  @let ins = summary();
+
+  <div
+    class="detail-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="employee-detail-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="detail-modal__panel">
+      <header class="detail-modal__header">
+        <div>
+          <p class="detail-modal__number">社員番号: {{ emp.employeeNumber }}</p>
+          <h2 id="employee-detail-title" class="detail-modal__title">{{ fullName(emp) }}</h2>
+          <p class="detail-modal__kana">{{ fullNameKana(emp) }}</p>
+        </div>
+        <button type="button" class="detail-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <div class="detail-modal__body">
+        <section class="detail-modal__section">
+          <h3 class="detail-modal__section-title">基本情報</h3>
+          <dl class="detail-modal__grid">
+            <dt>登録タイプ</dt>
+            <dd>{{ registrationTypeLabel(emp.registrationType) }}</dd>
+            <dt>生年月日</dt>
+            <dd>{{ emp.birthDate }}@if (ins) {（{{ ins.age }} 歳）}</dd>
+            <dt>性別</dt>
+            <dd>{{ genderLabel(emp.gender) }}</dd>
+            <dt>入社年月日</dt>
+            <dd>{{ emp.hireDate }}</dd>
+            <dt>マイナンバー</dt>
+            <dd>{{ myNumberLabel(emp) }}</dd>
+            <dt>扶養の有無</dt>
+            <dd>{{ dependentsLabel(emp.hasDependents) }}</dd>
+            <dt>被保険者整理番号</dt>
+            <dd>{{ emp.insuredPersonNumber || '—' }}</dd>
+          </dl>
+        </section>
+
+        @if (hasPayrollHistory(emp)) {
+          <section class="detail-modal__section">
+            <h3 class="detail-modal__section-title">給与・保険料の履歴</h3>
+            <dl class="detail-modal__grid">
+              <dt>直近の基本給</dt>
+              <dd class="detail-modal__amount">¥{{ emp.baseSalary | number }}</dd>
+              <dt>健康保険 標準報酬月額</dt>
+              <dd class="detail-modal__amount">¥{{ emp.healthStandardRemuneration | number }}</dd>
+              <dt>厚生年金 標準報酬月額</dt>
+              <dd class="detail-modal__amount">¥{{ emp.pensionStandardRemuneration | number }}</dd>
+              <dt>給与・保険料の適用開始年月</dt>
+              <dd>{{ formatYearMonth(emp.applicableStartMonth) }}</dd>
+            </dl>
+          </section>
+        } @else {
+          <section class="detail-modal__section">
+            <h3 class="detail-modal__section-title">給与・保険料の履歴</h3>
+            <dl class="detail-modal__grid">
+              <dt>基本給</dt>
+              <dd class="detail-modal__amount">¥{{ emp.baseSalary | number }}</dd>
+              <dt>健康保険 標準報酬月額</dt>
+              <dd class="detail-modal__amount">¥{{ emp.healthStandardRemuneration | number }}</dd>
+              <dt>厚生年金 標準報酬月額</dt>
+              <dd class="detail-modal__amount">¥{{ emp.pensionStandardRemuneration | number }}</dd>
+            </dl>
+            <p class="detail-modal__empty">適用開始年月は未登録です（新入社員登録）</p>
+          </section>
+        }
+
+        <section class="detail-modal__section">
+          <h3 class="detail-modal__section-title">手当内訳</h3>
+          @if (hasAllowances(emp)) {
+            <ul class="detail-modal__allowance-list">
+              @for (allowance of emp.allowances; track allowance.name) {
+                <li class="detail-modal__allowance-item">
+                  <span class="detail-modal__allowance-name">{{ allowance.name }}</span>
+                  <span class="detail-modal__allowance-amount"
+                    >¥{{ allowance.amount ?? 0 | number }}</span
+                  >
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="detail-modal__empty">手当情報は未登録です</p>
+          }
+        </section>
+
+        <section class="detail-modal__section">
+          <h3 class="detail-modal__section-title">標準報酬月額（現在）</h3>
+          <dl class="detail-modal__grid">
+            <dt>等級</dt>
+            <dd>@if (ins) { {{ gradeLabel(ins) }} } @else { — }</dd>
+            @if (ins?.isLongTermCareInsured) {
+              <dt>介護保険</dt>
+              <dd><span class="detail-modal__badge">第2号被保険者</span></dd>
+            }
+          </dl>
+        </section>
+
+        @if (ins?.premiums; as premiums) {
+          <section class="detail-modal__section">
+            <h3 class="detail-modal__section-title">社会保険料内訳</h3>
+            <div class="detail-modal__premium-table-wrap">
+              <table class="detail-modal__premium-table">
+                <thead>
+                  <tr>
+                    <th>保険種別</th>
+                    <th>個人負担</th>
+                    <th>会社負担</th>
+                    <th>合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>健康保険</td>
+                    <td>¥{{ premiums.health.employeeShare | number }}</td>
+                    <td>¥{{ premiums.health.employerShare | number }}</td>
+                    <td>¥{{ premiums.health.total | number }}</td>
+                  </tr>
+                  @if (premiums.longTermCare) {
+                    <tr>
+                      <td>介護保険</td>
+                      <td>¥{{ premiums.longTermCare.employeeShare | number }}</td>
+                      <td>¥{{ premiums.longTermCare.employerShare | number }}</td>
+                      <td>¥{{ premiums.longTermCare.total | number }}</td>
+                    </tr>
+                  }
+                  <tr>
+                    <td>厚生年金</td>
+                    <td>¥{{ premiums.pension.employeeShare | number }}</td>
+                    <td>¥{{ premiums.pension.employerShare | number }}</td>
+                    <td>¥{{ premiums.pension.total | number }}</td>
+                  </tr>
+                  <tr class="detail-modal__premium-total">
+                    <td>合計</td>
+                    <td>¥{{ premiumTotals(ins!).employeeShare | number }}</td>
+                    <td>¥{{ premiumTotals(ins!).employerShare | number }}</td>
+                    <td>¥{{ premiumTotals(ins!).total | number }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        } @else {
+          <p class="detail-modal__warning">保険料を算出できません（等級外の可能性があります）</p>
+        }
+      </div>
+
+      <footer class="detail-modal__footer">
+        <button type="button" class="detail-modal__btn" (click)="close()">閉じる</button>
+      </footer>
+    </div>
+  </div>
+}

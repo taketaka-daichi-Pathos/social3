@@ -1,0 +1,164 @@
+<section class="employee-list">
+  <header class="employee-list__header">
+    <div>
+      <h2 class="employee-list__title">従業員一覧</h2>
+      <p class="employee-list__description">社会保険料の等級・負担額を含む従業員台帳</p>
+    </div>
+    <button type="button" class="employee-list__add-btn" (click)="openEmployeeModal()">
+      ➕ 従業員を追加
+    </button>
+  </header>
+
+  @if (saveError()) {
+    <p class="employee-list__alert" role="alert">{{ saveError() }}</p>
+  }
+
+  @if (loadError()) {
+    <p class="employee-list__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  <nav class="employee-list__tabs" aria-label="従業員カテゴリ">
+    <button
+      type="button"
+      class="employee-list__tab"
+      [class.employee-list__tab--active]="activeTab() === 'pre'"
+      (click)="setTab('pre')"
+    >
+      入社前
+      <span class="employee-list__tab-count">{{ tabCounts().pre }}</span>
+    </button>
+    <button
+      type="button"
+      class="employee-list__tab"
+      [class.employee-list__tab--active]="activeTab() === 'active'"
+      (click)="setTab('active')"
+    >
+      在職中
+      <span class="employee-list__tab-count">{{ tabCounts().active }}</span>
+    </button>
+    <button
+      type="button"
+      class="employee-list__tab"
+      [class.employee-list__tab--active]="activeTab() === 'retired'"
+      (click)="setTab('retired')"
+    >
+      退職済み
+      <span class="employee-list__tab-count">{{ tabCounts().retired }}</span>
+    </button>
+  </nav>
+
+  <div class="employee-list__body">
+    @if (loading()) {
+      <p class="employee-list__empty">読み込み中...</p>
+    } @else if (loadError()) {
+      <p class="employee-list__empty">従業員データを表示できません</p>
+    } @else if (activeTab() === 'pre') {
+      @if (groups().preEmployment.length === 0) {
+        <p class="employee-list__empty">入社前の従業員はいません</p>
+      } @else {
+        <ng-container
+          *ngTemplateOutlet="employeeTable; context: { $implicit: groups().preEmployment }"
+        />
+      }
+    } @else if (activeTab() === 'active') {
+      @if (groups().active.length === 0) {
+        <p class="employee-list__empty">在職中の従業員はいません</p>
+      } @else {
+        <ng-container *ngTemplateOutlet="employeeTable; context: { $implicit: groups().active }" />
+      }
+    } @else {
+      <p class="employee-list__empty">退職済みの従業員はいません</p>
+    }
+  </div>
+</section>
+
+<ng-template #employeeTable let-employees>
+  <div class="emp-table-wrap">
+    <table class="emp-table">
+      <colgroup>
+        <col class="emp-table__col-name" />
+        <col class="emp-table__col-salary" />
+        <col class="emp-table__col-grade" />
+        <col class="emp-table__col-burden" />
+        <col class="emp-table__col-burden" />
+        <col class="emp-table__col-total" />
+        <col class="emp-table__col-action" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="emp-table__name">名前</th>
+          <th class="emp-table__amount">総支給額</th>
+          <th class="emp-table__grade">等級</th>
+          <th class="emp-table__amount">個人負担</th>
+          <th class="emp-table__amount">会社負担</th>
+          <th class="emp-table__amount">合計</th>
+          <th class="emp-table__action">アクション</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (employee of employees; track employee.id) {
+          @let summary = getInsuranceSummary(employee);
+          @let totals = premiumTotals(summary);
+
+          <tr class="emp-table__row">
+            <td class="emp-table__name">
+              <span class="emp-table__employee-name">{{ fullName(employee) }}</span>
+              <span class="emp-table__employee-number">No. {{ employee.employeeNumber }}</span>
+            </td>
+            <td class="emp-table__amount">¥{{ employee.baseSalary | number }}</td>
+            <td class="emp-table__grade">{{ gradeLabel(summary) }}</td>
+            <td class="emp-table__amount emp-table__amount--stacked">
+              @if (summary.premiums) {
+                <span class="emp-table__amount-main">¥{{ totals.employeeShare | number }}</span>
+                <span class="emp-table__amount-breakdown">
+                  (健保: ¥{{ summary.premiums.health.employeeShare | number }}
+                  / 介護: ¥{{ summary.premiums.longTermCare.employeeShare | number }}
+                  / 厚生: ¥{{ summary.premiums.pension.employeeShare | number }})
+                </span>
+              } @else {
+                —
+              }
+            </td>
+            <td class="emp-table__amount emp-table__amount--stacked">
+              @if (summary.premiums) {
+                <span class="emp-table__amount-main">¥{{ totals.employerShare | number }}</span>
+                <span class="emp-table__amount-breakdown">
+                  (健保: ¥{{ summary.premiums.health.employerShare | number }}
+                  / 介護: ¥{{ summary.premiums.longTermCare.employerShare | number }}
+                  / 厚生: ¥{{ summary.premiums.pension.employerShare | number }})
+                </span>
+              } @else {
+                —
+              }
+            </td>
+            <td class="emp-table__amount">
+              @if (summary.premiums) {
+                ¥{{ totals.total | number }}
+              } @else {
+                —
+              }
+            </td>
+            <td class="emp-table__action">
+              <button type="button" class="emp-table__detail-btn" (click)="openDetail(employee)">
+                詳細
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</ng-template>
+
+<app-employee-detail-modal
+  [open]="detailModalOpen()"
+  [employee]="detailEmployee()"
+  [summary]="detailSummary()"
+  (closed)="onDetailModalClosed()"
+/>
+
+<app-employee-registration-modal
+  [open]="employeeModalOpen()"
+  (closed)="onEmployeeModalClosed()"
+  (registered)="onEmployeeRegistered($event)"
+/>

@@ -1,0 +1,94 @@
+@use '../../styles/auth-page';
+@use '../../../../../styles/variables' as *;
+
+.register-page {
+  align-items: flex-start;
+  padding-top: 2.5rem;
+  padding-bottom: 3rem;
+
+  &__card {
+    max-width: 720px;
+  }
+
+  &__section-title {
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid $color-border;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: $color-primary-dark;
+
+    &:not(:first-of-type) {
+      margin-top: 0.5rem;
+    }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.25rem;
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__field--full {
+    grid-column: 1 / -1;
+  }
+
+  .auth-page__field {
+    margin-bottom: 1.25rem;
+  }
+
+  &__company-id {
+    margin-bottom: 1.5rem;
+    padding-top: 0.25rem;
+  }
+
+  &__id-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  &__id-input {
+    max-width: 8rem;
+    font-family: ui-monospace, 'Cascadia Code', monospace;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-align: center;
+    background: #f5f5f5;
+    cursor: default;
+  }
+
+  &__generate {
+    flex-shrink: 0;
+    padding: 0 1rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: $color-nav-inactive;
+    color: $color-text;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: #e0e4e8;
+    }
+  }
+
+  &__hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+    line-height: 1.4;
+  }
+
+  &__submit-error {
+    margin-top: 0.75rem;
+    text-align: center;
+  }
+}

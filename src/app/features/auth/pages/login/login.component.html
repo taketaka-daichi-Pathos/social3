@@ -1,0 +1,155 @@
+<section class="auth-page">
+  <div class="auth-page__card">
+    <header class="auth-page__header">
+      <div class="auth-page__brand">
+        <span aria-hidden="true">👑</span>
+        <span>労務管理システム</span>
+      </div>
+      <h1 class="auth-page__title">ログイン</h1>
+      <p class="auth-page__subtitle">
+        @if (loginMode() === 'admin') {
+          メールアドレスとパスワードでログインしてください
+        } @else {
+          会社ID・社員番号・パスワード（生年月日）でログインしてください
+        }
+      </p>
+    </header>
+
+    <nav class="auth-page__tabs" aria-label="ログイン種別">
+      <button
+        type="button"
+        class="auth-page__tab"
+        [class.auth-page__tab--active]="loginMode() === 'admin'"
+        (click)="setLoginMode('admin')"
+      >
+        管理者
+      </button>
+      <button
+        type="button"
+        class="auth-page__tab"
+        [class.auth-page__tab--active]="loginMode() === 'employee'"
+        (click)="setLoginMode('employee')"
+      >
+        従業員
+      </button>
+    </nav>
+
+    @if (loginMode() === 'admin') {
+      <form class="auth-page__form" [formGroup]="adminForm" (ngSubmit)="onSubmit()" novalidate>
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="email">メールアドレス</label>
+          <input
+            id="email"
+            type="email"
+            class="auth-page__input"
+            formControlName="email"
+            placeholder="例: user@example.com"
+            autocomplete="email"
+          />
+          @if (showAdminError('email')) {
+            <p class="auth-page__error">{{ adminErrorMessage('email') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="adminPassword">パスワード</label>
+          <input
+            id="adminPassword"
+            type="password"
+            class="auth-page__input"
+            formControlName="password"
+            placeholder="パスワードを入力"
+            autocomplete="current-password"
+          />
+          @if (showAdminError('password')) {
+            <p class="auth-page__error">{{ adminErrorMessage('password') }}</p>
+          }
+        </div>
+
+        <button
+          type="submit"
+          class="auth-page__submit"
+          [disabled]="adminForm.invalid || loggingIn"
+        >
+          {{ loggingIn ? 'ログイン中...' : 'ログイン' }}
+        </button>
+        @if (loginError) {
+          <p class="auth-page__error auth-page__error--center">{{ loginError }}</p>
+        }
+      </form>
+    } @else {
+      <form class="auth-page__form" [formGroup]="employeeForm" (ngSubmit)="onSubmit()" novalidate>
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="companyId">会社ID</label>
+          <input
+            id="companyId"
+            type="text"
+            class="auth-page__input"
+            formControlName="companyId"
+            placeholder="例: 12345"
+            inputmode="numeric"
+            autocomplete="organization"
+            appHalfWidthDigitsOnly
+            [appHalfWidthDigitsOnlyMaxLength]="5"
+          />
+          @if (showEmployeeError('companyId')) {
+            <p class="auth-page__error">{{ employeeErrorMessage('companyId') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="employeeNumber">社員番号（ログインID）</label>
+          <input
+            id="employeeNumber"
+            type="text"
+            class="auth-page__input"
+            formControlName="employeeNumber"
+            placeholder="例: 000123"
+            inputmode="numeric"
+            autocomplete="username"
+            appHalfWidthDigitsOnly
+            [appHalfWidthDigitsOnlyMaxLength]="20"
+          />
+          @if (showEmployeeError('employeeNumber')) {
+            <p class="auth-page__error">{{ employeeErrorMessage('employeeNumber') }}</p>
+          }
+        </div>
+
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="employeePassword">パスワード</label>
+          <input
+            id="employeePassword"
+            type="password"
+            class="auth-page__input"
+            formControlName="password"
+            placeholder="生年月日（YYYYMMDD）"
+            inputmode="numeric"
+            autocomplete="current-password"
+            appHalfWidthDigitsOnly
+            [appHalfWidthDigitsOnlyMaxLength]="8"
+          />
+          <p class="auth-page__hint">初期パスワードは生年月日 8 桁（例: 19900115）</p>
+          @if (showEmployeeError('password')) {
+            <p class="auth-page__error">{{ employeeErrorMessage('password') }}</p>
+          }
+        </div>
+
+        <button
+          type="submit"
+          class="auth-page__submit"
+          [disabled]="employeeForm.invalid || loggingIn"
+        >
+          {{ loggingIn ? 'ログイン中...' : 'ログイン' }}
+        </button>
+        @if (loginError) {
+          <p class="auth-page__error auth-page__error--center">{{ loginError }}</p>
+        }
+      </form>
+    }
+
+    <footer class="auth-page__footer">
+      新規で企業を登録する方は
+      <a class="auth-page__link" routerLink="/register">こちら</a>
+    </footer>
+  </div>
+</section>

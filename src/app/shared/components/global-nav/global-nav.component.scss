@@ -1,0 +1,47 @@
+@use '../../../../styles/variables' as *;
+
+.global-nav {
+  background: $color-bg-surface;
+  border-bottom: 1px solid $color-border;
+  padding: 0 1.5rem;
+
+  &__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0.75rem 0 0;
+    list-style: none;
+  }
+
+  &__item {
+    margin: 0;
+  }
+
+  &__link {
+    display: inline-block;
+    padding: 0.65rem 1.25rem;
+    border-radius: $radius-sm $radius-sm 0 0;
+    background: $color-nav-inactive;
+    color: $color-nav-inactive-text;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: darken($color-nav-inactive, 4%);
+      color: $color-text;
+    }
+
+    &--active {
+      background: $color-primary;
+      color: #ffffff;
+
+      &:hover {
+        background: darken($color-primary, 6%);
+        color: #ffffff;
+      }
+    }
+  }
+}

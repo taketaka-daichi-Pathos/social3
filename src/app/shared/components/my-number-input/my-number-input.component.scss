@@ -1,0 +1,39 @@
+$color-border: #d1d5db;
+$color-text: #111827;
+$color-primary: #2563eb;
+$color-danger: #dc2626;
+
+.my-number-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  &--invalid .my-number-input__digit {
+    border-color: $color-danger;
+  }
+
+  &__digit {
+    width: 2rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 1px solid $color-border;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    color: $color-text;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-align: center;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+
+    &:disabled {
+      background: #f3f4f6;
+      cursor: not-allowed;
+    }
+  }
+}

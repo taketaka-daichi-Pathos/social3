@@ -1,0 +1,68 @@
+# Social3 — Angular SaaS フロントエンド開発ルール
+
+## プロジェクト概要
+- Angular 19+ / Standalone Components / TypeScript / SCSS
+- バックエンド: Firebase (Auth, Firestore)
+- 業務管理 SaaS 向けの堅牢で拡張性の高い設計を優先する
+
+## アーキテクチャ原則
+
+### ディレクトリ責務
+- `src/app/core/` — アプリ全体で1インスタンスのシングルトン（認証ガード、HTTPインターセプター、グローバルサービス）
+- `src/app/shared/` — ドメイン非依存の再利用 UI（コンポーネント、パイプ、ディレクティブ）
+- `src/app/features/` — 機能単位の画面・ロジック（auth, dashboard 等）。機能ごとに `pages/`, `services/`, `models/` を持つ
+- `src/app/layouts/` — シェルレイアウト（サイドバー、ヘッダー付きレイアウト）
+- `src/environments/` — 環境変数（Firebase 設定含む）。秘密情報はコミットしない
+
+### インポートパス
+- エイリアスを使用: `@core/*`, `@shared/*`, `@features/*`, `@layouts/*`, `@env/*`
+- 相対パスの深いネスト（`../../../`）は避ける
+
+## Angular コーディング規約
+
+### コンポーネント
+- **必ず Standalone** (`standalone: true`)。NgModule は新規作成しない
+- `inject()` を優先し、コンストラクタ DI は最小限に
+- テンプレートは新しい制御フロー構文を使用: `@if`, `@for`, `@switch`（`*ngIf` / `*ngFor` は使わない）
+- コンポーネントは Smart（コンテナ）と Dumb（プレゼンテーション）を分離する
+- 1ファイル1責務。コンポーネントは 300 行を目安に分割を検討
+
+### サービス
+- Firebase 操作は feature 層のサービスに集約し、コンポーネントから直接 Firestore を操作しない
+- `providedIn: 'root'` は core サービスのみ。feature 専用は `providers` でスコープを限定
+- Observable はコンポーネントで `async` パイプを使用。手動 subscribe は `takeUntilDestroyed()` 必須
+
+### ルーティング
+- ルート定義は `app.routes.ts` に集約し、feature は `loadComponent` で遅延ロード
+- 認証必須ルートには `@core/guards` のガードを適用
+- 未認証時は `/auth/login` へリダイレクト
+
+### フォーム・バリデーション
+- Reactive Forms を優先（`FormBuilder` + `Validators`）
+- バリデーションメッセージは shared コンポーネントで統一
+
+### スタイル
+- SCSS を使用。グローバル変数・ミックスインは `src/styles/` に配置（必要に応じて作成）
+- コンポーネントスタイルは `:host` と BEM 風命名を推奨
+- `::ng-deep` は使用禁止
+
+## Firebase 規約
+- 設定は `environment.firebase` から読み込む（ハードコード禁止）
+- Firestore コレクション名は定数化（例: `src/app/core/models/firestore-collections.ts`）
+- Security Rules を前提とし、クライアント側で権限チェックを省略しない
+- `@angular/fire` の tree-shakable API（`provideFirestore`, `collection`, `collectionData` 等）を使用
+
+## TypeScript
+- `strict: true` を維持。`any` は禁止（やむを得ない場合は `unknown` + 型ガード）
+- インターフェースは `models/` に配置。API レスポンス型を明示
+- `readonly` を積極的に使用
+
+## テスト
+- 新規サービスにはユニットテストを追加（Jasmine + Karma）
+- Firebase 依存はモックまたは `@angular/fire` のテストユーティリティを使用
+
+## AI アシスタントへの指示
+- 既存の命名・パターンに合わせる。無関係なリファクタリングは行わない
+- 新機能は必ず `features/` 配下に追加し、core/shared への依存方向を守る（features → shared/core のみ）
+- 変更は最小スコープで。説明コメントは非自明なビジネスロジックのみ
+- コミットメッセージは英語または日本語で簡潔に（ユーザーが明示した場合のみコミット）

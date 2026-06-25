@@ -1,0 +1,18 @@
+@use '../../../styles/variables' as *;
+
+:host {
+  display: block;
+  min-height: 100vh;
+  background: $color-bg-page;
+}
+
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+
+  &__main {
+    flex: 1;
+    padding: 0;
+  }
+}
