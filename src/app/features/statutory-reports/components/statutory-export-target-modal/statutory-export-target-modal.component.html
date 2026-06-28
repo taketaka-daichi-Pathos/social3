@@ -1,0 +1,188 @@
+@if (open() && reportId(); as currentReportId) {
+  <div
+    class="export-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="statutory-export-target-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="export-modal__panel">
+      <header class="export-modal__header">
+        <div>
+          <p class="export-modal__label">対象者選択</p>
+          <h2 id="statutory-export-target-title" class="export-modal__title">{{ reportTitle() }}</h2>
+        </div>
+        <button type="button" class="export-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <div class="export-modal__body">
+        <p class="export-modal__description">
+          出力対象の従業員を選択してください。必須項目が不足している従業員は CSV 出力できません。本人への入力依頼もここから送信できます。
+        </p>
+
+        @if (isSanteiKisoReport()) {
+          <div class="export-modal__field-row">
+            <label class="export-modal__field-label" for="santei-target-year">算定対象年（4〜6月）</label>
+            <input
+              id="santei-target-year"
+              type="number"
+              class="export-modal__year-input"
+              min="2000"
+              max="2100"
+              [value]="targetYear()"
+              (input)="onTargetYearInput($event)"
+            />
+            <span class="export-modal__field-hint">
+              {{ targetYear() }}年4月〜6月の給与実績を出力します（{{ targetYear() }}年9月適用）
+            </span>
+          </div>
+        }
+
+        @if (isGeppenReport()) {
+          <div class="export-modal__field-row">
+            <label class="export-modal__field-label" for="geppen-revision-month">改定年月</label>
+            <input
+              id="geppen-revision-month"
+              type="month"
+              class="export-modal__month-input"
+              [value]="revisionYearMonth()"
+              (input)="onRevisionYearMonthInput($event)"
+            />
+            <span class="export-modal__field-hint">
+              給与実績: {{ geppenPayrollMonthsLabel() }}（改定年月の前三ヶ月〜前一ヶ月）
+            </span>
+          </div>
+        }
+
+        @if (isSyouyoReport()) {
+          <div class="export-modal__field-row">
+            <label class="export-modal__field-label" for="syouyo-payment-date">賞与支払年月日</label>
+            <input
+              id="syouyo-payment-date"
+              type="date"
+              class="export-modal__month-input"
+              [value]="bonusPaymentDate()"
+              (input)="onBonusPaymentDateInput($event)"
+            />
+            <span class="export-modal__field-hint">
+              指定した支給日の賞与実績を出力します。賞与未登録の従業員は選択できません。
+            </span>
+          </div>
+        }
+
+        @if (loading()) {
+          <p class="export-modal__status">従業員一覧を読み込んでいます…</p>
+        } @else if (candidateEmployees().length === 0) {
+          <p class="export-modal__status">この帳票の対象となる従業員がいません。</p>
+        } @else {
+          <div class="export-modal__toolbar">
+            <label class="export-modal__select-all">
+              <input
+                type="checkbox"
+                [checked]="allSelectableSelected()"
+                (change)="toggleSelectAll($any($event.target).checked)"
+              />
+              <span>出力可能な従業員をすべて選択（{{ selectableEmployees().length }}名）</span>
+            </label>
+            <span class="export-modal__count">{{ selectedCount() }}名 選択中</span>
+          </div>
+
+          <ul class="export-modal__list" role="list">
+            @for (employee of candidateEmployees(); track employee.id) {
+              <li class="export-modal__item" [class.export-modal__item--blocked]="!canSelectEmployee(employee.id)">
+                <div class="export-modal__row">
+                  <label class="export-modal__item-label">
+                    <input
+                      type="checkbox"
+                      [checked]="isSelected(employee.id)"
+                      [disabled]="!canSelectEmployee(employee.id)"
+                      (change)="toggleEmployee(employee.id, $any($event.target).checked)"
+                    />
+                    <span class="export-modal__item-main">
+                      <span class="export-modal__item-name-row">
+                        @if (!canSelectEmployee(employee.id) && missingLabelText(employee.id)) {
+                          <span
+                            class="export-modal__warning"
+                            [title]="'不足: ' + missingLabelText(employee.id)"
+                            aria-label="出力条件を満たしていません"
+                          >
+                            ⚠
+                          </span>
+                        }
+                        <span class="export-modal__item-name">{{ displayName(employee) }}</span>
+                      </span>
+                      <span class="export-modal__item-meta">
+                        社員番号 {{ employee.employeeNumber }}
+                        @if (!canSelectEmployee(employee.id) && missingLabelText(employee.id)) {
+                          ／ 不足: {{ missingLabelText(employee.id) }}
+                        }
+                      </span>
+                    </span>
+                  </label>
+
+                  <div class="export-modal__actions">
+                    @if (hasPendingInputRequest(employee)) {
+                      <span class="export-modal__pending">本人に入力依頼中</span>
+                    } @else if (canRequestInput(employee)) {
+                      <button
+                        type="button"
+                        class="export-modal__request-btn"
+                        [disabled]="requestingEmployeeId() === employee.id"
+                        (click)="onRequestInput(employee)"
+                      >
+                        @if (requestingEmployeeId() === employee.id) {
+                          送信中…
+                        } @else {
+                          {{ requestInputButtonLabel() }}
+                        }
+                      </button>
+                    } @else if (!employee.authUid && !isEmployeeReady(employee.id)) {
+                      <span class="export-modal__hint">ログイン未設定</span>
+                    }
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (!exportImplemented()) {
+          <p class="export-modal__notice">この帳票の CSV 出力機能は準備中です。対象者の確認と入力依頼のみ利用できます。</p>
+        }
+
+        @if (errorMessage()) {
+          <p class="export-modal__error" role="alert">{{ errorMessage() }}</p>
+        }
+
+        @if (validationError()) {
+          <p class="export-modal__error" role="alert">{{ validationError() }}</p>
+        }
+      </div>
+
+      <footer class="export-modal__footer">
+        <button
+          type="button"
+          class="export-modal__btn export-modal__btn--ghost"
+          [disabled]="exporting()"
+          (click)="close()"
+        >
+          キャンセル
+        </button>
+        <button
+          type="button"
+          class="export-modal__btn export-modal__btn--primary"
+          [disabled]="loading() || exporting() || !exportImplemented() || selectableEmployees().length === 0"
+          (click)="onExport()"
+        >
+          @if (exporting()) {
+            出力中…
+          } @else {
+            CSV をダウンロード
+          }
+        </button>
+      </footer>
+    </div>
+  </div>
+}

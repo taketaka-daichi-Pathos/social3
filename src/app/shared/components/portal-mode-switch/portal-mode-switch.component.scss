@@ -1,0 +1,32 @@
+@use '../../../../styles/variables' as *;
+
+.portal-switch {
+  &__btn {
+    padding: 0.5rem 0.875rem;
+    border-radius: $radius-sm;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+
+    &--employee {
+      border: 1px solid #c7d7fe;
+      background: #eef2ff;
+      color: #3730a3;
+
+      &:hover {
+        background: #e0e7ff;
+      }
+    }
+
+    &--admin {
+      border: 1px solid $color-border;
+      background: #f8f9fb;
+      color: $color-text;
+
+      &:hover {
+        background: #eef1f5;
+      }
+    }
+  }
+}

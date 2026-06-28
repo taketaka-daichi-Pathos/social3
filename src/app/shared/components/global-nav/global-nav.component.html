@@ -9,7 +9,10 @@
           [routerLinkActiveOptions]="{ exact: false }"
           (click)="itemSelected.emit(item)"
         >
-          {{ item.label }}
+          <span class="global-nav__label">{{ item.label }}</span>
+          @if (showBadge(item)) {
+            <span class="global-nav__badge" aria-hidden="true"></span>
+          }
         </a>
       </li>
     }

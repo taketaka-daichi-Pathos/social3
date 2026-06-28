@@ -1,0 +1,55 @@
+@if (open() && request(); as currentRequest) {
+  <div
+    class="approval-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="workflow-request-approval-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="approval-modal__panel">
+      <header class="approval-modal__header">
+        <div>
+          <p class="approval-modal__label">申請承認</p>
+          <h2 id="workflow-request-approval-title" class="approval-modal__title">
+            {{ requestTypeLabel() }}
+          </h2>
+          <p class="approval-modal__meta">
+            ステータス: {{ requestStatusLabel() }} /
+            申請日: {{ currentRequest.createdAt | date: 'yyyy/MM/dd HH:mm' }}
+          </p>
+        </div>
+        <button type="button" class="approval-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <div class="approval-modal__body">
+        <h3 class="approval-modal__section-title">申請内容</h3>
+        <dl class="approval-modal__details">
+          @for (row of payloadRows(); track row.label) {
+            <div class="approval-modal__detail-row">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </div>
+          }
+        </dl>
+
+        @if (errorMessage()) {
+          <p class="approval-modal__error" role="alert">{{ errorMessage() }}</p>
+        }
+      </div>
+
+      <footer class="approval-modal__footer">
+        <button type="button" class="approval-modal__cancel" (click)="close()">閉じる</button>
+        <button
+          type="button"
+          class="approval-modal__approve"
+          [disabled]="approving()"
+          (click)="approve()"
+        >
+          {{ approving() ? '承認中...' : '承認する' }}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

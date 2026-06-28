@@ -1,0 +1,8 @@
+<span
+  class="social-insurance-badge"
+  [class.social-insurance-badge--general]="badgeVariant() === 'general'"
+  [class.social-insurance-badge--short-time-worker]="badgeVariant() === 'short_time_worker'"
+  [class.social-insurance-badge--part-time-special]="badgeVariant() === 'part_time_special'"
+>
+  {{ label() }}
+</span>

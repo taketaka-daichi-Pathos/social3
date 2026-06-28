@@ -20,7 +20,7 @@ export class PayrollDashboardComponent {
   readonly subNavItems: SubNavItem[] = [
     { label: '月次給与', id: 'monthly' },
     { label: '賞与', id: 'bonus' },
-    { label: '月次保険料', id: 'insurance' },
+    { label: '各種保険料', id: 'insurance' },
   ];
 
   readonly activeSubTab = signal('monthly');

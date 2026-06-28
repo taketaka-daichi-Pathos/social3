@@ -2,9 +2,7 @@
   <header class="insurance-table__header">
     <div>
       <h2 class="insurance-table__title">月次保険料</h2>
-      <p class="insurance-table__description">
-        {{ targetMonthLabel() }}の社会保険料一覧です。算定基礎・随時改定で決定された等級を反映して計算しています。
-      </p>
+      <p class="insurance-table__description">{{ descriptionText() }}</p>
     </div>
 
     <div class="insurance-table__month-picker">
@@ -36,28 +34,102 @@
           次月 ▶
         </button>
       </div>
+
+      @if (isTargetMonthLocked()) {
+        <div class="insurance-table__month-lock-badge" role="status">🔒 確定済み</div>
+      }
     </div>
   </header>
+
+  <div class="insurance-table__toolbar">
+    <div class="insurance-table__filter">
+      <label class="insurance-table__month-label" for="insuranceSocialInsuranceFilter">社会保険区分</label>
+      <select
+        id="insuranceSocialInsuranceFilter"
+        class="insurance-table__filter-select"
+        [value]="socialInsuranceFilter()"
+        (change)="onSocialInsuranceFilterChange($event)"
+      >
+        @for (option of socialInsuranceFilterOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  <div class="insurance-table__view-switch" role="tablist" aria-label="保険料種別">
+    <button
+      type="button"
+      class="insurance-table__view-btn"
+      role="tab"
+      [class.insurance-table__view-btn--active]="premiumView() === 'payroll'"
+      [attr.aria-selected]="premiumView() === 'payroll'"
+      (click)="setPremiumView('payroll')"
+    >
+      月次給与
+    </button>
+    <button
+      type="button"
+      class="insurance-table__view-btn"
+      role="tab"
+      [class.insurance-table__view-btn--active]="premiumView() === 'bonus'"
+      [attr.aria-selected]="premiumView() === 'bonus'"
+      (click)="setPremiumView('bonus')"
+    >
+      賞与
+    </button>
+    <button
+      type="button"
+      class="insurance-table__view-btn"
+      role="tab"
+      [class.insurance-table__view-btn--active]="premiumView() === 'combined'"
+      [attr.aria-selected]="premiumView() === 'combined'"
+      (click)="setPremiumView('combined')"
+    >
+      合算
+    </button>
+  </div>
 
   @if (loadError()) {
     <p class="insurance-table__alert" role="alert">{{ loadError() }}</p>
   }
 
-  @if (cumulative(); as totals) {
+  @if (!loading() && cumulative(); as fiscalTotals) {
+    @let monthTotals = currentMonthTotals();
     <section class="insurance-table__cumulative">
-      <h3 class="insurance-table__cumulative-title">{{ fiscalYearLabel() }} 累計</h3>
+      <h3 class="insurance-table__cumulative-title">
+        {{ targetMonthLabel() }}（{{ premiumViewLabel() }}）
+      </h3>
       <div class="insurance-table__cumulative-grid">
-        <div class="insurance-table__cumulative-card">
-          <span class="insurance-table__cumulative-label">個人負担 累計</span>
-          <span class="insurance-table__cumulative-value">¥{{ totals.employeeShare | number }}</span>
+        <div class="insurance-table__cumulative-card insurance-table__cumulative-card--primary">
+          <span class="insurance-table__cumulative-label">
+            納入告知額
+            <small class="insurance-table__cumulative-sublabel">当月</small>
+          </span>
+          <span class="insurance-table__cumulative-value insurance-table__cumulative-value--primary">
+            ¥{{ monthTotals.total | number }}
+          </span>
         </div>
         <div class="insurance-table__cumulative-card">
-          <span class="insurance-table__cumulative-label">会社負担 累計</span>
-          <span class="insurance-table__cumulative-value">¥{{ totals.employerShare | number }}</span>
+          <span class="insurance-table__cumulative-label">
+            被保険者控除額
+            <small class="insurance-table__cumulative-sublabel">当月</small>
+          </span>
+          <span class="insurance-table__cumulative-value">¥{{ monthTotals.employeeShare | number }}</span>
         </div>
-        <div class="insurance-table__cumulative-card insurance-table__cumulative-card--total">
-          <span class="insurance-table__cumulative-label">合計 累計</span>
-          <span class="insurance-table__cumulative-value">¥{{ totals.total | number }}</span>
+        <div class="insurance-table__cumulative-card">
+          <span class="insurance-table__cumulative-label">
+            事業主負担額
+            <small class="insurance-table__cumulative-sublabel">当月</small>
+          </span>
+          <span class="insurance-table__cumulative-value">¥{{ monthTotals.employerShare | number }}</span>
+        </div>
+        <div class="insurance-table__cumulative-card insurance-table__cumulative-card--fiscal">
+          <span class="insurance-table__cumulative-label">
+            年度累計額
+            <small class="insurance-table__cumulative-sublabel">{{ fiscalYearLabel() }}</small>
+          </span>
+          <span class="insurance-table__cumulative-value">¥{{ fiscalTotals.total | number }}</span>
         </div>
       </div>
     </section>
@@ -65,8 +137,195 @@
 
   @if (loading()) {
     <p class="insurance-table__status">計算中...</p>
-  } @else if (rows().length === 0) {
+  } @else if (premiumView() === 'payroll') {
+    @if (payrollRows().length === 0) {
+      <p class="insurance-table__status">{{ emptyMessage() }}</p>
+    } @else if (filteredPayrollRows().length === 0) {
+      <p class="insurance-table__status">該当する従業員がいません</p>
+    } @else {
+      <div class="insurance-table__wrap">
+        <table class="insurance-table__grid">
+          <thead>
+            <tr>
+              <th rowspan="2">社員番号</th>
+              <th rowspan="2">名前</th>
+              <th rowspan="2">等級（健保/厚年）</th>
+              <th rowspan="2">適用</th>
+              <th colspan="3">健康保険</th>
+              <th colspan="3">介護保険</th>
+              <th colspan="3">厚生年金</th>
+              <th colspan="3">納入告知額</th>
+            </tr>
+            <tr>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">小計</th>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">小計</th>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">小計</th>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">納入額</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredPayrollRows(); track row.employee.id) {
+              <tr>
+                <td>{{ row.employee.employeeNumber }}</td>
+                <td class="insurance-table__cell-name">
+                  <div class="insurance-table__name-with-badge">
+                    <span>{{ row.employee.lastName }} {{ row.employee.firstName }}</span>
+                    <app-social-insurance-type-badge
+                      [socialInsuranceType]="row.employee.socialInsuranceType"
+                    />
+                    @if (isRetiredBadgeVisible(row.employee)) {
+                      <app-retired-employee-badge [employee]="row.employee" />
+                    }
+                    <app-leave-compact-badge
+                      [employee]="row.employee"
+                      [referenceYearMonth]="targetMonth()"
+                    />
+                  </div>
+                </td>
+                <td>
+                  {{ row.effective.healthGrade ?? '—' }} / {{ row.effective.pensionGrade ?? '—' }}
+                </td>
+                <td>
+                  <span
+                    class="insurance-table__badge"
+                    [class.insurance-table__badge--revision]="row.effective.source !== 'employee_master'"
+                  >
+                    {{ revisionSourceLabel(row.effective.source) }}
+                  </span>
+                </td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.health.employeeShare | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.health.employerShare | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.health.total | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.longTermCare.employeeShare | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.longTermCare.employerShare | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.longTermCare.total | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.pension.employeeShare | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.pension.employerShare | number }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.premiums.pension.total | number }}</td>
+                <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                  ¥{{ row.totals.employeeShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                  ¥{{ row.totals.employerShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                  ¥{{ row.totals.total | number }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else if (premiumView() === 'bonus') {
+    @if (bonusRows().length === 0) {
+      <p class="insurance-table__status">{{ emptyMessage() }}</p>
+    } @else if (filteredBonusRows().length === 0) {
+      <p class="insurance-table__status">該当する従業員がいません</p>
+    } @else {
+      <div class="insurance-table__wrap">
+        <table class="insurance-table__grid insurance-table__grid--bonus">
+          <thead>
+            <tr>
+              <th rowspan="2">社員番号</th>
+              <th rowspan="2">名前</th>
+              <th rowspan="2">支給日</th>
+              <th rowspan="2">賞与額</th>
+              <th colspan="3">健康保険</th>
+              <th colspan="3">介護保険</th>
+              <th colspan="3">厚生年金</th>
+              <th colspan="3">納入告知額</th>
+            </tr>
+            <tr>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">小計</th>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">小計</th>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">小計</th>
+              <th class="insurance-table__th-amount">被保険者分</th>
+              <th class="insurance-table__th-amount">事業主分</th>
+              <th class="insurance-table__th-amount">納入額</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredBonusRows(); track row.rowKey) {
+              <tr>
+                <td>{{ row.employee.employeeNumber }}</td>
+                <td class="insurance-table__cell-name">
+                  <div class="insurance-table__name-with-badge">
+                    <span>{{ row.employee.lastName }} {{ row.employee.firstName }}</span>
+                    <app-social-insurance-type-badge
+                      [socialInsuranceType]="row.employee.socialInsuranceType"
+                    />
+                    @if (isRetiredBadgeVisible(row.employee)) {
+                      <app-retired-employee-badge [employee]="row.employee" />
+                    }
+                    <app-leave-compact-badge
+                      [employee]="row.employee"
+                      [referenceYearMonth]="targetMonth()"
+                    />
+                  </div>
+                </td>
+                <td>{{ row.paymentDateLabel }}</td>
+                <td class="insurance-table__cell-amount">¥{{ row.bonusAmount | number }}</td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.health.employeeShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.health.employerShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.health.total | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.longTermCare.employeeShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.longTermCare.employerShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.longTermCare.total | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.pension.employeeShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.pension.employerShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount">
+                  ¥{{ row.calculation.premiums.pension.total | number }}
+                </td>
+                <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                  ¥{{ row.totals.employeeShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                  ¥{{ row.totals.employerShare | number }}
+                </td>
+                <td class="insurance-table__cell-amount insurance-table__cell-amount--strong">
+                  ¥{{ row.totals.total | number }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else if (combinedRows().length === 0) {
     <p class="insurance-table__status">{{ emptyMessage() }}</p>
+  } @else if (filteredCombinedRows().length === 0) {
+    <p class="insurance-table__status">該当する従業員がいません</p>
   } @else {
     <div class="insurance-table__wrap">
       <table class="insurance-table__grid">
@@ -74,45 +333,63 @@
           <tr>
             <th rowspan="2">社員番号</th>
             <th rowspan="2">名前</th>
+            <th rowspan="2">内訳</th>
             <th rowspan="2">等級（健保/厚年）</th>
-            <th rowspan="2">適用</th>
             <th colspan="3">健康保険</th>
             <th colspan="3">介護保険</th>
             <th colspan="3">厚生年金</th>
-            <th colspan="3">合計</th>
+            <th colspan="3">納入告知額</th>
           </tr>
           <tr>
-            <th class="insurance-table__th-amount">個人</th>
-            <th class="insurance-table__th-amount">会社</th>
-            <th class="insurance-table__th-amount">計</th>
-            <th class="insurance-table__th-amount">個人</th>
-            <th class="insurance-table__th-amount">会社</th>
-            <th class="insurance-table__th-amount">計</th>
-            <th class="insurance-table__th-amount">個人</th>
-            <th class="insurance-table__th-amount">会社</th>
-            <th class="insurance-table__th-amount">計</th>
-            <th class="insurance-table__th-amount">個人</th>
-            <th class="insurance-table__th-amount">会社</th>
-            <th class="insurance-table__th-amount">計</th>
+            <th class="insurance-table__th-amount">被保険者分</th>
+            <th class="insurance-table__th-amount">事業主分</th>
+            <th class="insurance-table__th-amount">小計</th>
+            <th class="insurance-table__th-amount">被保険者分</th>
+            <th class="insurance-table__th-amount">事業主分</th>
+            <th class="insurance-table__th-amount">小計</th>
+            <th class="insurance-table__th-amount">被保険者分</th>
+            <th class="insurance-table__th-amount">事業主分</th>
+            <th class="insurance-table__th-amount">小計</th>
+            <th class="insurance-table__th-amount">被保険者分</th>
+            <th class="insurance-table__th-amount">事業主分</th>
+            <th class="insurance-table__th-amount">納入額</th>
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.employee.id) {
+          @for (row of filteredCombinedRows(); track row.employee.id) {
             <tr>
               <td>{{ row.employee.employeeNumber }}</td>
               <td class="insurance-table__cell-name">
-                {{ row.employee.lastName }} {{ row.employee.firstName }}
+                <div class="insurance-table__name-with-badge">
+                  <span>{{ row.employee.lastName }} {{ row.employee.firstName }}</span>
+                  <app-social-insurance-type-badge
+                    [socialInsuranceType]="row.employee.socialInsuranceType"
+                  />
+                  @if (isRetiredBadgeVisible(row.employee)) {
+                    <app-retired-employee-badge [employee]="row.employee" />
+                  }
+                  <app-leave-compact-badge
+                    [employee]="row.employee"
+                    [referenceYearMonth]="targetMonth()"
+                  />
+                </div>
               </td>
               <td>
-                {{ row.effective.healthGrade ?? '—' }} / {{ row.effective.pensionGrade ?? '—' }}
+                <div class="insurance-table__source-badges">
+                  @if (row.hasPayroll) {
+                    <span class="insurance-table__badge">給与</span>
+                  }
+                  @if (row.hasBonus) {
+                    <span class="insurance-table__badge insurance-table__badge--bonus">賞与</span>
+                  }
+                </div>
               </td>
               <td>
-                <span
-                  class="insurance-table__badge"
-                  [class.insurance-table__badge--revision]="row.effective.source !== 'employee_master'"
-                >
-                  {{ revisionSourceLabel(row.effective.source) }}
-                </span>
+                @if (row.effective) {
+                  {{ row.effective.healthGrade ?? '—' }} / {{ row.effective.pensionGrade ?? '—' }}
+                } @else {
+                  —
+                }
               </td>
               <td class="insurance-table__cell-amount">¥{{ row.premiums.health.employeeShare | number }}</td>
               <td class="insurance-table__cell-amount">¥{{ row.premiums.health.employerShare | number }}</td>

@@ -1,0 +1,7 @@
+<span class="retired-badge">
+  @if (displayDate(); as date) {
+    退職済み ({{ date | date: 'yyyy/MM/dd' }})
+  } @else {
+    退職済み
+  }
+</span>

@@ -1,16 +1,28 @@
 <section class="employee-list">
   <header class="employee-list__header">
     <div>
-      <h2 class="employee-list__title">従業員一覧</h2>
+      <div class="employee-list__title-row">
+        <h2 class="employee-list__title">従業員一覧</h2>
+        <span class="employee-list__reference-month" role="status">
+          表示基準月：{{ displayReferenceMonthLabel() }}（現在の処理月）
+        </span>
+      </div>
       <p class="employee-list__description">社会保険料の等級・負担額を含む従業員台帳</p>
+      <p class="employee-list__help">表示基準月時点の等級・保険料を反映しています。</p>
     </div>
-    <button type="button" class="employee-list__add-btn" (click)="openEmployeeModal()">
+    <button
+      type="button"
+      class="employee-list__add-btn"
+      [disabled]="currentMonthLocked()"
+      [title]="currentMonthLocked() ? '当月は確定済みのため追加できません' : ''"
+      (click)="openEmployeeModal()"
+    >
       ➕ 従業員を追加
     </button>
   </header>
 
   @if (saveError()) {
-    <p class="employee-list__alert" role="alert">{{ saveError() }}</p>
+    <p class="employee-list__alert app-global-notification" role="alert">{{ saveError() }}</p>
   }
 
   @if (loadError()) {
@@ -48,26 +60,48 @@
   </nav>
 
   <div class="employee-list__body">
+    <div class="employee-list__toolbar">
+      <div class="employee-list__filters">
+        <label class="employee-list__filter-label" for="employeeListSocialInsuranceFilter">社会保険区分</label>
+        <select
+          id="employeeListSocialInsuranceFilter"
+          class="employee-list__filter-select"
+          [value]="socialInsuranceFilter()"
+          (change)="onSocialInsuranceFilterChange($event)"
+        >
+          @for (option of socialInsuranceFilterOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
     @if (loading()) {
       <p class="employee-list__empty">読み込み中...</p>
     } @else if (loadError()) {
       <p class="employee-list__empty">従業員データを表示できません</p>
     } @else if (activeTab() === 'pre') {
-      @if (groups().preEmployment.length === 0) {
+      @if (displayedEmployees().length === 0) {
         <p class="employee-list__empty">入社前の従業員はいません</p>
       } @else {
         <ng-container
-          *ngTemplateOutlet="employeeTable; context: { $implicit: groups().preEmployment }"
+          *ngTemplateOutlet="employeeTable; context: { $implicit: displayedEmployees() }"
         />
       }
     } @else if (activeTab() === 'active') {
-      @if (groups().active.length === 0) {
+      @if (displayedEmployees().length === 0) {
         <p class="employee-list__empty">在職中の従業員はいません</p>
       } @else {
-        <ng-container *ngTemplateOutlet="employeeTable; context: { $implicit: groups().active }" />
+        <ng-container
+          *ngTemplateOutlet="employeeTable; context: { $implicit: displayedEmployees() }"
+        />
       }
-    } @else {
+    } @else if (groups().retired.length === 0 && socialInsuranceFilter() === 'all') {
       <p class="employee-list__empty">退職済みの従業員はいません</p>
+    } @else if (displayedEmployees().length === 0) {
+      <p class="employee-list__empty">該当する従業員はいません</p>
+    } @else {
+      <ng-container *ngTemplateOutlet="employeeTable; context: { $implicit: displayedEmployees() }" />
     }
   </div>
 </section>
@@ -87,7 +121,12 @@
       <thead>
         <tr>
           <th class="emp-table__name">名前</th>
-          <th class="emp-table__amount">総支給額</th>
+          <th class="emp-table__amount emp-table__amount-header">
+            <div class="flex flex-col items-start gap-0.5">
+              <span>固定的賃金</span>
+              <small class="text-xs text-gray-500 font-normal">基本給＋固定手当</small>
+            </div>
+          </th>
           <th class="emp-table__grade">等級</th>
           <th class="emp-table__amount">個人負担</th>
           <th class="emp-table__amount">会社負担</th>
@@ -102,10 +141,19 @@
 
           <tr class="emp-table__row">
             <td class="emp-table__name">
-              <span class="emp-table__employee-name">{{ fullName(employee) }}</span>
-              <span class="emp-table__employee-number">No. {{ employee.employeeNumber }}</span>
+              <div class="emp-table__name-block">
+                <div class="emp-table__name-row">
+                  <span class="emp-table__employee-name">{{ fullName(employee) }}</span>
+                  <app-social-insurance-type-badge [socialInsuranceType]="employee.socialInsuranceType" />
+                  @if (isRetiredBadgeVisible(employee)) {
+                    <app-retired-employee-badge [employee]="employee" />
+                  }
+                  <app-leave-compact-badge [employee]="employee" />
+                </div>
+                <span class="emp-table__employee-number">No. {{ employee.employeeNumber }}</span>
+              </div>
             </td>
-            <td class="emp-table__amount">¥{{ employee.baseSalary | number }}</td>
+            <td class="emp-table__amount">¥{{ fixedWagesAmount(employee) | number }}</td>
             <td class="emp-table__grade">{{ gradeLabel(summary) }}</td>
             <td class="emp-table__amount emp-table__amount--stacked">
               @if (summary.premiums) {
@@ -159,6 +207,8 @@
 
 <app-employee-registration-modal
   [open]="employeeModalOpen()"
+  [systemStartDate]="companySettings()?.systemStartDate ?? ''"
+  [companyAllowances]="companySettings()?.allowances ?? []"
   (closed)="onEmployeeModalClosed()"
   (registered)="onEmployeeRegistered($event)"
 />

@@ -1,0 +1,68 @@
+<div class="header-bell">
+  <button
+    type="button"
+    class="header-bell__trigger"
+    aria-label="通知"
+    [attr.aria-expanded]="panelOpen()"
+    (click)="togglePanel()"
+  >
+    <span class="header-bell__icon" aria-hidden="true">🔔</span>
+    @if (unreadCount() > 0) {
+      <span class="header-bell__badge">{{ unreadCount() }}</span>
+    }
+  </button>
+
+  @if (panelOpen()) {
+    <div class="header-bell__backdrop" (click)="closePanel()"></div>
+    <div class="header-bell__panel" role="dialog" aria-label="通知一覧">
+      <header class="header-bell__panel-header">
+        <div class="header-bell__panel-heading">
+          <h2 class="header-bell__panel-title">通知</h2>
+          @if (items().length > 0) {
+            <button
+              type="button"
+              class="header-bell__clear-all"
+              (click)="clearAllNotifications($event)"
+            >
+              すべて既読にする
+            </button>
+          }
+        </div>
+        <button type="button" class="header-bell__close" aria-label="閉じる" (click)="closePanel()">
+          ×
+        </button>
+      </header>
+
+      @if (items().length === 0) {
+        <p class="header-bell__empty">現在、新しい通知はありません</p>
+      } @else {
+        <ul class="header-bell__list">
+          @for (item of items(); track item.id) {
+            <li class="header-bell__item">
+              <button
+                type="button"
+                class="header-bell__item-button"
+                [class.header-bell__item-button--clickable]="item.kind === 'workflow'"
+                (click)="onItemClick(item)"
+              >
+                <span class="header-bell__item-kind">
+                  {{ item.kind === 'workflow' ? '申請・TODO' : '年齢到達' }}
+                </span>
+                <span class="header-bell__item-title">{{ item.title }}</span>
+                <span class="header-bell__item-message">{{ item.message }}</span>
+              </button>
+              <button
+                type="button"
+                class="header-bell__dismiss"
+                aria-label="この通知を既読にする"
+                (click)="dismissItem(item, $event)"
+              >
+                ×
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>

@@ -19,7 +19,9 @@
   }
 
   &__link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     padding: 0.65rem 1.25rem;
     border-radius: $radius-sm $radius-sm 0 0;
     background: $color-nav-inactive;
@@ -43,5 +45,13 @@
         color: #ffffff;
       }
     }
+  }
+
+  &__badge {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: $radius-pill;
+    background: $color-danger;
+    flex-shrink: 0;
   }
 }

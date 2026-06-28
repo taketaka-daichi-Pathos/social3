@@ -10,8 +10,8 @@ export const PREFECTURE_CODE_PATTERN = /^\d{2}$/;
 /** 郡市区符号: 2桁 */
 export const DISTRICT_CODE_PATTERN = /^\d{2}$/;
 
-/** 事業所番号: 5桁 */
-export const OFFICE_NUMBER_PATTERN = /^\d{5}$/;
+/** 事業所番号: 1〜5桁 */
+export const OFFICE_NUMBER_PATTERN = /^\d{1,5}$/;
 
 /** 会社ID: 5桁 */
 export const COMPANY_ID_PATTERN = /^\d{5}$/;

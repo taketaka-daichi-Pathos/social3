@@ -28,18 +28,65 @@
         </div>
 
         <div class="auth-page__field register-page__field--full">
-          <label class="auth-page__label" for="ownerName">事業主氏名</label>
-          <input
-            id="ownerName"
-            type="text"
-            class="auth-page__input"
-            formControlName="ownerName"
-            placeholder="例: 山田 太郎"
-            autocomplete="name"
-          />
-          @if (showError('ownerName')) {
-            <p class="auth-page__error">{{ errorMessage('ownerName') }}</p>
-          }
+          <span class="auth-page__label">事業主氏名</span>
+          <div class="register-page__name-row">
+            <div class="register-page__name-field">
+              <label class="register-page__sub-label" for="employerLastName">姓</label>
+              <input
+                id="employerLastName"
+                type="text"
+                class="auth-page__input"
+                formControlName="employerLastName"
+                placeholder="例: 山田"
+                autocomplete="family-name"
+              />
+              @if (showError('employerLastName')) {
+                <p class="auth-page__error">{{ errorMessage('employerLastName') }}</p>
+              }
+            </div>
+            <div class="register-page__name-field">
+              <label class="register-page__sub-label" for="employerFirstName">名</label>
+              <input
+                id="employerFirstName"
+                type="text"
+                class="auth-page__input"
+                formControlName="employerFirstName"
+                placeholder="例: 太郎"
+                autocomplete="given-name"
+              />
+              @if (showError('employerFirstName')) {
+                <p class="auth-page__error">{{ errorMessage('employerFirstName') }}</p>
+              }
+            </div>
+          </div>
+          <div class="register-page__name-row">
+            <div class="register-page__name-field">
+              <label class="register-page__sub-label" for="employerLastNameKana">セイ</label>
+              <input
+                id="employerLastNameKana"
+                type="text"
+                class="auth-page__input"
+                formControlName="employerLastNameKana"
+                placeholder="例: ヤマダ"
+              />
+              @if (showError('employerLastNameKana')) {
+                <p class="auth-page__error">{{ errorMessage('employerLastNameKana') }}</p>
+              }
+            </div>
+            <div class="register-page__name-field">
+              <label class="register-page__sub-label" for="employerFirstNameKana">メイ</label>
+              <input
+                id="employerFirstNameKana"
+                type="text"
+                class="auth-page__input"
+                formControlName="employerFirstNameKana"
+                placeholder="例: タロウ"
+              />
+              @if (showError('employerFirstNameKana')) {
+                <p class="auth-page__error">{{ errorMessage('employerFirstNameKana') }}</p>
+              }
+            </div>
+          </div>
         </div>
 
         <div class="auth-page__field">
@@ -70,18 +117,35 @@
         </div>
 
         <div class="auth-page__field register-page__field--full">
-          <label class="auth-page__label" for="address">所在地</label>
-          <input
-            id="address"
-            type="text"
-            class="auth-page__input"
-            formControlName="address"
-            placeholder="例: 東京都千代田区丸の内1-1-1"
-            autocomplete="street-address"
-          />
-          @if (showError('address')) {
-            <p class="auth-page__error">{{ errorMessage('address') }}</p>
-          }
+          <span class="auth-page__label">所在地</span>
+          <div class="register-page__address-row">
+            <div class="register-page__address-field">
+              <label class="register-page__sub-label" for="prefecture">都道府県</label>
+              <select id="prefecture" class="auth-page__input" formControlName="prefecture">
+                <option value="" disabled>選択してください</option>
+                @for (name of prefectureNames; track name) {
+                  <option [value]="name">{{ name }}</option>
+                }
+              </select>
+              @if (showError('prefecture')) {
+                <p class="auth-page__error">{{ errorMessage('prefecture') }}</p>
+              }
+            </div>
+            <div class="register-page__address-field">
+              <label class="register-page__sub-label" for="cityAddress">市区町村・番地</label>
+              <input
+                id="cityAddress"
+                type="text"
+                class="auth-page__input"
+                formControlName="cityAddress"
+                placeholder="例: 千代田区丸の内1-1-1"
+                autocomplete="street-address"
+              />
+              @if (showError('cityAddress')) {
+                <p class="auth-page__error">{{ errorMessage('cityAddress') }}</p>
+              }
+            </div>
+          </div>
         </div>
 
         <div class="auth-page__field">
@@ -143,6 +207,19 @@
           />
           @if (showError('officeNumber')) {
             <p class="auth-page__error">{{ errorMessage('officeNumber') }}</p>
+          }
+        </div>
+        <div class="auth-page__field">
+          <label class="auth-page__label" for="systemStartDate">システム利用開始年月</label>
+          <input
+            id="systemStartDate"
+            type="month"
+            class="auth-page__input"
+            formControlName="systemStartDate"
+          />
+          <p class="register-page__hint">本システムでの給与・社会保険管理を開始する年月です（登録後は変更できません）</p>
+          @if (showError('systemStartDate')) {
+            <p class="auth-page__error">{{ errorMessage('systemStartDate') }}</p>
           }
         </div>
       </div>

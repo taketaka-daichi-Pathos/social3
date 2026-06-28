@@ -1,0 +1,16 @@
+@use '../../../../styles/variables' as *;
+
+.app-toast {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 2000;
+  max-width: min(24rem, calc(100vw - 2.5rem));
+  padding: 0.85rem 1rem;
+  border-radius: $radius-md;
+  background: #111827;
+  color: #fff;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}

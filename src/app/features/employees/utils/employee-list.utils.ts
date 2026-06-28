@@ -1,9 +1,17 @@
 import { Employee } from '../models/employee.model';
+import { isAfterRetirementMonth, isRetiredEmployee } from './retirement.utils';
 
 export interface EmployeeListGroups {
   preEmployment: Employee[];
   active: Employee[];
   retired: Employee[];
+}
+
+/** 社員番号順に並べ替えた従業員一覧（UI プルダウン等で共通利用） */
+export function sortEmployeesByNumber(employees: Employee[]): Employee[] {
+  return [...employees].sort((left, right) =>
+    left.employeeNumber.localeCompare(right.employeeNumber, 'ja')
+  );
 }
 
 /** YYYY-MM-DD または Date から YYYY-MM キーを生成する */
@@ -23,13 +31,29 @@ export function isPreEmployment(employee: Employee, referenceDate = new Date()):
   return hireMonth > currentMonth;
 }
 
+/** 現在月基準で「退職済み」タブに表示する従業員か（退職月を過ぎた場合のみ） */
+export function isEmployeeRetiredTab(employee: Employee, referenceDate = new Date()): boolean {
+  if (isPreEmployment(employee, referenceDate)) {
+    return false;
+  }
+
+  if (!isRetiredEmployee(employee)) {
+    return false;
+  }
+
+  return isAfterRetirementMonth(employee, getCurrentYearMonthKey(referenceDate));
+}
+
 export function groupEmployees(employees: Employee[], referenceDate = new Date()): EmployeeListGroups {
   const preEmployment: Employee[] = [];
   const active: Employee[] = [];
+  const retired: Employee[] = [];
 
   for (const employee of employees) {
     if (isPreEmployment(employee, referenceDate)) {
       preEmployment.push(employee);
+    } else if (isEmployeeRetiredTab(employee, referenceDate)) {
+      retired.push(employee);
     } else {
       active.push(employee);
     }
@@ -41,7 +65,6 @@ export function groupEmployees(employees: Employee[], referenceDate = new Date()
   return {
     preEmployment: preEmployment.sort(sortByNumber),
     active: active.sort(sortByNumber),
-    /** 退職月の判定は後日実装。現時点では常に空 */
-    retired: [],
+    retired: retired.sort(sortByNumber),
   };
 }

@@ -6,20 +6,10 @@
         月次給与データに基づき、算定基礎（定時決定）と随時改定（月額変更）の判定結果を表示します。
       </p>
     </div>
-
-    <div class="revision__year-picker">
-      <label class="revision__year-label" for="revisionTargetYear">対象年</label>
-      <app-year-select
-        inputId="revisionTargetYear"
-        selectClass="revision__year-select"
-        [value]="targetYear()"
-        (valueChange)="onYearSelected($event)"
-      />
-    </div>
   </header>
 
   <app-sub-nav
-    [items]="subNavItems"
+    [items]="subNavItems()"
     [activeId]="activeSubTab()"
     (itemSelected)="onSubNavSelect($event)"
   />
@@ -28,20 +18,66 @@
     <p class="revision__alert" role="alert">{{ loadError() }}</p>
   }
 
+  @if (applyError()) {
+    <p class="revision__alert" role="alert">{{ applyError() }}</p>
+  }
+
   @if (loading()) {
     <p class="revision__status">計算中...</p>
   } @else if (activeSubTab() === 'annual') {
     <section class="revision__panel">
       <div class="revision__panel-head">
-        <h2 class="revision__panel-title">算定基礎（定時決定）</h2>
+        <div class="revision__panel-head-row">
+          <h2 class="revision__panel-title">算定基礎（定時決定）</h2>
+          <div class="revision__period-stepper" aria-label="算定基礎の対象年">
+            <button
+              type="button"
+              class="revision__stepper-btn"
+              aria-label="前の年"
+              (click)="prevAnnualYear()"
+            >
+              ◀
+            </button>
+            <span class="revision__stepper-label">{{ targetYear() }}年</span>
+            <button
+              type="button"
+              class="revision__stepper-btn"
+              aria-label="次の年"
+              (click)="nextAnnualYear()"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
         <p class="revision__panel-note">
           {{ targetYear() }}年 算定基礎 ／ 対象月: {{ determinationMonthsLabel() }} ／ 適用開始:
-          {{ targetYear() }}年9月（10月納付分〜）
+          {{ targetYear() }}年9月（10月納付分〜） ／ 賞与判定:
+          {{ targetYear() - 1 }}年7月〜{{ targetYear() }}年6月
         </p>
       </div>
 
-      @if (annualResults().length === 0) {
-        <p class="revision__status">表示する従業員がいません</p>
+      <nav class="revision__filter-tabs" aria-label="算定基礎のステータス絞り込み">
+        @for (tab of statusFilterTabs; track tab.id) {
+          <button
+            type="button"
+            class="revision__filter-tab"
+            [class.revision__filter-tab--active]="annualStatusFilter() === tab.id"
+            (click)="selectAnnualStatusFilter(tab.id)"
+          >
+            <span>{{ tab.label }}</span>
+            @if (tab.id === 'action_required' && annualPendingCount() > 0) {
+              <span
+                class="w-2 h-2 bg-red-500 rounded-full inline-block shrink-0"
+                [attr.aria-label]="'未処理 ' + annualPendingCount() + '件'"
+              ></span>
+              <span class="revision__filter-tab-count">{{ annualPendingCount() }}</span>
+            }
+          </button>
+        }
+      </nav>
+
+      @if (filteredAnnualResults().length === 0) {
+        <p class="revision__status">{{ annualStatusFilterEmptyMessage() }}</p>
       } @else {
         <div class="revision__table-wrap">
           <table class="revision__table">
@@ -52,18 +88,39 @@
                 <th>ステータス</th>
                 <th>対象月の給与</th>
                 <th>平均総支給</th>
-                <th>現在等級（健保/厚年）</th>
-                <th>改定後（健保/厚年）</th>
+                <th>健保等級</th>
+                <th>厚年等級</th>
                 <th>除外理由</th>
+                <th class="revision__th-action">操作</th>
               </tr>
             </thead>
             <tbody>
-              @for (row of annualResults(); track row.employeeId) {
-                <tr [class.revision__row--muted]="row.status === 'excluded'">
+              @for (row of filteredAnnualResults(); track row.employeeId) {
+                <tr [class.revision__row--muted]="isAnnualRowMuted(row)">
                   <td>{{ row.employeeNumber }}</td>
-                  <td class="revision__cell-name">{{ row.employeeName }}</td>
+                  <td class="revision__cell-name">
+                    <div class="revision__name-cell">
+                      <div class="revision__name-row">
+                        <span>{{ row.employeeName }}</span>
+                        @if (isRetiredBadgeVisible(row.employeeId)) {
+                          <app-retired-employee-badge [employee]="employeeForId(row.employeeId)" />
+                        }
+                        @if (hasFrequentBonusAdjustment(row)) {
+                          <span
+                            class="revision__badge revision__badge--frequent-bonus"
+                            [title]="annualAverageBreakdownTitle(row)"
+                          >
+                            年4回賞与該当
+                          </span>
+                        }
+                      </div>
+                      <span class="revision__insurance-type">{{
+                        socialInsuranceTypeLabel(row.employeeId)
+                      }}</span>
+                    </div>
+                  </td>
                   <td>
-                    <span [class]="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                    <span [class]="annualStatusClass(row)">{{ annualStatusLabel(row) }}</span>
                   </td>
                   <td>
                     <div class="revision__month-list">
@@ -73,7 +130,16 @@
                           [class.revision__month-chip--excluded]="!month.included"
                         >
                           <span>{{ formatMonth(month.yearMonth) }}</span>
-                          <span>{{ month.baseDays }}日 / ¥{{ month.totalPayment | number }}</span>
+                          <span>
+                            {{ month.baseDays }}日 / ¥{{ month.adjustedTotalPayment | number }}
+                          </span>
+                          @if (month.bonusAddition > 0) {
+                            <span class="revision__chip-note">
+                              給与 ¥{{ month.totalPayment | number }} ＋ 賞与 ¥{{
+                                month.bonusAddition | number
+                              }}
+                            </span>
+                          }
                           @if (month.note) {
                             <span class="revision__chip-note">{{ month.note }}</span>
                           }
@@ -82,27 +148,133 @@
                     </div>
                   </td>
                   <td class="revision__cell-amount">
-                    @if (row.averagePayment != null) {
-                      ¥{{ row.averagePayment | number }}
+                    @if (!isAnnualCalculationSuppressed(row) && row.averagePayment != null) {
+                      <div
+                        class="revision__average-breakdown"
+                        [class.revision__average-breakdown--bonus]="hasFrequentBonusAdjustment(row)"
+                        [title]="annualAverageBreakdownTitle(row)"
+                      >
+                        <span>¥{{ row.averagePayment | number }}</span>
+                        @if (hasFrequentBonusAdjustment(row)) {
+                          <span class="revision__average-note">
+                            給与平均 ¥{{
+                              (row.frequentBonusAdjustment.payrollOnlyAverage ?? 0) | number
+                            }}
+                            ＋ 賞与 ¥{{
+                              row.frequentBonusAdjustment.monthlyBonusAllocation | number
+                            }}
+                          </span>
+                        }
+                      </div>
                     } @else {
                       —
                     }
                   </td>
                   <td>
-                    ¥{{ row.currentHealthStandard | number }} / ¥{{ row.currentPensionStandard | number }}
-                  </td>
-                  <td>
-                    @if (row.proposedHealthStandard != null) {
-                      ¥{{ row.proposedHealthStandard | number }} / ¥{{ row.proposedPensionStandard | number }}
+                    @if (!isAnnualCalculationSuppressed(row) && row.proposedHealthGrade != null) {
+                      <div
+                        class="revision__grade-change"
+                        [class.revision__grade-change--up]="
+                          gradeChangeDirection(row.currentHealthGrade, row.proposedHealthGrade) ===
+                          'up'
+                        "
+                        [class.revision__grade-change--down]="
+                          gradeChangeDirection(row.currentHealthGrade, row.proposedHealthGrade) ===
+                          'down'
+                        "
+                      >
+                        <span class="revision__grade-before">{{
+                          formatGradeWithAmount(row.currentHealthGrade, row.currentHealthStandard)
+                        }}</span>
+                        <span class="revision__grade-arrow" aria-hidden="true">➔</span>
+                        <span class="revision__grade-after">{{
+                          formatGradeWithAmount(
+                            row.proposedHealthGrade,
+                            row.proposedHealthStandard ?? 0
+                          )
+                        }}</span>
+                      </div>
+                    } @else if (!isAnnualCalculationSuppressed(row)) {
+                      <span class="revision__grade-static">{{
+                        formatGradeWithAmount(row.currentHealthGrade, row.currentHealthStandard)
+                      }}</span>
                     } @else {
                       —
                     }
                   </td>
                   <td>
-                    @if (row.exclusionLabels.length > 0) {
+                    @if (!isAnnualCalculationSuppressed(row) && row.proposedPensionGrade != null) {
+                      <div
+                        class="revision__grade-change"
+                        [class.revision__grade-change--up]="
+                          gradeChangeDirection(row.currentPensionGrade, row.proposedPensionGrade) ===
+                          'up'
+                        "
+                        [class.revision__grade-change--down]="
+                          gradeChangeDirection(row.currentPensionGrade, row.proposedPensionGrade) ===
+                          'down'
+                        "
+                      >
+                        <span class="revision__grade-before">{{
+                          formatGradeWithAmount(row.currentPensionGrade, row.currentPensionStandard)
+                        }}</span>
+                        <span class="revision__grade-arrow" aria-hidden="true">➔</span>
+                        <span class="revision__grade-after">{{
+                          formatGradeWithAmount(
+                            row.proposedPensionGrade,
+                            row.proposedPensionStandard ?? 0
+                          )
+                        }}</span>
+                      </div>
+                    } @else if (!isAnnualCalculationSuppressed(row)) {
+                      <span class="revision__grade-static">{{
+                        formatGradeWithAmount(row.currentPensionGrade, row.currentPensionStandard)
+                      }}</span>
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td>
+                    @if (annualExclusionLabels(row).length > 0) {
                       <div class="revision__badges">
-                        @for (label of row.exclusionLabels; track label) {
-                          <span class="revision__badge revision__badge--excluded">{{ label }}</span>
+                        @for (label of annualExclusionLabels(row); track label) {
+                          <span
+                            class="revision__badge"
+                            [class.revision__badge--priority-excluded]="
+                              isOccasionalPriorityExclusionLabel(label)
+                            "
+                            [class.revision__badge--excluded]="
+                              !isOccasionalPriorityExclusionLabel(label)
+                            "
+                          >{{ label }}</span>
+                        }
+                      </div>
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td class="revision__cell-action">
+                    @if (isAnnualApplied(row)) {
+                      <span class="revision__badge revision__badge--applied">適用済み</span>
+                    } @else if (showAnnualApplyButton(row)) {
+                      <div class="flex flex-col items-end gap-1">
+                        <button
+                          type="button"
+                          class="revision__apply-btn"
+                          [disabled]="!canApplyAnnual(row) || isApplying(annualApplyKey(row))"
+                          [attr.title]="
+                            isAnnualApplyDisabledByMissingPayroll(row)
+                              ? revisionMissingPayrollApplyTooltip
+                              : null
+                          "
+                          (click)="applyAnnual(row)"
+                        >
+                          {{ isApplying(annualApplyKey(row)) ? '適用中...' : '適用' }}
+                        </button>
+                        @if (isAnnualApplyDisabledByMissingPayroll(row)) {
+                          <p class="m-0 text-[0.6875rem] leading-snug text-amber-700 text-right max-w-40">
+                            {{ revisionMissingPayrollApplyTooltip }}
+                          </p>
                         }
                       </div>
                     } @else {
@@ -119,12 +291,55 @@
   } @else {
     <section class="revision__panel">
       <div class="revision__panel-head">
-        <h2 class="revision__panel-title">随時改定（月額変更）</h2>
+        <div class="revision__panel-head-row">
+          <h2 class="revision__panel-title">随時改定（月額変更）</h2>
+          <div class="revision__period-stepper" aria-label="随時改定の適用月">
+            <button
+              type="button"
+              class="revision__stepper-btn"
+              aria-label="前の月"
+              (click)="prevOccasionalChangeMonth()"
+            >
+              ◀
+            </button>
+            <span class="revision__stepper-label">{{ occasionalChangeMonthLabel() }}</span>
+            <button
+              type="button"
+              class="revision__stepper-btn"
+              aria-label="次の月"
+              (click)="nextOccasionalChangeMonth()"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
         <p class="revision__panel-note">{{ occasionalPanelNote() }}</p>
       </div>
 
-      @if (occasionalResults().length === 0) {
-        <p class="revision__status">固定的賃金の変動は検出されませんでした</p>
+      <nav class="revision__filter-tabs" aria-label="随時改定のステータス絞り込み">
+        @for (tab of statusFilterTabs; track tab.id) {
+          <button
+            type="button"
+            class="revision__filter-tab"
+            [class.revision__filter-tab--active]="occasionalStatusFilter() === tab.id"
+            (click)="selectOccasionalStatusFilter(tab.id)"
+          >
+            <span>{{ tab.label }}</span>
+            @if (tab.id === 'action_required' && occasionalPendingCountForSelectedMonth() > 0) {
+              <span
+                class="w-2 h-2 bg-red-500 rounded-full inline-block shrink-0"
+                [attr.aria-label]="'未処理 ' + occasionalPendingCountForSelectedMonth() + '件'"
+              ></span>
+              <span class="revision__filter-tab-count">{{
+                occasionalPendingCountForSelectedMonth()
+              }}</span>
+            }
+          </button>
+        }
+      </nav>
+
+      @if (filteredOccasionalResults().length === 0) {
+        <p class="revision__status">{{ occasionalStatusFilterEmptyMessage() }}</p>
       } @else {
         <div class="revision__table-wrap">
           <table class="revision__table">
@@ -136,19 +351,38 @@
                 <th>ステータス</th>
                 <th>対象3ヶ月</th>
                 <th>平均総支給</th>
-                <th>等級差</th>
+                <th>健保等級</th>
+                <th>厚年等級</th>
                 <th>適用月</th>
                 <th>除外理由</th>
+                <th class="revision__th-action">操作</th>
               </tr>
             </thead>
             <tbody>
-              @for (row of occasionalResults(); track row.employeeId + row.changeMonth) {
-                <tr [class.revision__row--muted]="row.status === 'excluded'">
+              @for (row of filteredOccasionalResults(); track row.employeeId + row.changeMonth) {
+                <tr [class.revision__row--muted]="isOccasionalRowMuted(row)">
                   <td>{{ row.employeeNumber }}</td>
-                  <td class="revision__cell-name">{{ row.employeeName }}</td>
+                  <td class="revision__cell-name">
+                    <div class="revision__name-cell">
+                      <div class="revision__name-row">
+                        <span>{{ row.employeeName }}</span>
+                        @if (isRetiredBadgeVisible(row.employeeId)) {
+                          <app-retired-employee-badge [employee]="employeeForId(row.employeeId)" />
+                        }
+                        @if (hasOccasionalFrequentBonusAdjustment(row)) {
+                          <span
+                            class="revision__badge revision__badge--frequent-bonus"
+                            [title]="occasionalAverageBreakdownTitle(row)"
+                          >
+                            年4回賞与該当
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </td>
                   <td>{{ formatMonth(row.changeMonth) }}</td>
                   <td>
-                    <span [class]="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                    <span [class]="occasionalStatusClass(row)">{{ occasionalStatusLabel(row) }}</span>
                   </td>
                   <td>
                     <div class="revision__month-list">
@@ -158,7 +392,16 @@
                           [class.revision__month-chip--excluded]="!month.included"
                         >
                           <span>{{ formatMonth(month.yearMonth) }}</span>
-                          <span>{{ month.baseDays }}日 / ¥{{ month.totalPayment | number }}</span>
+                          <span>
+                            {{ month.baseDays }}日 / ¥{{ month.adjustedTotalPayment | number }}
+                          </span>
+                          @if (month.bonusAddition > 0) {
+                            <span class="revision__chip-note">
+                              給与 ¥{{ month.totalPayment | number }} ＋ 賞与 ¥{{
+                                month.bonusAddition | number
+                              }}
+                            </span>
+                          }
                           @if (month.note) {
                             <span class="revision__chip-note">{{ month.note }}</span>
                           }
@@ -168,12 +411,89 @@
                   </td>
                   <td class="revision__cell-amount">
                     @if (row.averagePayment != null) {
-                      ¥{{ row.averagePayment | number }}
+                      <div
+                        class="revision__average-breakdown"
+                        [class.revision__average-breakdown--bonus]="
+                          hasOccasionalFrequentBonusAdjustment(row)
+                        "
+                        [title]="occasionalAverageBreakdownTitle(row)"
+                      >
+                        <span>¥{{ row.averagePayment | number }}</span>
+                        @if (hasOccasionalFrequentBonusAdjustment(row)) {
+                          <span class="revision__average-note">
+                            給与平均 ¥{{
+                              (row.frequentBonusAdjustment.payrollOnlyAverage ?? 0) | number
+                            }}
+                            ＋ 賞与 ¥{{
+                              row.frequentBonusAdjustment.monthlyBonusAllocation | number
+                            }}
+                          </span>
+                        }
+                      </div>
                     } @else {
                       —
                     }
                   </td>
-                  <td>{{ row.gradeDifference ?? '—' }}</td>
+                  <td>
+                    @if (row.proposedHealthGrade != null) {
+                      <div
+                        class="revision__grade-change"
+                        [class.revision__grade-change--up]="
+                          gradeChangeDirection(row.currentHealthGrade, row.proposedHealthGrade) ===
+                          'up'
+                        "
+                        [class.revision__grade-change--down]="
+                          gradeChangeDirection(row.currentHealthGrade, row.proposedHealthGrade) ===
+                          'down'
+                        "
+                      >
+                        <span class="revision__grade-before">{{
+                          formatGradeWithAmount(row.currentHealthGrade, row.currentHealthStandard)
+                        }}</span>
+                        <span class="revision__grade-arrow" aria-hidden="true">➔</span>
+                        <span class="revision__grade-after">{{
+                          formatGradeWithAmount(
+                            row.proposedHealthGrade,
+                            row.proposedHealthStandard ?? 0
+                          )
+                        }}</span>
+                      </div>
+                    } @else {
+                      <span class="revision__grade-static">{{
+                        formatGradeWithAmount(row.currentHealthGrade, row.currentHealthStandard)
+                      }}</span>
+                    }
+                  </td>
+                  <td>
+                    @if (row.proposedPensionGrade != null) {
+                      <div
+                        class="revision__grade-change"
+                        [class.revision__grade-change--up]="
+                          gradeChangeDirection(row.currentPensionGrade, row.proposedPensionGrade) ===
+                          'up'
+                        "
+                        [class.revision__grade-change--down]="
+                          gradeChangeDirection(row.currentPensionGrade, row.proposedPensionGrade) ===
+                          'down'
+                        "
+                      >
+                        <span class="revision__grade-before">{{
+                          formatGradeWithAmount(row.currentPensionGrade, row.currentPensionStandard)
+                        }}</span>
+                        <span class="revision__grade-arrow" aria-hidden="true">➔</span>
+                        <span class="revision__grade-after">{{
+                          formatGradeWithAmount(
+                            row.proposedPensionGrade,
+                            row.proposedPensionStandard ?? 0
+                          )
+                        }}</span>
+                      </div>
+                    } @else {
+                      <span class="revision__grade-static">{{
+                        formatGradeWithAmount(row.currentPensionGrade, row.currentPensionStandard)
+                      }}</span>
+                    }
+                  </td>
                   <td>
                     @if (row.applicationMonth) {
                       {{ formatMonth(row.applicationMonth) }}
@@ -182,10 +502,38 @@
                     }
                   </td>
                   <td>
-                    @if (row.exclusionLabels.length > 0) {
+                    @if (occasionalExclusionLabels(row).length > 0) {
                       <div class="revision__badges">
-                        @for (label of row.exclusionLabels; track label) {
+                        @for (label of occasionalExclusionLabels(row); track label) {
                           <span class="revision__badge revision__badge--excluded">{{ label }}</span>
+                        }
+                      </div>
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td class="revision__cell-action">
+                    @if (isOccasionalApplied(row)) {
+                      <span class="revision__badge revision__badge--applied">適用済み</span>
+                    } @else if (showOccasionalApplyButton(row)) {
+                      <div class="flex flex-col items-end gap-1">
+                        <button
+                          type="button"
+                          class="revision__apply-btn"
+                          [disabled]="!canApplyOccasional(row) || isApplying(occasionalApplyKey(row))"
+                          [attr.title]="
+                            isOccasionalApplyDisabledByMissingPayroll(row)
+                              ? revisionMissingPayrollApplyTooltip
+                              : null
+                          "
+                          (click)="applyOccasional(row)"
+                        >
+                          {{ isApplying(occasionalApplyKey(row)) ? '適用中...' : '適用' }}
+                        </button>
+                        @if (isOccasionalApplyDisabledByMissingPayroll(row)) {
+                          <p class="m-0 text-[0.6875rem] leading-snug text-amber-700 text-right max-w-40">
+                            {{ revisionMissingPayrollApplyTooltip }}
+                          </p>
                         }
                       </div>
                     } @else {

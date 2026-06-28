@@ -3,6 +3,7 @@ import { Auth, signInWithEmailAndPassword } from '@angular/fire/auth';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { EmployeeAuthService } from '@core/services/employee-auth.service';
+import { EmployeeSessionService } from '@core/services/employee-session.service';
 import { COMPANY_ID_PATTERN } from '@features/settings/validators/company-settings.validators';
 import { EMPLOYEE_NUMBER_PATTERN } from '@features/onboarding/validators/employee-registration.validators';
 import { HalfWidthDigitsOnlyDirective } from '@shared/directives/half-width-digits-only.directive';
@@ -21,6 +22,7 @@ export class LoginComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(Auth);
   private readonly employeeAuthService = inject(EmployeeAuthService);
+  private readonly sessionService = inject(EmployeeSessionService);
 
   readonly loginMode = signal<LoginMode>('admin');
 
@@ -114,7 +116,7 @@ export class LoginComponent {
     this.loggingIn = true;
     try {
       await signInWithEmailAndPassword(this.auth, email, password);
-      await this.router.navigate(['/employees']);
+      await this.navigateAfterLogin();
     } catch {
       this.loginError = 'メールアドレスまたはパスワードが正しくありません';
     } finally {
@@ -133,11 +135,21 @@ export class LoginComponent {
     this.loggingIn = true;
     try {
       await this.employeeAuthService.signIn(companyId, employeeNumber, password);
-      await this.router.navigate(['/employees']);
+      await this.navigateAfterLogin();
     } catch {
       this.loginError = '会社ID・社員番号・パスワードが正しくありません';
     } finally {
       this.loggingIn = false;
     }
+  }
+
+  private async navigateAfterLogin(): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user) {
+      return;
+    }
+
+    const isAdmin = await this.sessionService.isCompanyAdmin(user.uid);
+    await this.router.navigate([isAdmin ? '/employees' : '/employee/dashboard']);
   }
 }

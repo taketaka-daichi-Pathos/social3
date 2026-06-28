@@ -85,6 +85,33 @@
     }
   }
 
+  &__name-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+    margin-top: 0.35rem;
+
+    & + & {
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__name-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__sub-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $color-text-muted;
+  }
+
   &__label {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -216,10 +243,25 @@
 
   &__actions {
     display: flex;
-    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
     margin-top: 2rem;
     padding-top: 1.5rem;
     border-top: 1px solid $color-border;
+  }
+
+  &__success--banner {
+    width: 100%;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: $radius-sm;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    text-align: left;
   }
 
   &__submit {
@@ -341,6 +383,102 @@
   &__remove-icon {
     font-size: 1rem;
     line-height: 1;
+  }
+
+  &__history-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__history-table-wrap {
+    overflow-x: auto;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+  }
+
+  &__history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+
+    th,
+    td {
+      padding: 0.625rem 0.75rem;
+      border-bottom: 1px solid $color-border;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      background: rgba($color-primary, 0.04);
+      color: $color-text-muted;
+      font-weight: 600;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+  }
+
+  &__history-row--editing td {
+    background: rgba($color-primary, 0.06);
+  }
+
+  &__history-edit-btn {
+    padding: 0.25rem 0.65rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: $color-bg-surface;
+    color: $color-primary-dark;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      border-color: $color-primary;
+      color: $color-primary;
+    }
+
+    &--active {
+      border-color: $color-primary;
+      background: rgba($color-primary, 0.08);
+      color: $color-primary;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      border-color: $color-border;
+      color: $color-text-muted;
+      background: rgba($color-text-muted, 0.08);
+
+      &:hover {
+        border-color: $color-border;
+        color: $color-text-muted;
+      }
+    }
+  }
+
+  &__hint--edit-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+    color: $color-primary-dark;
+  }
+
+  &__edit-cancel {
+    padding: 0;
+    border: none;
+    background: none;
+    color: $color-primary;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   &__add-btn {

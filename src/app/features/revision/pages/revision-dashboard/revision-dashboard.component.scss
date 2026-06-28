@@ -28,6 +28,16 @@
     line-height: 1.5;
   }
 
+  &__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0 0 1rem;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+    cursor: pointer;
+  }
+
   &__year-picker {
     display: flex;
     flex-direction: column;
@@ -80,6 +90,94 @@
     margin-bottom: 1rem;
   }
 
+  &__panel-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+  }
+
+  &__period-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: #f8fafc;
+  }
+
+  &__stepper-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: $color-text;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      border-color: $color-primary;
+      color: $color-primary;
+    }
+  }
+
+  &__stepper-label {
+    min-width: 8rem;
+    text-align: center;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  &__filter-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  &__filter-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid $color-border;
+    border-radius: 999px;
+    background: #fff;
+    color: $color-text-muted;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      border-color: $color-primary;
+      color: $color-primary;
+    }
+
+    &--active {
+      background: $color-primary;
+      border-color: $color-primary;
+      color: #fff;
+    }
+  }
+
+  &__filter-tab-count {
+    min-width: 1.125rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
   &__panel-title {
     margin: 0 0 0.35rem;
     font-size: 1rem;
@@ -127,6 +225,49 @@
   &__cell-name {
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  &__name-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  &__name-row {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+  }
+
+  &__insurance-type {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #6b7280;
+    font-weight: 400;
+  }
+
+  &__average-breakdown {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+
+    &--bonus {
+      cursor: help;
+    }
+  }
+
+  &__average-note {
+    font-size: 0.6875rem;
+    color: #92400e;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: right;
+    white-space: normal;
+    max-width: 12rem;
   }
 
   &__cell-amount {
@@ -194,9 +335,88 @@
       color: #6b7280;
     }
 
+    &--priority-excluded {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
     &--pending {
       background: #fef3c7;
       color: #b45309;
     }
+
+    &--frequent-bonus {
+      background: #fef3c7;
+      color: #92400e;
+      cursor: help;
+    }
+
+    &--retired {
+      background: rgba($color-text-muted, 0.15);
+      color: $color-text-muted;
+    }
+  }
+
+  &__th-action,
+  &__cell-action {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  &__apply-btn {
+    padding: 0.35rem 0.75rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: $color-primary;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: $color-primary-dark;
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+
+  &__grade-change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.45;
+  }
+
+  &__grade-before {
+    color: $color-text-muted;
+  }
+
+  &__grade-arrow {
+    color: #9ca3af;
+    font-size: 0.75rem;
+  }
+
+  &__grade-after {
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__grade-change--up &__grade-after {
+    color: #dc2626;
+  }
+
+  &__grade-change--down &__grade-after {
+    color: #2563eb;
+  }
+
+  &__grade-static {
+    color: $color-text-muted;
+    font-variant-numeric: tabular-nums;
   }
 }

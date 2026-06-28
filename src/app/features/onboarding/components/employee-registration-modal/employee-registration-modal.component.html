@@ -14,18 +14,37 @@
         </button>
       </header>
 
-      <form class="employee-modal__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-        <fieldset class="employee-modal__fieldset">
-          <legend class="employee-modal__legend">登録タイプ</legend>
-          <div class="employee-modal__radio-group">
+      <form class="employee-modal__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
+        <fieldset class="employee-modal__fieldset employee-modal__fieldset--registration-type">
+          <legend class="employee-modal__legend">登録種別</legend>
+          <div class="employee-modal__radio-group employee-modal__radio-group--stacked">
             <label class="employee-modal__radio-label">
               <input type="radio" formControlName="registrationType" value="new" />
-              <span>新入社員</span>
+              <span>新入社員（利用開始日以降の入社）</span>
             </label>
             <label class="employee-modal__radio-label">
               <input type="radio" formControlName="registrationType" value="existing" />
-              <span>既存の社員</span>
+              <span>既存社員（利用開始日より前の入社）</span>
             </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="employee-modal__fieldset employee-modal__fieldset--social-insurance">
+          <legend class="employee-modal__legend">社会保険上の労働区分</legend>
+          <div class="employee-modal__field employee-modal__field--full">
+            <label class="employee-modal__sublabel" for="socialInsuranceType">労働区分</label>
+            <select
+              id="socialInsuranceType"
+              class="employee-modal__input employee-modal__select"
+              formControlName="socialInsuranceType"
+            >
+              @for (option of socialInsuranceTypeOptions; track option.value) {
+                <option [ngValue]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            @if (showError('socialInsuranceType')) {
+              <p class="employee-modal__error">{{ errorMessage('socialInsuranceType') }}</p>
+            }
           </div>
         </fieldset>
 
@@ -36,6 +55,7 @@
               id="employeeNumber"
               type="text"
               class="employee-modal__input"
+              [class.employee-modal__input--error]="showError('employeeNumber')"
               formControlName="employeeNumber"
               placeholder="例: 000123"
               inputmode="numeric"
@@ -47,13 +67,15 @@
               ログインIDとして使用します。初期パスワードは生年月日（YYYYMMDD）です。
             </p>
             @if (showError('employeeNumber')) {
-              <p class="employee-modal__error">{{ errorMessage('employeeNumber') }}</p>
+              <p class="employee-modal__error" role="alert">{{ errorMessage('employeeNumber') }}</p>
+            } @else if (checkingEmployeeNumber()) {
+              <p class="employee-modal__hint">社員番号を確認しています...</p>
             }
           </div>
 
           <div class="employee-modal__field">
             <label class="employee-modal__label" for="lastName">姓</label>
-            <input id="lastName" type="text" class="employee-modal__input" formControlName="lastName" placeholder="山田" />
+            <input id="lastName" type="text" class="employee-modal__input" formControlName="lastName" placeholder="山田" autocomplete="off" />
             @if (showError('lastName')) {
               <p class="employee-modal__error">{{ errorMessage('lastName') }}</p>
             }
@@ -61,7 +83,7 @@
 
           <div class="employee-modal__field">
             <label class="employee-modal__label" for="firstName">名</label>
-            <input id="firstName" type="text" class="employee-modal__input" formControlName="firstName" placeholder="太郎" />
+            <input id="firstName" type="text" class="employee-modal__input" formControlName="firstName" placeholder="太郎" autocomplete="off" />
             @if (showError('firstName')) {
               <p class="employee-modal__error">{{ errorMessage('firstName') }}</p>
             }
@@ -69,7 +91,7 @@
 
           <div class="employee-modal__field">
             <label class="employee-modal__label" for="lastNameKana">セイ</label>
-            <input id="lastNameKana" type="text" class="employee-modal__input" formControlName="lastNameKana" placeholder="ヤマダ" />
+            <input id="lastNameKana" type="text" class="employee-modal__input" formControlName="lastNameKana" placeholder="ヤマダ" autocomplete="off" />
             @if (showError('lastNameKana')) {
               <p class="employee-modal__error">{{ errorMessage('lastNameKana') }}</p>
             }
@@ -77,7 +99,7 @@
 
           <div class="employee-modal__field">
             <label class="employee-modal__label" for="firstNameKana">メイ</label>
-            <input id="firstNameKana" type="text" class="employee-modal__input" formControlName="firstNameKana" placeholder="タロウ" />
+            <input id="firstNameKana" type="text" class="employee-modal__input" formControlName="firstNameKana" placeholder="タロウ" autocomplete="off" />
             @if (showError('firstNameKana')) {
               <p class="employee-modal__error">{{ errorMessage('firstNameKana') }}</p>
             }
@@ -160,111 +182,253 @@
               class="employee-modal__input"
               formControlName="insuredPersonNumber"
               placeholder="未入力可"
+              autocomplete="off"
             />
           </div>
 
-          <div class="employee-modal__field">
-            <label class="employee-modal__label" for="baseSalary">
-              {{ isExistingEmployee ? '直近の基本給' : '基本給' }}
-            </label>
-            <input
-              id="baseSalary"
-              type="number"
-              class="employee-modal__input"
-              formControlName="baseSalary"
-              placeholder="300000"
-              min="0"
-            />
-            @if (showError('baseSalary')) {
-              <p class="employee-modal__error">{{ errorMessage('baseSalary') }}</p>
-            }
-          </div>
-
-          <div
-            class="employee-modal__field employee-modal__field--full employee-modal__remuneration-group"
-          >
-            <span class="employee-modal__label">
-              {{ isExistingEmployee ? '直近の標準報酬月額' : '標準報酬月額' }}
-            </span>
-            <div class="employee-modal__remuneration-grid employee-modal__remuneration-grid--two">
-              <div class="employee-modal__remuneration-item">
-                <label class="employee-modal__sublabel" for="healthStandardRemuneration">
-                  健康保険
-                </label>
-                <select
-                  id="healthStandardRemuneration"
-                  class="employee-modal__input employee-modal__select"
-                  formControlName="healthStandardRemuneration"
-                >
-                  <option [ngValue]="null" disabled>選択してください</option>
-                  @for (grade of healthGrades; track grade.grade) {
-                    <option [ngValue]="grade.monthlyAmount">
-                      {{ grade.grade }}等級（{{ grade.monthlyAmount | number }}円）
-                    </option>
-                  }
-                </select>
-                @if (showError('healthStandardRemuneration')) {
-                  <p class="employee-modal__error">{{ errorMessage('healthStandardRemuneration') }}</p>
+          @if (isNewEmployee || isExistingEmployee) {
+            <div class="employee-modal__field">
+              <label class="employee-modal__label" for="baseSalary">
+                @if (isExistingEmployee) {
+                  現在の基本給
+                } @else {
+                  基本給
                 }
-              </div>
-
-              <div class="employee-modal__remuneration-item">
-                <label class="employee-modal__sublabel" for="pensionStandardRemuneration">
-                  厚生年金
-                </label>
-                <select
-                  id="pensionStandardRemuneration"
-                  class="employee-modal__input employee-modal__select"
-                  formControlName="pensionStandardRemuneration"
-                >
-                  <option [ngValue]="null" disabled>選択してください</option>
-                  @for (grade of pensionGrades; track grade.grade) {
-                    <option [ngValue]="grade.monthlyAmount">
-                      {{ grade.grade }}等級（{{ grade.monthlyAmount | number }}円）
-                    </option>
-                  }
-                </select>
-                @if (showError('pensionStandardRemuneration')) {
-                  <p class="employee-modal__error">{{ errorMessage('pensionStandardRemuneration') }}</p>
-                }
-              </div>
-            </div>
-            @if (remunerationHint() && !isExistingEmployee) {
-              <p class="employee-modal__hint">{{ remunerationHint() }}</p>
-            }
-          </div>
-
-          @if (isExistingEmployee) {
-            <div class="employee-modal__field employee-modal__field--full">
-              <label class="employee-modal__label" for="applicableStartMonth">
-                給与・保険料の適用開始年月
               </label>
               <input
-                id="applicableStartMonth"
-                type="month"
-                class="employee-modal__input employee-modal__input--month"
-                formControlName="applicableStartMonth"
+                id="baseSalary"
+                type="number"
+                class="employee-modal__input"
+                formControlName="baseSalary"
+                placeholder="300000"
+                min="0"
+                autocomplete="off"
               />
-              <p class="employee-modal__hint">
-                この年月以降の月次給与・賞与入力の対象となります。
-              </p>
-              @if (showError('applicableStartMonth')) {
-                <p class="employee-modal__error">{{ errorMessage('applicableStartMonth') }}</p>
+              @if (showError('baseSalary')) {
+                <p class="employee-modal__error">{{ errorMessage('baseSalary') }}</p>
+              }
+            </div>
+
+            <div class="employee-modal__field employee-modal__field--full employee-modal__allowances">
+              <div class="employee-modal__history-header">
+                <span class="employee-modal__label">
+                  @if (isExistingEmployee) {
+                    現在の手当（会社マスター）
+                  } @else {
+                    手当（会社マスター）
+                  }
+                </span>
+                <p class="employee-modal__hint">
+                  会社設定のデフォルト金額が初期値として入力されます（従業員ごとに変更可能）。
+                  @if (isExistingEmployee) {
+                    基本給＋手当の合計は、過去履歴の固定賃金に自動反映されます（各行は個別に変更可能）。
+                  }
+                </p>
+              </div>
+
+              @if (allowanceRows.length === 0) {
+                <p class="employee-modal__hint">会社設定に手当が登録されていません。</p>
+              } @else {
+                <div class="employee-modal__allowance-rows" formArrayName="allowances">
+                  @for (row of allowanceRows.controls; track $index; let i = $index) {
+                    <div class="employee-modal__allowance-row" [formGroupName]="i">
+                      <span class="employee-modal__allowance-label">{{ row.controls.name.value }}</span>
+                      <input
+                        type="number"
+                        class="employee-modal__input"
+                        formControlName="amount"
+                        placeholder="0"
+                        min="0"
+                        autocomplete="off"
+                      />
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (totalFixedWages() > 0) {
+                <p class="employee-modal__hint employee-modal__hint--total">
+                  総固定賃金（基本給＋手当）: {{ totalFixedWages() | number }}円
+                </p>
+              }
+            </div>
+          }
+
+          @if (isNewEmployee) {
+            <div
+              class="employee-modal__field employee-modal__field--full employee-modal__remuneration-group"
+            >
+              <span class="employee-modal__label">適用等級（健康保険・厚生年金）</span>
+              <div class="employee-modal__remuneration-grid employee-modal__remuneration-grid--two">
+                <div class="employee-modal__remuneration-item">
+                  <label class="employee-modal__sublabel" for="healthGrade">健康保険</label>
+                  <select
+                    id="healthGrade"
+                    class="employee-modal__input employee-modal__select"
+                    formControlName="healthGrade"
+                  >
+                    <option [ngValue]="null" disabled>選択してください</option>
+                    @for (grade of healthGrades; track grade.grade) {
+                      <option [ngValue]="grade.grade">
+                        {{ grade.grade }}等級（{{ grade.monthlyAmount | number }}円）
+                      </option>
+                    }
+                  </select>
+                  @if (showError('healthGrade')) {
+                    <p class="employee-modal__error">{{ errorMessage('healthGrade') }}</p>
+                  }
+                </div>
+
+                <div class="employee-modal__remuneration-item">
+                  <label class="employee-modal__sublabel" for="pensionGrade">厚生年金</label>
+                  <select
+                    id="pensionGrade"
+                    class="employee-modal__input employee-modal__select"
+                    formControlName="pensionGrade"
+                  >
+                    <option [ngValue]="null" disabled>選択してください</option>
+                    @for (grade of pensionGrades; track grade.grade) {
+                      <option [ngValue]="grade.grade">
+                        {{ grade.grade }}等級（{{ grade.monthlyAmount | number }}円）
+                      </option>
+                    }
+                  </select>
+                  @if (showError('pensionGrade')) {
+                    <p class="employee-modal__error">{{ errorMessage('pensionGrade') }}</p>
+                  }
+                </div>
+              </div>
+              @if (remunerationHint()) {
+                <p class="employee-modal__hint">{{ remunerationHint() }}</p>
+              }
+            </div>
+          }
+
+          @if (isExistingEmployee) {
+            <div class="employee-modal__field employee-modal__field--full employee-modal__history">
+              <div class="employee-modal__history-header">
+                <span class="employee-modal__label">過去の給与・等級履歴（月ごと入力）</span>
+                <p class="employee-modal__section-help">
+                  入社月に応じて対象月が自動生成されます。固定賃金から等級を提案しますが、各行で上書き可能です。ここに、過去半年分の給与を登録してください。
+                </p>
+              </div>
+
+              @if (existingHistoryPeriodLabel) {
+                <p class="employee-modal__period-label">対象期間: {{ existingHistoryPeriodLabel }}</p>
+              }
+
+              @if (payrollHistoryRows.length === 0) {
+                <p class="employee-modal__hint">入社年月日を入力すると、対象月の入力欄が表示されます。</p>
+              } @else {
+                <div class="employee-modal__history-table-wrap">
+                  <table class="employee-modal__history-table">
+                    <thead>
+                      <tr>
+                        <th>対象月</th>
+                        <th>固定賃金</th>
+                        <th>非固定賃金</th>
+                        <th>支払基礎日数</th>
+                        <th class="employee-modal__history-cell--grade">健康保険等級</th>
+                        <th class="employee-modal__history-cell--grade">厚生年金等級</th>
+                      </tr>
+                    </thead>
+                    <tbody formArrayName="payrollHistoryRows">
+                      @for (row of payrollHistoryRows.controls; track row.controls.targetMonth.value; let i = $index) {
+                        <tr [formGroupName]="i">
+                          <td>{{ formatMonthLabel(row.controls.targetMonth.value) }}</td>
+                          <td>
+                            <input
+                              type="number"
+                              class="employee-modal__input employee-modal__input--compact"
+                              formControlName="fixedWages"
+                              min="0"
+                              autocomplete="off"
+                            />
+                            @if (showHistoryRowError(i, 'fixedWages')) {
+                              <p class="employee-modal__error">{{ historyRowErrorMessage(i, 'fixedWages') }}</p>
+                            }
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              class="employee-modal__input employee-modal__input--compact"
+                              formControlName="nonFixedWages"
+                              min="0"
+                              autocomplete="off"
+                            />
+                            @if (showHistoryRowError(i, 'nonFixedWages')) {
+                              <p class="employee-modal__error">{{ historyRowErrorMessage(i, 'nonFixedWages') }}</p>
+                            }
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              class="employee-modal__input employee-modal__input--compact"
+                              formControlName="baseDays"
+                              min="1"
+                              autocomplete="off"
+                            />
+                            @if (showHistoryRowError(i, 'baseDays')) {
+                              <p class="employee-modal__error">{{ historyRowErrorMessage(i, 'baseDays') }}</p>
+                            }
+                          </td>
+                          <td class="employee-modal__history-cell--grade">
+                            <select
+                              class="employee-modal__input employee-modal__select employee-modal__select--grade"
+                              formControlName="healthGrade"
+                            >
+                              <option [ngValue]="null" disabled>選択</option>
+                              @for (grade of healthGrades; track grade.grade) {
+                                <option [ngValue]="grade.grade">
+                                  {{ grade.grade }}等級（{{ grade.monthlyAmount | number }}円）
+                                </option>
+                              }
+                            </select>
+                            @if (showHistoryRowError(i, 'healthGrade')) {
+                              <p class="employee-modal__error">{{ historyRowErrorMessage(i, 'healthGrade') }}</p>
+                            }
+                          </td>
+                          <td class="employee-modal__history-cell--grade">
+                            <select
+                              class="employee-modal__input employee-modal__select employee-modal__select--grade employee-modal__select--linked"
+                              formControlName="pensionGrade"
+                              title="健康保険等級から自動連動（-3等級）"
+                              tabindex="-1"
+                            >
+                              <option [ngValue]="null" disabled>選択</option>
+                              @for (grade of pensionGrades; track grade.grade) {
+                                <option [ngValue]="grade.grade">
+                                  {{ grade.grade }}等級（{{ grade.monthlyAmount | number }}円）
+                                </option>
+                              }
+                            </select>
+                            @if (showHistoryRowError(i, 'pensionGrade')) {
+                              <p class="employee-modal__error">{{ historyRowErrorMessage(i, 'pensionGrade') }}</p>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
               }
             </div>
           }
         </div>
 
         <footer class="employee-modal__footer">
+          @if (submitError()) {
+            <p class="employee-modal__footer-error" role="alert">{{ submitError() }}</p>
+          }
           <button type="button" class="employee-modal__btn employee-modal__btn--secondary" (click)="close()">
             キャンセル
           </button>
           <button
             type="submit"
             class="employee-modal__btn employee-modal__btn--primary"
-            [disabled]="form.invalid"
+            [disabled]="form.invalid || form.pending || saving() || checkingEmployeeNumber()"
           >
-            登録
+            {{ saving() ? '登録中...' : '登録' }}
           </button>
         </footer>
       </form>

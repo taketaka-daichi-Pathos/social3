@@ -3,6 +3,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { CompanyService } from '@core/services/company.service';
 import { PostalCodeInputComponent } from '@shared/components/postal-code-input/postal-code-input.component';
+import { REIWA_8_PREFECTURE_NAMES } from '@features/settings/models/reiwa-8-health-insurance-rates.constants';
 import {
   COMPANY_ID_PATTERN,
   DISTRICT_CODE_PATTERN,
@@ -12,7 +13,9 @@ import {
   POSTAL_CODE_PATTERN,
   PREFECTURE_CODE_PATTERN,
 } from '@features/settings/validators/company-settings.validators';
-import { RegisterCompanyField } from '../../models/register-company.model';
+import { RegisterCompanyData, RegisterCompanyField } from '../../models/register-company.model';
+import { resolveCompanyInsuranceRatesForPrefecture } from '@features/settings/utils/company-insurance-rate.utils';
+import { getCurrentYearMonthKey } from '@features/payroll/utils/compensation.utils';
 import { passwordMatchValidator } from '../../validators/auth.validators';
 
 @Component({
@@ -27,15 +30,22 @@ export class RegisterCompanyComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly companyService = inject(CompanyService);
 
+  /** 47都道府県（北海道〜沖縄） */
+  readonly prefectureNames = REIWA_8_PREFECTURE_NAMES;
+
   readonly form = this.fb.group(
     {
       companyName: this.fb.control('', Validators.required),
-      ownerName: this.fb.control('', Validators.required),
+      employerLastName: this.fb.control('', Validators.required),
+      employerFirstName: this.fb.control('', Validators.required),
+      employerLastNameKana: this.fb.control('', Validators.required),
+      employerFirstNameKana: this.fb.control('', Validators.required),
       postalCode: this.fb.control('', [
         Validators.required,
         Validators.pattern(POSTAL_CODE_PATTERN),
       ]),
-      address: this.fb.control('', Validators.required),
+      prefecture: this.fb.control('', Validators.required),
+      cityAddress: this.fb.control('', Validators.required),
       phoneNumber: this.fb.control('', [
         Validators.required,
         Validators.pattern(PHONE_NUMBER_PATTERN),
@@ -52,6 +62,11 @@ export class RegisterCompanyComponent implements OnInit {
       officeNumber: this.fb.control('', [
         Validators.required,
         Validators.pattern(OFFICE_NUMBER_PATTERN),
+        Validators.maxLength(5),
+      ]),
+      systemStartDate: this.fb.control(getCurrentYearMonthKey(), [
+        Validators.required,
+        Validators.pattern(/^\d{4}-\d{2}$/),
       ]),
       email: this.fb.control('', [Validators.required, Validators.email]),
       password: this.fb.control('', Validators.required),
@@ -88,10 +103,19 @@ export class RegisterCompanyComponent implements OnInit {
     }
 
     const { confirmPassword: _, ...data } = this.form.getRawValue();
+    const payload: RegisterCompanyData = data;
+    const insuranceRates = resolveCompanyInsuranceRatesForPrefecture(payload.prefecture);
+
+    console.log('[RegisterCompany] Firestore 保存直前 payload', {
+      ...payload,
+      password: '[REDACTED]',
+      healthInsuranceRate: insuranceRates.healthInsuranceRate,
+      longTermCareInsuranceRate: insuranceRates.longTermCareInsuranceRate,
+    });
 
     this.saving.set(true);
     try {
-      await this.companyService.registerCompany(data);
+      await this.companyService.registerCompany(payload);
       await this.router.navigate(['/settings/company']);
     } catch (error) {
       this.submitError.set(this.toErrorMessage(error));
@@ -136,7 +160,8 @@ export class RegisterCompanyComponent implements OnInit {
       phoneNumber: '「03-1234-5678」の形式で入力してください',
       prefectureCode: '2桁の数字で入力してください',
       districtCode: '2桁の数字で入力してください',
-      officeNumber: '5桁の数字で入力してください',
+      officeNumber: '1〜5桁の半角数字で入力してください',
+      systemStartDate: 'YYYY-MM 形式で入力してください',
       companyId: '5桁の数字で入力してください',
     };
 

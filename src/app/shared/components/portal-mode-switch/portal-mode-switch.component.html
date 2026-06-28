@@ -1,0 +1,19 @@
+@if (linkService.canSwitchPortal()) {
+  @if (mode() === 'admin') {
+    <button
+      type="button"
+      class="portal-switch__btn portal-switch__btn--employee"
+      (click)="goToEmployeePortal()"
+    >
+      従業員ポータルへ
+    </button>
+  } @else {
+    <button
+      type="button"
+      class="portal-switch__btn portal-switch__btn--admin"
+      (click)="goToAdminPortal()"
+    >
+      管理者画面へ
+    </button>
+  }
+}

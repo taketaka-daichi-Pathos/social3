@@ -1,0 +1,289 @@
+@if (open()) {
+  <div
+    class="dependent-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dependent-modal-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="dependent-modal__panel">
+      <header class="dependent-modal__header">
+        <h2 id="dependent-modal-title" class="dependent-modal__title">扶養家族を追加</h2>
+        <button type="button" class="dependent-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <form class="dependent-modal__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
+        <div class="dependent-modal__body">
+          <div class="dependent-modal__grid">
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentLastName">姓</label>
+              <input
+                id="dependentLastName"
+                type="text"
+                class="dependent-modal__input"
+                formControlName="lastName"
+                autocomplete="off"
+              />
+              @if (showError('lastName')) {
+                <p class="dependent-modal__error">{{ errorMessage('lastName') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentFirstName">名</label>
+              <input
+                id="dependentFirstName"
+                type="text"
+                class="dependent-modal__input"
+                formControlName="firstName"
+                autocomplete="off"
+              />
+              @if (showError('firstName')) {
+                <p class="dependent-modal__error">{{ errorMessage('firstName') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentLastNameKana">セイ</label>
+              <input
+                id="dependentLastNameKana"
+                type="text"
+                class="dependent-modal__input"
+                formControlName="lastNameKana"
+                autocomplete="off"
+              />
+              @if (showError('lastNameKana')) {
+                <p class="dependent-modal__error">{{ errorMessage('lastNameKana') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentFirstNameKana">メイ</label>
+              <input
+                id="dependentFirstNameKana"
+                type="text"
+                class="dependent-modal__input"
+                formControlName="firstNameKana"
+                autocomplete="off"
+              />
+              @if (showError('firstNameKana')) {
+                <p class="dependent-modal__error">{{ errorMessage('firstNameKana') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field dependent-modal__field--full">
+              <label class="dependent-modal__label" for="dependentRomanName">
+                氏名（ローマ字）
+                <span class="dependent-modal__optional">任意・外国籍用</span>
+              </label>
+              <input
+                id="dependentRomanName"
+                type="text"
+                class="dependent-modal__input"
+                formControlName="romanName"
+                placeholder="例: TARO YAMADA"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentBirthDate">生年月日</label>
+              <app-iso-date-input
+                inputId="dependentBirthDate"
+                formControlName="birthDate"
+                [invalid]="showError('birthDate')"
+              />
+              @if (showError('birthDate')) {
+                <p class="dependent-modal__error">{{ errorMessage('birthDate') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentRelationship">続柄</label>
+              <select
+                id="dependentRelationship"
+                class="dependent-modal__select"
+                formControlName="relationship"
+              >
+                <option value="">選択してください</option>
+                @for (option of relationshipOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+              @if (showError('relationship')) {
+                <p class="dependent-modal__error">{{ errorMessage('relationship') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentLivingArrangement">同居・別居</label>
+              <select
+                id="dependentLivingArrangement"
+                class="dependent-modal__select"
+                formControlName="livingArrangement"
+              >
+                <option value="">選択してください</option>
+                <option value="cohabiting">同居</option>
+                <option value="separate">別居</option>
+              </select>
+              @if (showError('livingArrangement')) {
+                <p class="dependent-modal__error">{{ errorMessage('livingArrangement') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field dependent-modal__field--full">
+              <label class="dependent-modal__label" for="dependentStartDate">
+                扶養開始日（事由発生日）
+              </label>
+              <app-iso-date-input
+                inputId="dependentStartDate"
+                formControlName="dependencyStartDate"
+                [invalid]="showError('dependencyStartDate')"
+              />
+              <p class="dependent-modal__helper text-xs text-gray-500">
+                ※目安：結婚＝入籍日 / 出産＝出生日 / 退職＝退職日の翌日 / 失業保険終了＝受給終了日の翌日 /
+                別居家族への仕送り＝同居開始日または初回仕送りの振込日
+              </p>
+              @if (showError('dependencyStartDate')) {
+                <p class="dependent-modal__error">{{ errorMessage('dependencyStartDate') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field">
+              <span class="dependent-modal__label">障害の有無</span>
+              <div class="dependent-modal__radio-group">
+                <label class="dependent-modal__radio-label">
+                  <input type="radio" [value]="true" formControlName="hasDisability" />
+                  <span>あり</span>
+                </label>
+                <label class="dependent-modal__radio-label">
+                  <input type="radio" [value]="false" formControlName="hasDisability" />
+                  <span>なし</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="dependent-modal__field">
+              <label class="dependent-modal__label" for="dependentOccupation">職業</label>
+              <select
+                id="dependentOccupation"
+                class="dependent-modal__select"
+                formControlName="occupation"
+              >
+                <option value="">選択してください</option>
+                @for (option of occupationOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+              @if (showError('occupation')) {
+                <p class="dependent-modal__error">{{ errorMessage('occupation') }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__field dependent-modal__field--full">
+              <label class="dependent-modal__label" for="dependentSituation">現在の状況</label>
+              <select
+                id="dependentSituation"
+                class="dependent-modal__select"
+                formControlName="currentSituation"
+              >
+                <option value="">選択してください</option>
+                @for (option of situationOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+              @if (showError('currentSituation')) {
+                <p class="dependent-modal__error">{{ errorMessage('currentSituation') }}</p>
+              }
+            </div>
+          </div>
+
+          <section class="dependent-modal__upload-section">
+            <h3 class="dependent-modal__section-title">必要書類のアップロード</h3>
+
+            @if (requiredDocuments().length > 0) {
+              <p class="dependent-modal__upload-lead">以下の証明書類が必要です。</p>
+              <ul class="dependent-modal__doc-list">
+                @for (document of requiredDocuments(); track document) {
+                  <li>{{ document }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="dependent-modal__upload-lead dependent-modal__upload-lead--muted">
+                職業・現在の状況・同居/別居・生年月日を入力すると、必要な証明書類が表示されます。
+              </p>
+            }
+
+            <div class="dependent-modal__file-field">
+              <label class="dependent-modal__file-label" for="dependentDocuments">
+                ファイルを選択
+              </label>
+              <input
+                id="dependentDocuments"
+                type="file"
+                class="dependent-modal__file-input"
+                multiple
+                (change)="onFilesSelected($event)"
+              />
+              @if (selectedFileNames()) {
+                <p class="dependent-modal__file-names">選択中: {{ selectedFileNames() }}</p>
+              }
+            </div>
+
+            <div class="dependent-modal__verify-field">
+              <label class="dependent-modal__verify-label">
+                <input type="checkbox" formControlName="documentsVerified" />
+                <span>✅ 提出画像（または現物）を確認済み</span>
+              </label>
+              <p class="dependent-modal__helper">
+                従業員から提出された証明書類、または管理者が直接確認した原本・画像であることを確認してから登録してください。
+              </p>
+              @if (showDocumentsVerifiedError()) {
+                <p class="dependent-modal__error">確認済みチェックを入れてください</p>
+              }
+            </div>
+
+            @if (showSubmissionRequest()) {
+              <div class="dependent-modal__request-section">
+                <p class="dependent-modal__request-lead">
+                  従業員本人に入力・提出を依頼する場合は、下記ボタンからタスクを送信してください。
+                </p>
+                @if (submissionRequestPending()) {
+                  <p class="dependent-modal__request-status">未対応の提出依頼タスクがあります</p>
+                } @else if (submissionRequestDisabled()) {
+                  <p class="dependent-modal__request-status dependent-modal__request-status--muted">
+                    この従業員には未対応の提出依頼タスクがあります
+                  </p>
+                } @else {
+                  <button
+                    type="button"
+                    class="dependent-modal__request-btn"
+                    [disabled]="submissionRequestSending()"
+                    (click)="submissionRequested.emit()"
+                  >
+                    {{ submissionRequestSending() ? '送信中…' : '従業員に扶養情報の入力・提出を依頼する' }}
+                  </button>
+                }
+              </div>
+            }
+          </section>
+        </div>
+
+        <footer class="dependent-modal__footer">
+          <button type="button" class="dependent-modal__btn dependent-modal__btn--secondary" (click)="close()">
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            class="dependent-modal__btn dependent-modal__btn--primary"
+            [disabled]="isSubmitDisabled()"
+          >
+            {{ saving() ? '保存中...' : '扶養家族を登録' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+}

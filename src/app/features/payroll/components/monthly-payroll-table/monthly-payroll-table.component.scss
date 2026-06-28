@@ -5,6 +5,7 @@
 
   &__header {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
@@ -13,6 +14,78 @@
     background: $color-bg-surface;
     border: 1px solid $color-border;
     border-radius: $radius-md;
+  }
+
+  &__month-picker {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  &__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  &__lock-btn {
+    padding: 0.55rem 1rem;
+    border: 1px solid $color-primary;
+    border-radius: $radius-md;
+    background: #fff;
+    color: $color-primary;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: rgba($color-primary, 0.06);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__month-lock-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.55rem 1rem;
+    border-radius: $radius-md;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    font-size: 0.875rem;
+    font-weight: 700;
+
+    &--inline {
+      padding: 0.35rem 0.65rem;
+      font-size: 0.75rem;
+    }
+  }
+
+  &__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    width: 100%;
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+    cursor: pointer;
+  }
+
+  &__name-row {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
   }
 
   &__title {
@@ -27,13 +100,6 @@
     font-size: 0.875rem;
     color: $color-text-muted;
     line-height: 1.5;
-  }
-
-  &__month-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    flex-shrink: 0;
   }
 
   &__month-label {
@@ -89,6 +155,36 @@
     }
   }
 
+  &__filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  &__filter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $color-text-muted;
+  }
+
+  &__filter-select {
+    min-width: 11rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: $color-text;
+    font-size: 0.875rem;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+      box-shadow: 0 0 0 3px rgba($color-primary, 0.15);
+    }
+  }
+
   &__sr-only {
     position: absolute;
     width: 1px;
@@ -132,7 +228,6 @@
   &__grid {
     width: 100%;
     min-width: 56rem;
-    table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.8125rem;
 
@@ -146,42 +241,20 @@
       color: $color-text-muted;
       font-size: 0.75rem;
       font-weight: 600;
-      text-align: left;
       vertical-align: bottom;
     }
   }
 
-  &__col-number {
-    width: 9%;
-  }
-
-  &__col-name {
-    width: 12%;
-  }
-
-  &__col-fixed {
-    width: 18%;
-  }
-
-  &__col-amount {
-    width: 12%;
-  }
-
-  &__col-days {
-    width: 8%;
-  }
-
-  &__col-total {
-    width: 10%;
-  }
-
-  &__col-action {
-    width: 12%;
-  }
-
+  &__th-number,
+  &__th-name,
+  &__th-fixed,
   &__th-amount,
+  &__th-days,
+  &__th-total,
   &__th-action {
-    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__row {
@@ -199,6 +272,26 @@
       background: #f8fafc;
     }
 
+    &--saving {
+      background: #f8fafc;
+    }
+
+    &--registration-locked {
+      background: #f3f4f6;
+      color: $color-text-muted;
+
+      .payroll-table__input {
+        background: #e5e7eb;
+        color: $color-text-muted;
+        cursor: not-allowed;
+      }
+
+      .payroll-table__fixed-total,
+      .payroll-table__total-amount {
+        color: $color-text-muted;
+      }
+    }
+
     &--pre-hire {
       background: #f3f4f6;
       color: $color-text-muted;
@@ -211,10 +304,15 @@
   }
 
   &__cell-number,
-  &__cell-name {
-    padding: 0.85rem 1rem;
-    color: $color-text;
+  &__cell-name,
+  &__cell-fixed,
+  &__cell-amount,
+  &__cell-days,
+  &__cell-total,
+  &__cell-action {
+    padding: 0.75rem 1rem;
     vertical-align: top;
+    overflow: hidden;
   }
 
   &__cell-number {
@@ -224,27 +322,43 @@
 
   &__cell-name {
     font-weight: 600;
+    color: $color-text;
   }
 
-  &__cell-fixed,
-  &__cell-amount,
-  &__cell-days,
-  &__cell-total,
-  &__cell-action {
-    padding: 0.75rem 1rem;
-    vertical-align: middle;
+  &__name-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
   }
 
-  &__cell-fixed {
-    text-align: right;
+  &__registration-lock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: $radius-sm;
+    background: #e5e7eb;
+    color: #4b5563;
+    font-size: 0.625rem;
+    font-weight: 600;
+    line-height: 1.35;
+    white-space: normal;
+
+    &--action {
+      margin-left: auto;
+      white-space: nowrap;
+    }
   }
 
   &__fixed-summary {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-end;
     gap: 0.5rem;
     flex-wrap: wrap;
+    margin-left: auto;
+    max-width: 100%;
   }
 
   &__fixed-total {
@@ -264,11 +378,21 @@
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
 
-    &:hover {
+    &:hover:not(:disabled) {
       border-color: $color-primary;
       background: rgba($color-primary, 0.06);
+    }
+
+    &:disabled,
+    &--disabled {
+      opacity: 0.5;
+      cursor: not-allowed !important;
+      pointer-events: none;
+      filter: grayscale(100%);
+      background: #f1f5f9;
+      color: $color-text-muted;
     }
   }
 
@@ -276,28 +400,16 @@
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: $color-text;
+    vertical-align: middle;
+  }
+
+  &__total-amount {
     white-space: nowrap;
-    text-align: right;
   }
 
-  &__th-amount,
-  &__th-days {
-    text-align: right;
-  }
-
-  &__cell-amount,
-  &__cell-days,
-  &__cell-total,
   &__cell-action {
-    text-align: right;
-  }
-
-  &__cell-days {
-    width: 5rem;
-  }
-
-  &__input--days {
-    text-align: center;
+    min-width: 0;
+    vertical-align: middle;
   }
 
   &__warning {
@@ -326,10 +438,15 @@
       box-shadow: 0 0 0 2px rgba($color-primary, 0.12);
     }
 
-    &:disabled {
+    &:disabled,
+    &--locked,
+    &[readonly] {
+      opacity: 0.5;
       background: #f1f5f9;
       color: $color-text-muted;
-      cursor: not-allowed;
+      cursor: not-allowed !important;
+      pointer-events: none;
+      filter: grayscale(100%);
     }
   }
 
@@ -343,15 +460,18 @@
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background-color 0.15s ease, opacity 0.15s ease;
 
-    &:hover:not(:disabled) {
+    &:hover:not(:disabled):not(&--saving) {
       background: $color-primary-dark;
     }
 
-    &:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
+    &:disabled,
+    &--saving {
+      opacity: 0.5;
+      background: #94a3b8;
+      cursor: not-allowed !important;
+      pointer-events: none;
+      filter: grayscale(100%);
     }
   }
 

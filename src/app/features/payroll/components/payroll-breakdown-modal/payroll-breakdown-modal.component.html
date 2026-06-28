@@ -17,7 +17,7 @@
         </button>
       </header>
 
-      <form class="breakdown-modal__body" [formGroup]="form" (ngSubmit)="onConfirm()" novalidate>
+      <form class="breakdown-modal__body" [formGroup]="form" (ngSubmit)="onConfirm()" novalidate autocomplete="off">
         <div class="breakdown-modal__field">
           <label class="breakdown-modal__field-label" for="breakdownBaseSalary">基本給</label>
           <input
@@ -28,6 +28,7 @@
             min="0"
             step="1"
             inputmode="numeric"
+            autocomplete="off"
           />
         </div>
 
@@ -45,6 +46,7 @@
                 min="0"
                 step="1"
                 inputmode="numeric"
+                autocomplete="off"
               />
             </div>
           }

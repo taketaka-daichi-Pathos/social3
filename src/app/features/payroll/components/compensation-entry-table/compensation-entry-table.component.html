@@ -1,57 +1,59 @@
-<section class="comp-table">
+<section class="comp-table" [formGroup]="form" autocomplete="off">
   <header class="comp-table__header">
     <div>
       <h2 class="comp-table__title">{{ titleLabel }}</h2>
       <p class="comp-table__description">
-        {{ targetMonthLabel() }}の{{ titleLabel }}を入力・保存します。入社前の従業員は表示されません。
+        支払い日を設定のうえ、各行ごとに{{ titleLabel }}を入力・保存します。入社前の従業員は表示されません。標準賞与額は1,000円未満を切り捨てて算出します。
       </p>
     </div>
 
-    <div class="comp-table__month-picker">
-      <span class="comp-table__month-label">対象月</span>
-      <div class="comp-table__month-controls">
-        <button
-          type="button"
-          class="comp-table__month-nav"
-          aria-label="前月へ"
-          (click)="goToPreviousMonth()"
-        >
-          ◀ 前月
-        </button>
-
-        <div class="comp-table__month-selects">
-          <label class="comp-table__sr-only" for="bonusTargetYear">年</label>
-          <app-year-select
-            inputId="bonusTargetYear"
-            selectClass="comp-table__month-select"
-            [value]="selectedYear()"
-            (valueChange)="onYearSelected($event)"
-          />
-
-          <label class="comp-table__sr-only" for="bonusTargetMonth">月</label>
-          <select
-            id="bonusTargetMonth"
-            class="comp-table__month-select"
-            [value]="selectedMonth()"
-            (change)="onMonthChange($event)"
-          >
-            @for (month of monthOptions; track month) {
-              <option [value]="month" [selected]="month === selectedMonth()">{{ month }}月</option>
-            }
-          </select>
-        </div>
-
-        <button
-          type="button"
-          class="comp-table__month-nav"
-          aria-label="次月へ"
-          (click)="goToNextMonth()"
-        >
-          次月 ▶
-        </button>
+    <div class="comp-table__header-controls">
+      <div class="comp-table__payment-date">
+        <label class="comp-table__month-label" for="bonusPaymentDate">支払い日</label>
+        <input
+          id="bonusPaymentDate"
+          type="date"
+          class="comp-table__date-input"
+          formControlName="paymentDate"
+          autocomplete="off"
+          (input)="onPaymentDateInput()"
+          (change)="onPaymentDateChange()"
+        />
       </div>
     </div>
   </header>
+
+  <div class="comp-table__toolbar">
+    <div class="comp-table__filter">
+      <label class="comp-table__month-label" for="bonusSocialInsuranceFilter">社会保険区分</label>
+      <select
+        id="bonusSocialInsuranceFilter"
+        class="comp-table__filter-select"
+        [value]="socialInsuranceFilter()"
+        (change)="onSocialInsuranceFilterChange($event)"
+      >
+        @for (option of socialInsuranceFilterOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (isBonusMonthLocked()) {
+    <p class="comp-table__alert comp-table__alert--locked" role="status">🔒 対象月は確定済みのため、賞与の編集・保存はできません。</p>
+  }
+
+  @if (saveSuccess()) {
+    <p class="comp-table__success app-global-notification" role="status">{{ saveSuccess() }}</p>
+  }
+
+  @if (saveError()) {
+    <p class="comp-table__alert app-global-notification" role="alert">{{ saveError() }}</p>
+  }
+
+  @if (paymentDateError()) {
+    <p class="comp-table__alert" role="alert">{{ paymentDateError() }}</p>
+  }
 
   @if (loadError()) {
     <p class="comp-table__alert" role="alert">{{ loadError() }}</p>
@@ -62,15 +64,18 @@
   } @else if (loadError() && entries.length === 0) {
     <p class="comp-table__status">データを表示できません</p>
   } @else if (entries.length === 0) {
-    <p class="comp-table__status">対象月に該当する従業員がいません</p>
+    <p class="comp-table__status">該当する従業員がいません</p>
+  } @else if (visibleRowIndices().length === 0) {
+    <p class="comp-table__status">該当する従業員がいません</p>
   } @else {
-    <form class="comp-table__form" [formGroup]="form" (ngSubmit)="onSave()" novalidate>
-      <div class="comp-table__wrap" [class.comp-table__wrap--locked]="locked()">
-        <table class="comp-table__grid">
+    <div class="comp-table__form">
+      <div class="comp-table__wrap">
+        <table class="comp-table__grid comp-table__grid--bonus">
           <colgroup>
             <col class="comp-table__col-number" />
             <col class="comp-table__col-name" />
-            <col class="comp-table__col-amount" />
+            <col class="comp-table__col-cumulative" />
+            <col class="comp-table__col-pension" />
             <col class="comp-table__col-amount" />
             <col class="comp-table__col-total" />
             <col class="comp-table__col-action" />
@@ -79,47 +84,101 @@
             <tr>
               <th>社員番号</th>
               <th>名前</th>
-              <th class="comp-table__th-amount">総支給額</th>
-              <th class="comp-table__th-amount">非固定的賃金</th>
+              <th class="comp-table__th-cumulative">累計賞与額</th>
+              <th class="comp-table__th-pension">厚生年金上限判定</th>
+              <th class="comp-table__th-amount">賞与額</th>
               <th class="comp-table__th-amount">合計</th>
               <th class="comp-table__th-action">操作</th>
             </tr>
           </thead>
           <tbody formArrayName="entries">
-            @for (row of entries.controls; track row.controls.employeeId.value; let i = $index) {
+            @for (i of visibleRowIndices(); track entries.at(i).controls.employeeId.value) {
+              @let row = entries.at(i);
+              @let cumulative = cumulativeBonusSummary(i);
+              @let pensionCap = pensionCapSummary(i);
               <tr
                 class="comp-table__row"
-                [class.comp-table__row--pre-hire]="isRowBeforeHire(i)"
                 [formGroupName]="i"
+                [attr.data-bonus-employee-id]="row.controls.employeeId.value"
               >
                 <td class="comp-table__cell-number">{{ row.controls.employeeNumber.value }}</td>
-                <td class="comp-table__cell-name">{{ row.controls.employeeName.value }}</td>
+                <td class="comp-table__cell-name">
+                  <div class="comp-table__name-cell">
+                    <span>{{ row.controls.employeeName.value }}</span>
+                    <app-social-insurance-type-badge
+                      [socialInsuranceType]="employeeForRow(i)?.socialInsuranceType"
+                    />
+                    @if (isRetiredRow(i)) {
+                      <app-retired-employee-badge [employee]="employeeForRow(i)" />
+                    }
+                  </div>
+                </td>
+                <td class="comp-table__cell-cumulative">
+                  <div class="comp-table__cumulative-main">
+                    ¥{{ cumulative.totalStandardBonus | number }}
+                  </div>
+                  <span
+                    class="comp-table__cap-badge"
+                    [class.comp-table__cap-badge--warning]="cumulative.remainingHealthCap <= 0"
+                  >
+                    MAX573万円まで残り¥{{ cumulative.remainingHealthCap | number }}
+                  </span>
+                </td>
+                <td
+                  class="comp-table__cell-pension"
+                  [class.comp-table__cell-pension--capped]="pensionCap.capped"
+                >
+                  <span class="comp-table__pension-amount">
+                    ¥{{ pensionCap.pensionStandardBonus | number }}
+                  </span>
+                  @if (pensionCap.capped) {
+                    <span class="comp-table__pension-cap-label">(上限到達)</span>
+                  }
+                </td>
                 <td class="comp-table__cell-amount">
                   <input
                     type="number"
                     class="comp-table__input"
+                    [class.comp-table__input--disabled]="isRowInputDisabled(i)"
                     formControlName="fixedWages"
                     min="0"
                     step="1"
                     inputmode="numeric"
+                    autocomplete="off"
+                    (input)="onBonusAmountInput(i, $event)"
                   />
-                </td>
-                <td class="comp-table__cell-amount">
-                  <input
-                    type="number"
-                    class="comp-table__input"
-                    formControlName="nonFixedWages"
-                    min="0"
-                    step="1"
-                    inputmode="numeric"
-                  />
+                  @if (isRowBlockedByRetirement(i)) {
+                    <p class="comp-table__row-error comp-table__row-error--hint">
+                      退職日より後の支払日のため入力できません
+                    </p>
+                  }
                 </td>
                 <td class="comp-table__cell-total">¥{{ rowTotal(i) | number }}</td>
                 <td class="comp-table__cell-action">
-                  @if (isRowBeforeHire(i)) {
-                    <span class="comp-table__pre-hire-badge" title="入社前のため操作不可">
-                      ※入社前のため操作不可
-                    </span>
+                  <button
+                    type="button"
+                    class="comp-table__save-btn comp-table__save-btn--row"
+                    [class.comp-table__save-btn--saved]="isRowLocked(i)"
+                    [class.comp-table__save-btn--active]="canSaveRow(i)"
+                    [disabled]="isRowInputDisabled(i) || isRowSaving(row.controls.employeeId.value)"
+                    (mousedown)="onSaveRowPrepare(i)"
+                    (click)="onSaveRow(i)"
+                  >
+                    @if (isRowLocked(i)) {
+                      保存済み
+                    } @else if (isRowSaving(row.controls.employeeId.value)) {
+                      保存中...
+                    } @else {
+                      保存
+                    }
+                  </button>
+                  @if (saveRowHint(i)) {
+                    <p class="comp-table__row-error comp-table__row-error--hint">{{ saveRowHint(i) }}</p>
+                  }
+                  @if (rowError(row.controls.employeeId.value) && isRowInputEnabled(i)) {
+                    <p class="comp-table__row-error" role="alert">
+                      {{ rowError(row.controls.employeeId.value) }}
+                    </p>
                   }
                 </td>
               </tr>
@@ -127,24 +186,70 @@
           </tbody>
         </table>
       </div>
-
-      <div class="comp-table__actions">
-        @if (locked()) {
-          <span class="comp-table__locked-badge">保存済み（編集ロック中）</span>
-        }
-
-        @if (saveError()) {
-          <p class="comp-table__alert" role="alert">{{ saveError() }}</p>
-        }
-
-        <button
-          type="submit"
-          class="comp-table__save-btn"
-          [disabled]="!canSave() || saving()"
-        >
-          {{ saving() ? '保存中...' : '保存' }}
-        </button>
-      </div>
-    </form>
+    </div>
   }
+
+  <section class="comp-table__history">
+    <button
+      type="button"
+      class="comp-table__history-toggle"
+      [attr.aria-expanded]="historyExpanded()"
+      (click)="toggleHistoryPanel()"
+    >
+      <span class="comp-table__history-toggle-label">賞与支給履歴</span>
+      <span class="comp-table__history-toggle-icon">{{ historyExpanded() ? '▲' : '▼' }}</span>
+    </button>
+
+    @if (historyExpanded()) {
+      <div class="comp-table__history-body">
+        @if (bonusHistoryPaymentDateGroups().length === 0) {
+          <p class="comp-table__history-empty">賞与支給履歴はありません</p>
+        } @else {
+          @for (group of bonusHistoryPaymentDateGroups(); track group.paymentDate) {
+            <section class="comp-table__payment-date-group">
+              <button
+                type="button"
+                class="comp-table__payment-date-toggle"
+                [attr.aria-expanded]="isPaymentDateExpanded(group.paymentDate)"
+                (click)="togglePaymentDatePanel(group.paymentDate)"
+              >
+                <span>{{ group.label }}</span>
+                <span class="comp-table__history-toggle-icon">
+                  {{ isPaymentDateExpanded(group.paymentDate) ? '▲' : '▼' }}
+                </span>
+              </button>
+
+              @if (isPaymentDateExpanded(group.paymentDate)) {
+                <div class="comp-table__history-table-wrap">
+                  <table class="comp-table__history-table">
+                    <colgroup>
+                      <col class="comp-table__history-col-number" />
+                      <col class="comp-table__history-col-name" />
+                      <col class="comp-table__history-col-amount" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>社員番号</th>
+                        <th>名前</th>
+                        <th class="comp-table__th-amount">賞与額</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (item of group.rows; track item.id) {
+                        <tr>
+                          <td class="comp-table__history-cell-number">{{ item.employeeNumber }}</td>
+                          <td class="comp-table__history-cell-name">{{ item.employeeName }}</td>
+                          <td class="comp-table__cell-amount">¥{{ item.bonusAmount | number }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </section>
+          }
+        }
+      </div>
+    }
+  </section>
 </section>

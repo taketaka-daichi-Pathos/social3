@@ -1,0 +1,149 @@
+@use '../../../../../styles/variables' as *;
+
+.workflow-forms {
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+
+  &__header {
+    margin-bottom: 1rem;
+  }
+
+  &__title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__description {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: $color-text-muted;
+  }
+
+  &__error {
+    margin: 0 0 0.75rem;
+    padding: 0.75rem;
+    border-radius: $radius-sm;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.8125rem;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__panel {
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    overflow: hidden;
+  }
+
+  &__panel-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border: none;
+    background: #f8fafc;
+    color: $color-text;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  &__chevron {
+    font-size: 0.75rem;
+    transition: transform 0.15s ease;
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1rem;
+    border-top: 1px solid $color-border;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__fixed-value {
+    margin: 0;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font-size: 0.875rem;
+    color: $color-text;
+    background: #f8fafc;
+  }
+
+  &__radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  &__radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    color: $color-text;
+    cursor: pointer;
+
+    input {
+      margin: 0;
+    }
+  }
+
+  &__input,
+  &__textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font: inherit;
+    color: $color-text;
+    background: #fff;
+  }
+
+  &__submit {
+    align-self: flex-start;
+    padding: 0.55rem 1rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: $color-primary;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}

@@ -1,5 +1,7 @@
 @use 'styles/variables' as *;
 
+@import 'tailwindcss';
+
 *,
 *::before,
 *::after {
@@ -22,4 +24,24 @@ body {
 
 button {
   font-family: inherit;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.app-global-notification {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  max-width: min(90vw, 28rem);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }

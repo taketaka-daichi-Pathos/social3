@@ -1,0 +1,260 @@
+@use '../../../../../styles/variables' as *;
+
+.leave-management {
+  padding: 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+
+  &__header {
+    margin-bottom: 1.5rem;
+  }
+
+  &__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__description {
+    margin: 0;
+    font-size: 0.875rem;
+    color: $color-text-muted;
+    line-height: 1.5;
+  }
+
+  &__alert {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: $radius-sm;
+    background: rgba($color-danger, 0.08);
+    color: $color-danger;
+    font-size: 0.875rem;
+  }
+
+  &__success {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: $radius-sm;
+    background: rgba($color-success, 0.1);
+    color: $color-success;
+    font-size: 0.875rem;
+  }
+
+  &__card {
+    background: $color-bg-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    box-shadow: $shadow-card;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+
+    &--table {
+      margin-bottom: 0;
+    }
+  }
+
+  &__section-title {
+    margin: 0 0 1.25rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__subsection-title {
+    margin: 0.25rem 0 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.25rem;
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+
+    &--full {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__input,
+  &__select {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font-size: 0.875rem;
+    color: $color-text;
+    background: $color-bg-surface;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+      box-shadow: 0 0 0 2px rgba($color-primary, 0.15);
+    }
+
+    &--error {
+      border-color: $color-danger;
+      background: rgba($color-danger, 0.04);
+    }
+  }
+
+  &__error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: $color-danger;
+  }
+
+  &__period-lock-alert {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: $radius-sm;
+    border: 1px solid rgba($color-danger, 0.35);
+    background: rgba($color-danger, 0.08);
+    color: #dc2626;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  &__radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  &__radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    color: $color-text;
+    cursor: pointer;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &__submit {
+    padding: 0.6rem 1.25rem;
+    border: none;
+    border-radius: $radius-sm;
+    background: $color-primary;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: $color-primary-dark;
+    }
+
+    &:disabled,
+    &--disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+      opacity: 1;
+    }
+  }
+
+  &__status,
+  &__empty {
+    margin: 0;
+    font-size: 0.875rem;
+    color: $color-text-muted;
+  }
+
+  &__table-wrap {
+    overflow-x: auto;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+
+    th,
+    td {
+      padding: 0.65rem 0.75rem;
+      border-bottom: 1px solid $color-border;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: $color-text-muted;
+      background: rgba($color-border, 0.25);
+    }
+  }
+
+  &__status-badge {
+    display: inline-flex;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+
+    &--active {
+      background: rgba($color-primary, 0.12);
+      color: $color-primary-dark;
+    }
+
+    &--scheduled {
+      background: rgba($color-text-muted, 0.15);
+      color: $color-text-muted;
+    }
+  }
+
+  &__row-actions {
+    display: inline-flex;
+    gap: 0.35rem;
+  }
+
+  &__row-btn {
+    padding: 0.25rem 0.55rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: $color-text;
+    font-size: 0.75rem;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    &--danger {
+      border-color: rgba(#c0392b, 0.35);
+      color: #c0392b;
+    }
+  }
+}

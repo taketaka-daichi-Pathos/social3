@@ -1,0 +1,137 @@
+<section class="workflow-forms">
+  <header class="workflow-forms__header">
+    <h3 class="workflow-forms__title">各種申請</h3>
+    <p class="workflow-forms__description">
+      産休・育休、扶養追加、基本情報の申請をこちらから送信できます。
+    </p>
+  </header>
+
+  @if (formError()) {
+    <p class="workflow-forms__error" role="alert">{{ formError() }}</p>
+  }
+
+  <div class="workflow-forms__list">
+    <article class="workflow-forms__panel">
+      <button type="button" class="workflow-forms__panel-toggle" (click)="toggleLeave()">
+        <span>産休・育休申請</span>
+        <span class="workflow-forms__chevron" [class.workflow-forms__chevron--open]="leaveOpen()">
+          ▼
+        </span>
+      </button>
+
+      @if (leaveOpen()) {
+        <form class="workflow-forms__body" [formGroup]="leaveForm" (ngSubmit)="submitLeave()">
+          <div class="workflow-forms__field">
+            <span class="workflow-forms__label">休業の種類</span>
+            @if (showLeaveKindSelector()) {
+              <div class="workflow-forms__radio-group" role="radiogroup" aria-label="休業の種類">
+                <label class="workflow-forms__radio">
+                  <input type="radio" formControlName="leaveKind" value="maternity" />
+                  <span>産休</span>
+                </label>
+                <label class="workflow-forms__radio">
+                  <input type="radio" formControlName="leaveKind" value="childcare" />
+                  <span>育休</span>
+                </label>
+              </div>
+            } @else {
+              <p class="workflow-forms__fixed-value">{{ fixedLeaveKindLabel() }}</p>
+            }
+          </div>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">開始予定日</span>
+            <input type="date" class="workflow-forms__input" formControlName="plannedStartDate" />
+          </label>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">終了予定日</span>
+            <input type="date" class="workflow-forms__input" formControlName="plannedEndDate" />
+          </label>
+          <button
+            type="submit"
+            class="workflow-forms__submit"
+            [disabled]="submittingType() === 'leave'"
+          >
+            {{ submittingType() === 'leave' ? '送信中...' : '申請する' }}
+          </button>
+        </form>
+      }
+    </article>
+
+    <article class="workflow-forms__panel">
+      <button type="button" class="workflow-forms__panel-toggle" (click)="toggleDependent()">
+        <span>扶養追加申請</span>
+        <span
+          class="workflow-forms__chevron"
+          [class.workflow-forms__chevron--open]="dependentOpen()"
+        >
+          ▼
+        </span>
+      </button>
+
+      @if (dependentOpen()) {
+        <form class="workflow-forms__body" [formGroup]="dependentForm" (ngSubmit)="submitDependent()">
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">家族氏名</span>
+            <input type="text" class="workflow-forms__input" formControlName="familyMemberName" />
+          </label>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">生年月日</span>
+            <input type="date" class="workflow-forms__input" formControlName="birthDate" />
+          </label>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">続柄</span>
+            <input type="text" class="workflow-forms__input" formControlName="relationship" />
+          </label>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">追加理由</span>
+            <textarea class="workflow-forms__textarea" rows="3" formControlName="reason"></textarea>
+          </label>
+          <button
+            type="submit"
+            class="workflow-forms__submit"
+            [disabled]="submittingType() === 'dependent'"
+          >
+            {{ submittingType() === 'dependent' ? '送信中...' : '申請する' }}
+          </button>
+        </form>
+      }
+    </article>
+
+    <article class="workflow-forms__panel">
+      <button type="button" class="workflow-forms__panel-toggle" (click)="toggleBasicInfo()">
+        <span>基本情報登録</span>
+        <span class="workflow-forms__chevron" [class.workflow-forms__chevron--open]="basicInfoOpen()">
+          ▼
+        </span>
+      </button>
+
+      @if (basicInfoOpen()) {
+        <form class="workflow-forms__body" [formGroup]="basicInfoForm" (ngSubmit)="submitBasicInfo()">
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">現住所</span>
+            <textarea
+              class="workflow-forms__textarea"
+              rows="2"
+              formControlName="currentAddress"
+            ></textarea>
+          </label>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">給与振込先金融機関</span>
+            <input type="text" class="workflow-forms__input" formControlName="bankName" />
+          </label>
+          <label class="workflow-forms__field">
+            <span class="workflow-forms__label">口座番号</span>
+            <input type="text" class="workflow-forms__input" formControlName="accountNumber" />
+          </label>
+          <button
+            type="submit"
+            class="workflow-forms__submit"
+            [disabled]="submittingType() === 'basic_info'"
+          >
+            {{ submittingType() === 'basic_info' ? '送信中...' : '申請する' }}
+          </button>
+        </form>
+      }
+    </article>
+  </div>
+</section>

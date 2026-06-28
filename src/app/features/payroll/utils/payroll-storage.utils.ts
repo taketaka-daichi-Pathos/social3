@@ -6,6 +6,9 @@ export const SELECTED_PAYROLL_MONTH_KEY = 'selectedPayrollMonth';
 /** 賞与タブの対象月（ユーザー指定キー） */
 export const SELECTED_BONUS_MONTH_KEY = 'selectedBonusMonth';
 
+/** 賞与タブの支払日（ユーザー指定キー） */
+export const SELECTED_BONUS_PAYMENT_DATE_KEY = 'selectedBonusPaymentDate';
+
 /** 月次保険料タブの対象月（ユーザー指定キー） */
 export const SELECTED_INSURANCE_MONTH_KEY = 'selectedInsuranceMonth';
 
@@ -69,6 +72,36 @@ export function saveStoredTargetMonth(key: PayrollStorageKey, yearMonth: string)
   }
 }
 
+export function loadStoredBonusPaymentDate(fallback = ''): string {
+  if (typeof localStorage === 'undefined') {
+    return fallback;
+  }
+
+  try {
+    const stored = localStorage.getItem(SELECTED_BONUS_PAYMENT_DATE_KEY);
+    return stored && /^\d{4}-\d{2}-\d{2}$/.test(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveStoredBonusPaymentDate(paymentDate: string): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    if (paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      localStorage.setItem(SELECTED_BONUS_PAYMENT_DATE_KEY, paymentDate);
+      return;
+    }
+
+    localStorage.removeItem(SELECTED_BONUS_PAYMENT_DATE_KEY);
+  } catch {
+    // ignore quota errors
+  }
+}
+
 /** 随時改定・算定基礎画面の対象年 */
 export const SELECTED_REVISION_YEAR_KEY = 'selectedRevisionYear';
 
@@ -101,6 +134,40 @@ export function saveStoredRevisionYear(year: number): void {
 
   try {
     localStorage.setItem(SELECTED_REVISION_YEAR_KEY, String(year));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+/** 随時改定画面の起算月（YYYY-MM） */
+export const SELECTED_REVISION_OCCASIONAL_MONTH_KEY = 'selectedRevisionOccasionalMonth';
+
+export function loadStoredRevisionOccasionalMonth(fallbackYearMonth: string): string {
+  if (typeof localStorage === 'undefined') {
+    return fallbackYearMonth;
+  }
+
+  try {
+    const stored = localStorage.getItem(SELECTED_REVISION_OCCASIONAL_MONTH_KEY);
+    if (stored && /^\d{4}-\d{2}$/.test(stored)) {
+      return stored;
+    }
+
+    return fallbackYearMonth;
+  } catch {
+    return fallbackYearMonth;
+  }
+}
+
+export function saveStoredRevisionOccasionalMonth(yearMonth: string): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    if (/^\d{4}-\d{2}$/.test(yearMonth)) {
+      localStorage.setItem(SELECTED_REVISION_OCCASIONAL_MONTH_KEY, yearMonth);
+    }
   } catch {
     // ignore quota errors
   }

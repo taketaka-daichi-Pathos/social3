@@ -1,6 +1,16 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectorRef,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  OnInit,
+  signal,
+  untracked,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
   FormControl,
@@ -10,18 +20,27 @@ import {
   Validators,
 } from '@angular/forms';
 import { CompensationService } from '@core/services/compensation.service';
+import { AgeEventContextService } from '@core/services/age-event-notification.service';
 import { CompanyService } from '@core/services/company.service';
 import { EmployeeService } from '@core/services/employee.service';
+import { MonthlyLockService } from '@core/services/monthly-lock.service';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import { Employee } from '@features/employees/models/employee.model';
+import { isRetiredEmployee } from '@features/employees/utils/retirement.utils';
 import {
   PayrollBreakdownModalComponent,
   PayrollBreakdownValue,
 } from '@features/payroll/components/payroll-breakdown-modal/payroll-breakdown-modal.component';
+import { PayrollAdjustmentModalComponent } from '@features/payroll/components/payroll-adjustment-modal/payroll-adjustment-modal.component';
 import { PayrollEntry, PayrollRecord } from '@features/payroll/models/compensation.model';
 import {
+  PayrollAdjustmentFormValue,
+  findPayrollAdjustmentOption,
+} from '@features/payroll/models/payroll-adjustment.model';
+import {
   calculateFixedWagesTotal,
-  calculatePayrollRowTotal,
+  calculatePayrollDisplayTotal,
+  calculatePayrollEntryFixedWages,
   employeeFullName,
   filterEmployeesForTargetMonth,
   formatTargetMonthLabel,
@@ -30,7 +49,13 @@ import {
   getPreviousYearMonthKey,
   isFirstPayrollMonth,
   isBeforeHireMonth,
+  isPayrollRowEditable,
+  isRegistrationInitialPayrollRow,
   parseYearMonthKey,
+  buildPayrollEntryFromFormValues,
+  extractPayrollRowFormValues,
+  mergePayrollRecords,
+  resolvePayrollEntryForMonth,
   resolvePayrollAllowances,
   resolvePayrollBaseDays,
   resolvePayrollBaseSalary,
@@ -42,9 +67,23 @@ import {
   PAYROLL_STORAGE_KEYS,
   saveStoredTargetMonth,
 } from '@features/payroll/utils/payroll-storage.utils';
+import { buildMonthlyLockConfirmMessage } from '@features/payroll/utils/monthly-lock-confirm.utils';
+import {
+  canLockPayrollMonthSequentially,
+  isSystemStartMonth,
+  PREVIOUS_MONTH_NOT_LOCKED_MESSAGE,
+} from '@features/payroll/utils/monthly-lock.utils';
+import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
 import { CompanyAllowance } from '@features/settings/models/company-settings.model';
 import { YearSelectComponent } from '@shared/components/year-select/year-select.component';
-import { merge, startWith } from 'rxjs';
+import { RetiredEmployeeBadgeComponent } from '@shared/components/retired-employee-badge/retired-employee-badge.component';
+import { SocialInsuranceTypeBadgeComponent } from '@shared/components/social-insurance-type-badge/social-insurance-type-badge.component';
+import {
+  matchesSocialInsuranceCategoryFilter,
+  SOCIAL_INSURANCE_CATEGORY_FILTER_OPTIONS,
+  SocialInsuranceCategoryFilter,
+} from '@features/employees/utils/social-insurance-type-filter.utils';
+import { BehaviorSubject, combineLatest, EMPTY, merge, startWith, switchMap } from 'rxjs';
 
 type AllowanceFormGroup = FormGroup<{
   name: FormControl<string>;
@@ -59,13 +98,24 @@ type PayrollRowFormGroup = FormGroup<{
   baseSalary: FormControl<number>;
   allowances: FormArray<AllowanceFormGroup>;
   nonFixedWages: FormControl<number>;
+  adjustmentAmount: FormControl<number>;
+  adjustmentType: FormControl<PayrollAdjustmentFormValue['adjustmentType']>;
+  adjustmentTargetMonth: FormControl<string>;
   baseDays: FormControl<number>;
 }>;
 
 @Component({
   selector: 'app-monthly-payroll-table',
   standalone: true,
-  imports: [DecimalPipe, ReactiveFormsModule, PayrollBreakdownModalComponent, YearSelectComponent],
+  imports: [
+    DecimalPipe,
+    ReactiveFormsModule,
+    PayrollBreakdownModalComponent,
+    PayrollAdjustmentModalComponent,
+    YearSelectComponent,
+    RetiredEmployeeBadgeComponent,
+    SocialInsuranceTypeBadgeComponent,
+  ],
   templateUrl: './monthly-payroll-table.component.html',
   styleUrl: './monthly-payroll-table.component.scss',
 })
@@ -75,13 +125,30 @@ export class MonthlyPayrollTableComponent implements OnInit {
   private readonly employeeService = inject(EmployeeService);
   private readonly companyService = inject(CompanyService);
   private readonly compensationService = inject(CompensationService);
+  private readonly monthlyLockService = inject(MonthlyLockService);
+  private readonly ageEventContext = inject(AgeEventContextService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly targetMonth = signal(getCurrentYearMonthKey());
+  readonly isTargetMonthLocked = signal(false);
+  readonly previousMonthLocked = signal<boolean | null>(null);
+  readonly systemStartDate = signal('');
+  readonly companySettingsLoaded = signal(false);
+  readonly latestLockedMonth = signal<string | null>(null);
+  readonly lockStateRefreshToken = signal(0);
+  readonly lockActionError = signal('');
+  readonly lockingMonth = signal(false);
   readonly loading = signal(true);
+  /** 対象月のフォーム再構築中（月切替直後の entries 空状態と区別する） */
+  readonly formRebuildInProgress = signal(false);
+  /** rebuildForm 完了後の行数（FormArray.length の ChangeDetection 遅延を避ける） */
+  readonly entriesCount = signal(0);
+  /** 現在の対象月について rebuildForm が少なくとも1回完了したか */
+  readonly formDataReady = signal(false);
   readonly loadError = signal('');
   readonly rowTotals = signal<number[]>([]);
   readonly rowFixedTotals = signal<number[]>([]);
-  readonly savingRowIds = signal<Set<string>>(new Set());
+  readonly savingState = signal<Record<string, boolean>>({});
   readonly rowErrors = signal<Record<string, string>>({});
 
   readonly breakdownModalOpen = signal(false);
@@ -90,12 +157,90 @@ export class MonthlyPayrollTableComponent implements OnInit {
   readonly breakdownSaving = signal(false);
   readonly breakdownError = signal('');
 
+  readonly adjustmentModalOpen = signal(false);
+  readonly adjustmentRowIndex = signal<number | null>(null);
+  readonly adjustmentValue = signal<PayrollAdjustmentFormValue>({
+    adjustmentAmount: 0,
+    adjustmentType: null,
+    adjustmentTargetMonth: '',
+  });
+
   readonly monthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
+  readonly socialInsuranceFilter = signal<SocialInsuranceCategoryFilter>('all');
+  readonly socialInsuranceFilterOptions = SOCIAL_INSURANCE_CATEGORY_FILTER_OPTIONS;
+
+  readonly canConfirmTargetMonthLock = computed(() => {
+    if (this.isTargetMonthLocked() || this.loading()) {
+      return false;
+    }
+
+    if (!this.companySettingsLoaded()) {
+      return false;
+    }
+
+    const targetMonth = normalizeYearMonthKey(this.targetMonth()) ?? this.targetMonth().trim();
+    const systemStartDate = normalizeYearMonthKey(this.systemStartDate()) ?? '';
+
+    if (isSystemStartMonth(targetMonth, systemStartDate)) {
+      return true;
+    }
+
+    const previousLocked = this.previousMonthLocked();
+    if (previousLocked === null) {
+      return false;
+    }
+
+    return canLockPayrollMonthSequentially({
+      targetMonth,
+      previousMonthLocked: previousLocked,
+      systemStartDate,
+      latestLockedMonth: this.latestLockedMonth(),
+    });
+  });
+
+  readonly showPreviousMonthNotLockedWarning = computed(() => {
+    if (this.isTargetMonthLocked() || this.loading() || !this.companySettingsLoaded()) {
+      return false;
+    }
+
+    const targetMonth = normalizeYearMonthKey(this.targetMonth()) ?? this.targetMonth().trim();
+    const systemStartDate = normalizeYearMonthKey(this.systemStartDate()) ?? '';
+
+    if (isSystemStartMonth(targetMonth, systemStartDate)) {
+      return false;
+    }
+
+    const previousLocked = this.previousMonthLocked();
+    if (previousLocked === null) {
+      return false;
+    }
+
+    return !canLockPayrollMonthSequentially({
+      targetMonth,
+      previousMonthLocked: previousLocked,
+      systemStartDate,
+      latestLockedMonth: this.latestLockedMonth(),
+    });
+  });
+
+  readonly previousMonthNotLockedMessage = PREVIOUS_MONTH_NOT_LOCKED_MESSAGE;
+
+  /** 確定ボタンの disabled 状態（全条件評価後に1箇所で更新） */
+  private readonly confirmButtonDisabledSubject = new BehaviorSubject<boolean>(true);
+  readonly confirmButtonDisabled = toSignal(this.confirmButtonDisabledSubject, {
+    initialValue: true,
+  });
+
+  /** toObservable は inject() 依存のためフィールド初期化時のみ生成する */
+  private readonly targetMonth$ = toObservable(this.targetMonth);
+  private readonly lockStateRefreshToken$ = toObservable(this.lockStateRefreshToken);
+  private readonly companySettingsLoaded$ = toObservable(this.companySettingsLoaded);
 
   private readonly employees = signal<Employee[]>([]);
   private readonly companyAllowances = signal<CompanyAllowance[]>([]);
   private readonly allowancesLoaded = signal(false);
   private readonly previousMonthRecord = signal<PayrollRecord | null>(null);
+  private readonly targetMonthPayrollRecord = signal<PayrollRecord | null>(null);
   private readonly employeeById = signal<Record<string, Employee>>({});
   private rebuildVersion = 0;
 
@@ -103,12 +248,33 @@ export class MonthlyPayrollTableComponent implements OnInit {
     entries: this.fb.array<PayrollRowFormGroup>([]),
   });
 
+  constructor() {
+    effect(() => {
+      this.targetMonth();
+      this.loading();
+      this.lockingMonth();
+      this.formRebuildInProgress();
+      this.entriesCount();
+      this.formDataReady();
+      this.isTargetMonthLocked();
+      this.previousMonthLocked();
+      this.companySettingsLoaded();
+      this.latestLockedMonth();
+      this.canConfirmTargetMonthLock();
+
+      untracked(() => this.refreshConfirmButtonDisabledState('effect'));
+    });
+
+    this.watchPreviousMonthLockState();
+  }
+
   ngOnInit(): void {
-    const storedMonth = loadStoredTargetMonth(
-      PAYROLL_STORAGE_KEYS.monthly,
-      getCurrentYearMonthKey()
-    );
+    const storedMonth =
+      normalizeYearMonthKey(
+        loadStoredTargetMonth(PAYROLL_STORAGE_KEYS.monthly, getCurrentYearMonthKey())
+      ) ?? getCurrentYearMonthKey();
     this.targetMonth.set(storedMonth);
+    this.ageEventContext.setPayrollTargetYearMonth(storedMonth);
 
     this.employeeService
       .watchEmployees()
@@ -136,12 +302,125 @@ export class MonthlyPayrollTableComponent implements OnInit {
     void this.loadCompanyAllowances();
   }
 
+  private watchPreviousMonthLockState(): void {
+    combineLatest([
+      this.targetMonth$,
+      this.lockStateRefreshToken$,
+      this.companySettingsLoaded$,
+    ])
+      .pipe(
+        switchMap(([targetMonth, , companyLoaded]) => {
+          if (!companyLoaded) {
+            this.previousMonthLocked.set(null);
+            return EMPTY;
+          }
+
+          const normalizedTarget = normalizeYearMonthKey(targetMonth) ?? targetMonth.trim();
+          const previousMonth = getPreviousYearMonthKey(normalizedTarget);
+          this.previousMonthLocked.set(null);
+          this.monthlyLockService.invalidateMonthLockCache(previousMonth);
+
+          return this.monthlyLockService.watchMonthLocked(previousMonth);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: (locked) => {
+          this.previousMonthLocked.set(locked);
+          this.refreshConfirmButtonDisabledState('previousMonthLock');
+        },
+        error: () => {
+          this.previousMonthLocked.set(false);
+          this.refreshConfirmButtonDisabledState('previousMonthLock:error');
+        },
+      });
+  }
+
+  /**
+   * 確定ボタンの disabled 条件を一括評価する。
+   * HTML: loading || lockingMonth || formRebuildInProgress || (formDataReady && entriesCount===0) || !canConfirmTargetMonthLock
+   */
+  private refreshConfirmButtonDisabledState(source: string): void {
+    const loading = this.loading();
+    const lockingMonth = this.lockingMonth();
+    const formRebuildInProgress = this.formRebuildInProgress();
+    const formDataReady = this.formDataReady();
+    const entriesCount = this.entriesCount();
+    const canConfirm = this.canConfirmTargetMonthLock();
+    const isTargetLocked = this.isTargetMonthLocked();
+    const previousMonthLocked = this.previousMonthLocked();
+
+    const hasNoEligibleRows =
+      formDataReady && !formRebuildInProgress && !loading && entriesCount === 0;
+
+    const disabled =
+      isTargetLocked ||
+      loading ||
+      lockingMonth ||
+      formRebuildInProgress ||
+      hasNoEligibleRows ||
+      !canConfirm;
+
+    console.log('[Disabled判定]', {
+      source,
+      disabled,
+      前月ロックOK: canConfirm,
+      行データ数: entriesCount,
+      formArrayLength: this.entries.length,
+      loading,
+      lockingMonth,
+      formRebuildInProgress,
+      formDataReady,
+      hasNoEligibleRows,
+      isTargetLocked,
+      previousMonthLocked,
+      targetMonth: this.targetMonth(),
+      latestLockedMonth: this.latestLockedMonth(),
+    });
+
+    this.confirmButtonDisabledSubject.next(disabled);
+    this.cdr.detectChanges();
+  }
+
   get entries(): FormArray<PayrollRowFormGroup> {
     return this.form.controls.entries;
   }
 
   targetMonthLabel(): string {
     return formatTargetMonthLabel(this.targetMonth());
+  }
+
+  isRetiredRow(index: number): boolean {
+    const employeeId = this.entries.at(index)?.controls.employeeId.value;
+    if (!employeeId) {
+      return false;
+    }
+
+    const employee = this.employeeById()[employeeId];
+    return employee ? isRetiredEmployee(employee) : false;
+  }
+
+  employeeForRow(index: number): Employee | undefined {
+    const employeeId = this.entries.at(index)?.controls.employeeId.value;
+    return employeeId ? this.employeeById()[employeeId] : undefined;
+  }
+
+  visibleRowIndices(): number[] {
+    const filter = this.socialInsuranceFilter();
+
+    return this.entries.controls.reduce<number[]>((indices, _, index) => {
+      const employee = this.employeeForRow(index);
+      if (employee && matchesSocialInsuranceCategoryFilter(employee, filter)) {
+        indices.push(index);
+      }
+
+      return indices;
+    }, []);
+  }
+
+  onSocialInsuranceFilterChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as SocialInsuranceCategoryFilter;
+    this.socialInsuranceFilter.set(value);
   }
 
   selectedYear(): number {
@@ -170,9 +449,19 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   private setTargetMonth(yearMonth: string): void {
-    this.targetMonth.set(yearMonth);
-    saveStoredTargetMonth(PAYROLL_STORAGE_KEYS.monthly, yearMonth);
+    const normalized = normalizeYearMonthKey(yearMonth) ?? yearMonth.trim();
+    this.targetMonth.set(normalized);
+    this.ageEventContext.setPayrollTargetYearMonth(normalized);
+    saveStoredTargetMonth(PAYROLL_STORAGE_KEYS.monthly, normalized);
     this.rowErrors.set({});
+    this.entries.clear();
+    this.rowTotals.set([]);
+    this.rowFixedTotals.set([]);
+    this.entriesCount.set(0);
+    this.formDataReady.set(false);
+    this.formRebuildInProgress.set(true);
+    this.refreshConfirmButtonDisabledState('setTargetMonth');
+    void this.refreshLatestLockedMonth();
     void this.rebuildForm();
   }
 
@@ -190,8 +479,61 @@ export class MonthlyPayrollTableComponent implements OnInit {
     return isBeforeHireMonth(employee, this.targetMonth());
   }
 
+  isRowRegistrationLocked(index: number): boolean {
+    const employeeId = this.entries.at(index).controls.employeeId.value;
+    const employee = this.employeeById()[employeeId];
+    if (!employee) {
+      return false;
+    }
+
+    return isRegistrationInitialPayrollRow(employee, this.targetMonth());
+  }
+
   isRowDisabled(index: number): boolean {
-    return this.isRowLocked(index) || this.isRowBeforeHire(index);
+    const employeeId = this.entries.at(index)?.controls.employeeId.value;
+    return (
+      this.isTargetMonthLocked() ||
+      this.isRowLocked(index) ||
+      this.isRowBeforeHire(index) ||
+      this.isRowRegistrationLocked(index) ||
+      (employeeId ? this.isRowSaving(employeeId) : false)
+    );
+  }
+
+  async confirmLockTargetMonth(): Promise<void> {
+    if (this.confirmButtonDisabled() || this.lockingMonth()) {
+      return;
+    }
+
+    this.lockActionError.set('');
+
+    const targetMonth = normalizeYearMonthKey(this.targetMonth()) ?? this.targetMonth().trim();
+
+    if (!confirm(buildMonthlyLockConfirmMessage(targetMonth))) {
+      return;
+    }
+
+    this.lockingMonth.set(true);
+
+    try {
+      await this.monthlyLockService.lockPayrollMonth(
+        targetMonth,
+        this.employees(),
+        this.targetMonthPayrollRecord()
+      );
+      this.isTargetMonthLocked.set(true);
+      this.monthlyLockService.rememberMonthLocked(targetMonth, true);
+      this.lockStateRefreshToken.update((value) => value + 1);
+      await this.refreshLatestLockedMonth();
+      this.syncAllRowControlStates();
+    } catch (error) {
+      this.lockActionError.set(
+        error instanceof Error ? error.message : '月次確定に失敗しました'
+      );
+    } finally {
+      this.lockingMonth.set(false);
+      this.refreshConfirmButtonDisabledState('confirmLockTargetMonth:finally');
+    }
   }
 
   rowTotal(index: number): number {
@@ -200,6 +542,25 @@ export class MonthlyPayrollTableComponent implements OnInit {
 
   rowFixedTotal(index: number): number {
     return this.rowFixedTotals()[index] ?? 0;
+  }
+
+  hasRowAdjustment(index: number): boolean {
+    return this.entries.at(index).controls.adjustmentAmount.value !== 0;
+  }
+
+  rowAdjustmentNote(index: number): string {
+    const group = this.entries.at(index);
+    const amount = group.controls.adjustmentAmount.value;
+    if (amount === 0) {
+      return '';
+    }
+
+    const typeLabel =
+      findPayrollAdjustmentOption(group.controls.adjustmentType.value)?.label ?? '調整';
+    const formattedAmount =
+      amount > 0 ? `+${amount.toLocaleString('ja-JP')}` : amount.toLocaleString('ja-JP');
+
+    return `※調整: ${formattedAmount}円（${typeLabel}）`;
   }
 
   canSaveRow(index: number): boolean {
@@ -225,7 +586,38 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   isRowSaving(employeeId: string): boolean {
-    return this.savingRowIds().has(employeeId);
+    return Boolean(this.savingState()[employeeId]);
+  }
+
+  private markRowSaving(employeeId: string, group: PayrollRowFormGroup): void {
+    this.savingState.update((state) => ({ ...state, [employeeId]: true }));
+    this.setPayrollRowInputsEnabled(group, false);
+    this.cdr.detectChanges();
+  }
+
+  private clearRowSaving(employeeId: string, group: PayrollRowFormGroup): void {
+    this.savingState.update((state) => {
+      const next = { ...state };
+      delete next[employeeId];
+      return next;
+    });
+
+    if (!group.controls.locked.value) {
+      const employee = this.employeeById()[employeeId];
+      if (employee) {
+        this.applyRowControlStateAfterInit(
+          group,
+          employee,
+          resolvePayrollEntryForMonth(
+            employee,
+            this.targetMonth(),
+            this.targetMonthPayrollRecord()
+          )
+        );
+      }
+    }
+
+    this.cdr.detectChanges();
   }
 
   rowError(employeeId: string): string {
@@ -234,6 +626,44 @@ export class MonthlyPayrollTableComponent implements OnInit {
 
   needsPreviousMonthSave(index: number): boolean {
     return !this.isRowDisabled(index) && !this.canSaveRow(index);
+  }
+
+  openAdjustmentModal(index: number): void {
+    if (this.isRowDisabled(index)) {
+      return;
+    }
+
+    const group = this.entries.at(index);
+    this.adjustmentRowIndex.set(index);
+    this.adjustmentValue.set({
+      adjustmentAmount: group.controls.adjustmentAmount.value,
+      adjustmentType: group.controls.adjustmentType.value,
+      adjustmentTargetMonth: group.controls.adjustmentTargetMonth.value,
+    });
+    this.adjustmentModalOpen.set(true);
+  }
+
+  onAdjustmentModalClosed(): void {
+    this.adjustmentModalOpen.set(false);
+    this.adjustmentRowIndex.set(null);
+    this.adjustmentValue.set({
+      adjustmentAmount: 0,
+      adjustmentType: null,
+      adjustmentTargetMonth: '',
+    });
+  }
+
+  onAdjustmentConfirmed(value: PayrollAdjustmentFormValue): void {
+    const index = this.adjustmentRowIndex();
+    if (index == null) {
+      return;
+    }
+
+    const group = this.entries.at(index);
+    group.controls.adjustmentAmount.setValue(value.adjustmentAmount);
+    group.controls.adjustmentType.setValue(value.adjustmentType);
+    group.controls.adjustmentTargetMonth.setValue(value.adjustmentTargetMonth);
+    this.onAdjustmentModalClosed();
   }
 
   openBreakdownModal(index: number): void {
@@ -330,60 +760,102 @@ export class MonthlyPayrollTableComponent implements OnInit {
 
   async onSaveRow(index: number): Promise<void> {
     const group = this.entries.at(index);
-    const employeeId = group.controls.employeeId.value;
+    const employeeId = group.controls.employeeId.value?.trim();
 
-    if (group.controls.locked.value || this.isRowSaving(employeeId) || !this.canSaveRow(index)) {
+    if (!employeeId || this.isRowSaving(employeeId)) {
       return;
     }
+
+    if (
+      group.controls.locked.value ||
+      this.isRowRegistrationLocked(index) ||
+      !this.canSaveRow(index)
+    ) {
+      return;
+    }
+
+    this.syncRowFormValuesFromDom(index);
+    group.updateValueAndValidity();
 
     if (group.invalid) {
       group.markAllAsTouched();
       return;
     }
 
-    this.savingRowIds.update((ids) => new Set(ids).add(employeeId));
+    const entry = this.buildPayrollEntry(group);
+
+    this.markRowSaving(employeeId, group);
     this.rowErrors.update((errors) => {
       const next = { ...errors };
       delete next[employeeId];
       return next;
     });
 
-    const entry = this.buildPayrollEntry(group);
-
     try {
       await this.compensationService.upsertPayrollEntry(this.targetMonth(), entry);
+      this.mergePayrollEntryIntoLocalRecord(entry);
       await this.employeeService.updateEmployeePayrollData(employeeId, {
         baseSalary: entry.baseSalary,
         allowances: toEmployeeAllowances(entry.allowances),
       });
 
+      const employee = this.employeeById()[employeeId];
+      if (employee) {
+        const fixedWages = calculatePayrollEntryFixedWages(entry.baseSalary, entry.allowances);
+        await this.employeeService.syncMasterStandardRemunerationIfHireMonthPayroll(
+          employeeId,
+          this.targetMonth(),
+          employee.hireDate,
+          fixedWages
+        );
+        await this.employeeService.applyScheduledAnnualDeterminationOnPayrollSave(
+          employeeId,
+          this.targetMonth(),
+          employee
+        );
+      }
+
       group.controls.locked.setValue(true);
-      group.disable();
+      const updatedEmployee = this.employeeById()[employeeId];
+      if (updatedEmployee) {
+        this.applyRowControlStateAfterInit(group, updatedEmployee, { ...entry, locked: true });
+      }
     } catch (error) {
       this.rowErrors.update((errors) => ({
         ...errors,
         [employeeId]: error instanceof Error ? error.message : '保存に失敗しました',
       }));
     } finally {
-      this.savingRowIds.update((ids) => {
-        const next = new Set(ids);
-        next.delete(employeeId);
-        return next;
-      });
+      this.clearRowSaving(employeeId, group);
     }
   }
 
   private async loadCompanyAllowances(): Promise<void> {
+    this.companySettingsLoaded.set(false);
+
     try {
       const company = await this.companyService.getCompanyForCurrentUser();
       this.companyAllowances.set(company?.allowances ?? []);
+      this.systemStartDate.set(normalizeYearMonthKey(company?.systemStartDate) ?? '');
+      await this.refreshLatestLockedMonth();
     } catch {
       this.companyAllowances.set([]);
+      this.systemStartDate.set('');
+      this.latestLockedMonth.set(null);
     } finally {
+      this.companySettingsLoaded.set(true);
       this.allowancesLoaded.set(true);
       if (!this.loading()) {
         void this.rebuildForm();
       }
+    }
+  }
+
+  private async refreshLatestLockedMonth(): Promise<void> {
+    try {
+      this.latestLockedMonth.set(await this.monthlyLockService.getLatestLockedMonth());
+    } catch {
+      this.latestLockedMonth.set(null);
     }
   }
 
@@ -393,6 +865,9 @@ export class MonthlyPayrollTableComponent implements OnInit {
     }
 
     const version = ++this.rebuildVersion;
+    this.formRebuildInProgress.set(true);
+    this.refreshConfirmButtonDisabledState('rebuildForm:start');
+
     const eligibleEmployees = filterEmployeesForTargetMonth(
       this.employees(),
       this.targetMonth()
@@ -401,12 +876,49 @@ export class MonthlyPayrollTableComponent implements OnInit {
 
     let savedRecord: PayrollRecord | null = null;
     let previousRecord: PayrollRecord | null = null;
+    let rebuildSucceeded = false;
 
     try {
-      [savedRecord, previousRecord] = await Promise.all([
-        this.compensationService.getPayrollRecord(this.targetMonth()),
+      const targetMonth = this.targetMonth();
+      const [fetchedRecord, previousRecordResult] = await Promise.all([
+        this.compensationService.getPayrollRecord(targetMonth),
         this.compensationService.getPayrollRecord(previousMonth),
       ]);
+
+      if (version !== this.rebuildVersion) {
+        return;
+      }
+
+      savedRecord = mergePayrollRecords(
+        fetchedRecord,
+        this.targetMonthPayrollRecord(),
+        targetMonth
+      );
+      previousRecord = previousRecordResult;
+      await Promise.all([this.refreshTargetMonthLock(), this.refreshLatestLockedMonth()]);
+
+      if (version !== this.rebuildVersion) {
+        return;
+      }
+
+      this.previousMonthRecord.set(previousRecord);
+      this.targetMonthPayrollRecord.set(savedRecord);
+      this.entries.clear();
+      this.rowTotals.set([]);
+      this.rowFixedTotals.set([]);
+
+      eligibleEmployees.forEach((employee, index) => {
+        const savedEntry = resolvePayrollEntryForMonth(employee, this.targetMonth(), savedRecord);
+        const group = this.createRowGroup(employee, savedEntry);
+        this.entries.push(group);
+        this.attachRowTotalWatcher(index, group);
+        this.applyRowControlStateAfterInit(group, employee, savedEntry);
+      });
+
+      this.syncAllRowControlStates();
+      this.entriesCount.set(eligibleEmployees.length);
+      this.formDataReady.set(true);
+      rebuildSucceeded = true;
     } catch (error) {
       if (version !== this.rebuildVersion) {
         return;
@@ -415,63 +927,178 @@ export class MonthlyPayrollTableComponent implements OnInit {
       this.loadError.set(
         error instanceof Error ? error.message : '保存データの取得に失敗しました'
       );
-    }
-
-    if (version !== this.rebuildVersion) {
-      return;
-    }
-
-    this.previousMonthRecord.set(previousRecord);
-    this.entries.clear();
-    this.rowTotals.set([]);
-    this.rowFixedTotals.set([]);
-
-    eligibleEmployees.forEach((employee, index) => {
-      const savedEntry = savedRecord?.entries.find((entry) => entry.employeeId === employee.id);
-      const beforeHire = isBeforeHireMonth(employee, this.targetMonth());
-      const group = this.createRowGroup(employee, savedEntry ?? null, beforeHire);
-      this.entries.push(group);
-      this.attachRowTotalWatcher(index, group);
-
-      if (savedEntry?.locked || beforeHire) {
-        group.disable({ emitEvent: false });
+      this.entriesCount.set(this.entries.length);
+      this.formDataReady.set(true);
+    } finally {
+      if (version === this.rebuildVersion) {
+        this.formRebuildInProgress.set(false);
+        this.refreshConfirmButtonDisabledState(
+          rebuildSucceeded ? 'rebuildForm:complete' : 'rebuildForm:finally'
+        );
       }
+    }
+  }
+
+  private syncAllRowControlStates(): void {
+    const savedRecord = this.targetMonthPayrollRecord();
+
+    this.entries.controls.forEach((group) => {
+      const employeeId = group.controls.employeeId.value;
+      const employee = this.employeeById()[employeeId];
+      if (!employee) {
+        return;
+      }
+
+      const savedEntry = resolvePayrollEntryForMonth(employee, this.targetMonth(), savedRecord);
+      this.applyRowControlStateAfterInit(group, employee, savedEntry);
     });
+  }
+
+  private isRowSaved(group: PayrollRowFormGroup, savedEntry: PayrollEntry | null): boolean {
+    return Boolean(savedEntry?.locked) || group.controls.locked.value;
+  }
+
+  private applyRowControlStateAfterInit(
+    group: PayrollRowFormGroup,
+    employee: Employee,
+    savedEntry: PayrollEntry | null
+  ): void {
+    group.controls.employeeNumber.disable({ emitEvent: false });
+    group.controls.employeeName.disable({ emitEvent: false });
+    group.controls.locked.enable({ emitEvent: false });
+
+    const saved = this.isRowSaved(group, savedEntry);
+    const registrationLocked = isRegistrationInitialPayrollRow(
+      employee,
+      this.targetMonth(),
+      savedEntry
+    );
+    const beforeHire = isBeforeHireMonth(employee, this.targetMonth());
+    const monthLocked = this.isTargetMonthLocked();
+
+    const inputsEnabled =
+      !monthLocked &&
+      !saved &&
+      !registrationLocked &&
+      !beforeHire &&
+      isPayrollRowEditable(employee, this.targetMonth(), savedEntry);
+
+    this.setPayrollRowInputsEnabled(group, inputsEnabled);
+  }
+
+  private mergePayrollEntryIntoLocalRecord(entry: PayrollEntry): void {
+    const targetMonth = this.targetMonth();
+    const current = this.targetMonthPayrollRecord();
+    const entries = [...(current?.entries ?? [])];
+    const index = entries.findIndex((row) => row.employeeId === entry.employeeId);
+
+    if (index >= 0) {
+      entries[index] = entry;
+    } else {
+      entries.push(entry);
+    }
+
+    this.targetMonthPayrollRecord.set({
+      targetMonth,
+      entries,
+    });
+  }
+
+  private async refreshTargetMonthLock(): Promise<void> {
+    try {
+      const targetMonth = normalizeYearMonthKey(this.targetMonth()) ?? this.targetMonth().trim();
+      this.monthlyLockService.invalidateMonthLockCache(targetMonth);
+      this.isTargetMonthLocked.set(await this.monthlyLockService.isMonthLocked(targetMonth));
+    } catch {
+      this.isTargetMonthLocked.set(false);
+    } finally {
+      this.refreshConfirmButtonDisabledState('refreshTargetMonthLock');
+    }
+  }
+
+  private setPayrollRowInputsEnabled(group: PayrollRowFormGroup, enabled: boolean): void {
+    const toggle = enabled ? 'enable' : 'disable';
+    const opts = { emitEvent: false };
+
+    group.controls.baseSalary[toggle](opts);
+    group.controls.nonFixedWages[toggle](opts);
+    group.controls.adjustmentAmount[toggle](opts);
+    group.controls.adjustmentType[toggle](opts);
+    group.controls.adjustmentTargetMonth[toggle](opts);
+    group.controls.baseDays[toggle](opts);
+    group.controls.allowances[toggle](opts);
+
+    for (const allowance of group.controls.allowances.controls) {
+      allowance.controls.amount[toggle](opts);
+    }
   }
 
   private createRowGroup(
     employee: Employee,
-    savedEntry: PayrollEntry | null,
-    beforeHire = false
+    savedEntry: PayrollEntry | null
   ): PayrollRowFormGroup {
     const allowanceRows = resolvePayrollAllowances(
       employee,
       this.companyAllowances(),
       savedEntry
     );
-    const baseDays = resolvePayrollBaseDays(savedEntry);
+    const baseDays = resolvePayrollBaseDays(savedEntry, this.targetMonth());
+    const saved =
+      Boolean(savedEntry?.locked) ||
+      isRegistrationInitialPayrollRow(employee, this.targetMonth(), savedEntry);
 
     return this.fb.group({
       employeeId: employee.id,
       employeeNumber: this.fb.control({ value: employee.employeeNumber, disabled: true }),
       employeeName: this.fb.control({ value: employeeFullName(employee), disabled: true }),
-      locked: this.fb.control(Boolean(savedEntry?.locked)),
-      baseSalary: this.fb.control(resolvePayrollBaseSalary(employee, savedEntry), Validators.min(0)),
+      locked: this.fb.control(saved),
+      baseSalary: this.fb.control(
+        {
+          value: resolvePayrollBaseSalary(employee, savedEntry),
+          disabled: saved,
+        },
+        Validators.min(0)
+      ),
       allowances: this.fb.array(
         allowanceRows.map((row) =>
           this.fb.group({
             name: row.name,
-            amount: this.fb.control(row.amount, Validators.min(0)),
+            amount: this.fb.control(
+              {
+                value: row.amount,
+                disabled: saved,
+              },
+              Validators.min(0)
+            ),
           })
         )
       ),
-      nonFixedWages: this.fb.control(savedEntry?.nonFixedWages ?? 0, Validators.min(0)),
-      baseDays: beforeHire
-        ? this.fb.control(
-            { value: baseDays, disabled: true },
-            [Validators.required, Validators.min(0)]
-          )
-        : this.fb.control(baseDays, [Validators.required, Validators.min(0)]),
+      nonFixedWages: this.fb.control(
+        {
+          value: savedEntry?.nonFixedWages ?? 0,
+          disabled: saved,
+        },
+        Validators.min(0)
+      ),
+      adjustmentAmount: this.fb.control({
+        value: savedEntry?.adjustmentAmount ?? 0,
+        disabled: saved,
+      }),
+      adjustmentType: this.fb.control({
+        value: savedEntry?.adjustmentType ?? null,
+        disabled: saved,
+      }),
+      adjustmentTargetMonth: this.fb.control({
+        value: savedEntry?.adjustmentTargetMonth ?? '',
+        disabled: saved,
+      }),
+      baseDays: this.fb.control(
+        {
+          value: baseDays,
+          disabled: saved,
+        },
+        [Validators.required, Validators.min(0)]
+      ),
     });
   }
 
@@ -479,10 +1106,11 @@ export class MonthlyPayrollTableComponent implements OnInit {
     const recalculate = () => {
       const raw = group.getRawValue();
       const fixedTotal = calculateFixedWagesTotal(raw.baseSalary, raw.allowances);
-      const total = calculatePayrollRowTotal(
+      const total = calculatePayrollDisplayTotal(
         raw.baseSalary,
         raw.allowances,
-        raw.nonFixedWages
+        raw.nonFixedWages,
+        raw.adjustmentAmount
       );
 
       this.rowFixedTotals.update((totals) => {
@@ -505,6 +1133,9 @@ export class MonthlyPayrollTableComponent implements OnInit {
     merge(
       group.controls.baseSalary.valueChanges.pipe(startWith(group.controls.baseSalary.value)),
       group.controls.nonFixedWages.valueChanges.pipe(startWith(group.controls.nonFixedWages.value)),
+      group.controls.adjustmentAmount.valueChanges.pipe(
+        startWith(group.controls.adjustmentAmount.value)
+      ),
       ...amountChanges
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -513,24 +1144,56 @@ export class MonthlyPayrollTableComponent implements OnInit {
     recalculate();
   }
 
-  private buildPayrollEntry(group: PayrollRowFormGroup): PayrollEntry {
-    const raw = group.getRawValue();
-    const allowances = raw.allowances.map((row) => ({
-      name: row.name,
-      amount: row.amount,
-    }));
-    const totalPayment = calculatePayrollRowTotal(raw.baseSalary, allowances, raw.nonFixedWages);
+  onSaveRowPrepare(index: number): void {
+    this.syncRowFormValuesFromDom(index);
+  }
 
-    return {
-      employeeId: raw.employeeId,
-      employeeNumber: raw.employeeNumber,
-      employeeName: raw.employeeName,
-      baseSalary: raw.baseSalary,
-      allowances,
-      nonFixedWages: raw.nonFixedWages,
-      baseDays: raw.baseDays,
-      totalPayment,
+  private syncRowFormValuesFromDom(index: number): void {
+    const group = this.entries.at(index);
+    const employeeId = group.controls.employeeId.value?.trim();
+    if (!employeeId) {
+      return;
+    }
+
+    const row = document.querySelector(`[data-payroll-row-id="${employeeId}"]`);
+    if (!row) {
+      return;
+    }
+
+    this.syncNumericFormControlFromDom(
+      row,
+      'baseDays',
+      group.controls.baseDays
+    );
+    this.syncNumericFormControlFromDom(
+      row,
+      'nonFixedWages',
+      group.controls.nonFixedWages
+    );
+  }
+
+  private syncNumericFormControlFromDom(
+    row: Element,
+    field: string,
+    control: FormControl<number>
+  ): void {
+    const input = row.querySelector(
+      `[data-payroll-field="${field}"]`
+    ) as HTMLInputElement | null;
+
+    if (!input) {
+      return;
+    }
+
+    const parsed = Number(input.value);
+    if (Number.isFinite(parsed)) {
+      control.setValue(parsed, { emitEvent: false });
+    }
+  }
+
+  private buildPayrollEntry(group: PayrollRowFormGroup): PayrollEntry {
+    return buildPayrollEntryFromFormValues(extractPayrollRowFormValues(group), {
       locked: true,
-    };
+    });
   }
 }

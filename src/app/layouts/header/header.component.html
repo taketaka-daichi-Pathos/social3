@@ -1,9 +1,14 @@
-<header class="header">
-  <div class="header__brand">
-    <span class="header__icon" aria-hidden="true">👑</span>
-    <h1 class="header__title">労務管理システム</h1>
-  </div>
-  <button type="button" class="header__logout" (click)="onLogout()">
-    ログアウト
-  </button>
-</header>
+<header class="header">
+  <div class="header__brand">
+    <span class="header__icon" aria-hidden="true">👑</span>
+    <h1 class="header__title">労務管理システム</h1>
+  </div>
+  <div class="header__actions">
+    <app-header-notification-bell />
+    <app-portal-mode-switch mode="admin" />
+    <button type="button" class="header__logout" (click)="onLogout()">
+      ログアウト
+    </button>
+  </div>
+</header>
+

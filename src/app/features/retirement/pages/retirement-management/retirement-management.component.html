@@ -1,0 +1,163 @@
+<section class="retirement-management">
+  <header class="retirement-management__header">
+    <div>
+      <h1 class="retirement-management__title">退職</h1>
+      <p class="retirement-management__description">
+        退職手続きの登録・退職者一覧の確認を行います。手続き保存後、従業員へ退職に伴う手続き依頼タスクが自動発行されます。
+      </p>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="retirement-management__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (saveError()) {
+    <p class="retirement-management__alert" role="alert">{{ saveError() }}</p>
+  }
+
+  @if (saveSuccess()) {
+    <p class="retirement-management__success" role="status">{{ saveSuccess() }}</p>
+  }
+
+  <div class="retirement-management__card">
+    <h2 class="retirement-management__section-title">退職手続きの実行</h2>
+
+    @if (loading()) {
+      <p class="retirement-management__status">読み込み中...</p>
+    } @else {
+      <form class="retirement-management__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
+        <div class="retirement-management__grid">
+          <div class="retirement-management__field retirement-management__field--full">
+            <label class="retirement-management__label" for="retirementEmployeeId">退職予定者</label>
+            <select
+              id="retirementEmployeeId"
+              class="retirement-management__select"
+              formControlName="employeeId"
+            >
+              <option value="">選択してください</option>
+              @for (employee of activeEmployees(); track employee.id) {
+                <option [value]="employee.id">{{ employeeLabel(employee) }}</option>
+              }
+            </select>
+            @if (showError('employeeId')) {
+              <p class="retirement-management__error">{{ errorMessage('employeeId') }}</p>
+            }
+          </div>
+
+          <div class="retirement-management__field">
+            <label class="retirement-management__label" for="retirementDate">退職日</label>
+            <input
+              id="retirementDate"
+              type="date"
+              class="retirement-management__input"
+              formControlName="retirementDate"
+              autocomplete="off"
+            />
+            @if (form.controls.retirementDate.value) {
+              <p class="retirement-management__hint">
+                {{ monthEndRuleHint(form.controls.retirementDate.value) }}
+              </p>
+            }
+            @if (showError('retirementDate')) {
+              <p class="retirement-management__error">{{ errorMessage('retirementDate') }}</p>
+            }
+          </div>
+
+          <div class="retirement-management__field">
+            <label class="retirement-management__label" for="retirementReason">退職理由</label>
+            <input
+              id="retirementReason"
+              type="text"
+              class="retirement-management__input"
+              formControlName="retirementReason"
+              placeholder="例：自己都合による退職"
+              autocomplete="off"
+            />
+            @if (showError('retirementReason')) {
+              <p class="retirement-management__error">{{ errorMessage('retirementReason') }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="retirement-management__actions">
+          <button
+            type="submit"
+            class="retirement-management__submit"
+            [disabled]="saving() || form.invalid || form.pending"
+          >
+            @if (saving()) {
+              保存中…
+            } @else {
+              退職手続きを保存
+            }
+          </button>
+        </div>
+      </form>
+    }
+  </div>
+
+  <div class="retirement-management__card">
+    <h2 class="retirement-management__section-title">退職者一覧</h2>
+
+    @if (loading()) {
+      <p class="retirement-management__status">読み込み中...</p>
+    } @else if (retiredEmployees().length === 0) {
+      <p class="retirement-management__status">退職処理済みの従業員はいません</p>
+    } @else {
+      <div class="retirement-management__table-wrap">
+        <table class="retirement-management__table">
+          <thead>
+            <tr>
+              <th>社員番号</th>
+              <th>氏名</th>
+              <th>退職日</th>
+              <th>退職理由</th>
+              <th>退職後連絡先</th>
+              <th>保険証回収</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (employee of retiredEmployees(); track employee.id) {
+              <tr>
+                <td>{{ employee.employeeNumber }}</td>
+                <td>{{ employee.lastName }}{{ employee.firstName }}</td>
+                <td>{{ employee.resignationDate ?? '—' }}</td>
+                <td>{{ reasonLabel(employee.retirementReason) }}</td>
+                <td class="retirement-management__contact">
+                  @if (employee.postRetirementAddress || employee.postRetirementEmail) {
+                    @if (employee.postRetirementAddress) {
+                      <p>{{ employee.postRetirementAddress }}</p>
+                    }
+                    @if (employee.postRetirementEmail) {
+                      <p>{{ employee.postRetirementEmail }}</p>
+                    }
+                  } @else {
+                    <span class="retirement-management__muted">未入力</span>
+                  }
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="retirement-management__card-btn"
+                    [class.retirement-management__card-btn--returned]="
+                      employee.insuranceCardReturned === true
+                    "
+                    [disabled]="cardSavingId() === employee.id"
+                    (click)="onInsuranceCardReturnedToggle(employee)"
+                  >
+                    @if (employee.insuranceCardReturned === true) {
+                      ✅ 健康保険証 回収済み
+                    } @else {
+                      健康保険証を回収済みにする
+                    }
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>

@@ -1,0 +1,364 @@
+<section class="leave-management">
+  <header class="leave-management__header">
+    <div>
+      <h1 class="leave-management__title">育休・産休</h1>
+      <p class="leave-management__description">
+        産休・育休の期間を登録します。該当期間中は健康保険・介護保険・厚生年金保険料が免除（0円）として計算されます。
+      </p>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="leave-management__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (saveError()) {
+    <p class="leave-management__alert" role="alert">{{ saveError() }}</p>
+  }
+
+  @if (saveSuccess()) {
+    <p class="leave-management__success" role="status">{{ saveSuccess() }}</p>
+  }
+
+  <div class="leave-management__card">
+    <h2 class="leave-management__section-title">休業期間の登録</h2>
+
+    @if (loading()) {
+      <p class="leave-management__status">読み込み中...</p>
+    } @else {
+      <form class="leave-management__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
+        <div class="leave-management__grid">
+          <div class="leave-management__field leave-management__field--full">
+            <label class="leave-management__label" for="leaveEmployeeId">従業員</label>
+            <select
+              id="leaveEmployeeId"
+              class="leave-management__select"
+              formControlName="employeeId"
+            >
+              <option value="">選択してください</option>
+              @for (employee of activeEmployees(); track employee.id) {
+                <option [value]="employee.id">{{ employeeLabel(employee) }}</option>
+              }
+            </select>
+            @if (showError('employeeId')) {
+              <p class="leave-management__error">{{ errorMessage('employeeId') }}</p>
+            }
+          </div>
+
+          <div class="leave-management__field">
+            <label class="leave-management__label" for="leaveType">休業の種類</label>
+            <select id="leaveType" class="leave-management__select" formControlName="type">
+              <option value="" disabled>休業の種類を選択してください</option>
+              <option value="maternity">産休</option>
+              <option value="childcare">育休</option>
+            </select>
+            @if (showError('type')) {
+              <p class="leave-management__error">{{ errorMessage('type') }}</p>
+            }
+          </div>
+
+          <div class="leave-management__field">
+            <label class="leave-management__label" for="leaveStartDate">開始日（YYYY-MM-DD）</label>
+            <input
+              id="leaveStartDate"
+              type="date"
+              class="leave-management__input"
+              [class.leave-management__input--error]="showLeavePeriodLockError()"
+              formControlName="startDate"
+              [min]="leaveStartDateMin()"
+              autocomplete="off"
+            />
+            @if (showError('startDate')) {
+              <p class="leave-management__error">{{ errorMessage('startDate') }}</p>
+            }
+          </div>
+
+          <div class="leave-management__field leave-management__field--full">
+            <label class="leave-management__label" for="leaveEndDate">終了予定日（YYYY-MM-DD）</label>
+            <input
+              id="leaveEndDate"
+              type="date"
+              class="leave-management__input"
+              [class.leave-management__input--error]="showLeavePeriodLockError()"
+              formControlName="endDate"
+              [min]="leaveEndDateMin()"
+              autocomplete="off"
+            />
+            @if (showError('endDate') && !showLeavePeriodLockError()) {
+              <p class="leave-management__error">{{ errorMessage('endDate') }}</p>
+            }
+          </div>
+
+          @if (isMaternityLeaveType()) {
+            <div class="leave-management__field">
+              <label class="leave-management__label" for="expectedDeliveryDate">出産予定日</label>
+              <input
+                id="expectedDeliveryDate"
+                type="date"
+                class="leave-management__input"
+                formControlName="expectedDeliveryDate"
+                autocomplete="off"
+              />
+              @if (showError('expectedDeliveryDate')) {
+                <p class="leave-management__error">{{ errorMessage('expectedDeliveryDate') }}</p>
+              }
+            </div>
+
+            <div class="leave-management__field">
+              <label class="leave-management__label" for="actualDeliveryDate">実際の出産日（任意）</label>
+              <input
+                id="actualDeliveryDate"
+                type="date"
+                class="leave-management__input"
+                formControlName="actualDeliveryDate"
+                autocomplete="off"
+              />
+              @if (showError('actualDeliveryDate')) {
+                <p class="leave-management__error">{{ errorMessage('actualDeliveryDate') }}</p>
+              }
+            </div>
+
+            <div class="leave-management__field leave-management__field--full">
+              <span class="leave-management__label">出産種別</span>
+              <div class="leave-management__radio-group">
+                <label class="leave-management__radio">
+                  <input type="radio" formControlName="deliveryType" value="1" />
+                  <span>単胎</span>
+                </label>
+                <label class="leave-management__radio">
+                  <input type="radio" formControlName="deliveryType" value="2" />
+                  <span>多胎</span>
+                </label>
+              </div>
+              @if (showError('deliveryType')) {
+                <p class="leave-management__error">{{ errorMessage('deliveryType') }}</p>
+              }
+            </div>
+          }
+
+          @if (isChildcareLeaveType()) {
+            <div class="leave-management__field leave-management__field--full">
+              <h3 class="leave-management__subsection-title">養育する子（1人目）</h3>
+            </div>
+
+            <div class="leave-management__field">
+              <label class="leave-management__label" for="child1NameKana">氏名（カナ）</label>
+              <input
+                id="child1NameKana"
+                type="text"
+                class="leave-management__input"
+                formControlName="child1NameKana"
+                autocomplete="off"
+              />
+              @if (showError('child1NameKana')) {
+                <p class="leave-management__error">{{ errorMessage('child1NameKana') }}</p>
+              }
+            </div>
+
+            <div class="leave-management__field">
+              <label class="leave-management__label" for="child1NameKanji">氏名（漢字）</label>
+              <input
+                id="child1NameKanji"
+                type="text"
+                class="leave-management__input"
+                formControlName="child1NameKanji"
+                autocomplete="off"
+              />
+              @if (showError('child1NameKanji')) {
+                <p class="leave-management__error">{{ errorMessage('child1NameKanji') }}</p>
+              }
+            </div>
+
+            <div class="leave-management__field leave-management__field--full">
+              <label class="leave-management__label" for="child1BirthDate">生年月日</label>
+              <input
+                id="child1BirthDate"
+                type="date"
+                class="leave-management__input"
+                formControlName="child1BirthDate"
+                autocomplete="off"
+              />
+              @if (showError('child1BirthDate')) {
+                <p class="leave-management__error">{{ errorMessage('child1BirthDate') }}</p>
+              }
+            </div>
+
+            <div class="leave-management__field leave-management__field--full">
+              <h3 class="leave-management__subsection-title">養育する子（2人目・任意）</h3>
+            </div>
+
+            <div class="leave-management__field">
+              <label class="leave-management__label" for="child2NameKana">氏名（カナ）</label>
+              <input
+                id="child2NameKana"
+                type="text"
+                class="leave-management__input"
+                formControlName="child2NameKana"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="leave-management__field">
+              <label class="leave-management__label" for="child2NameKanji">氏名（漢字）</label>
+              <input
+                id="child2NameKanji"
+                type="text"
+                class="leave-management__input"
+                formControlName="child2NameKanji"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="leave-management__field leave-management__field--full">
+              <label class="leave-management__label" for="child2BirthDate">生年月日</label>
+              <input
+                id="child2BirthDate"
+                type="date"
+                class="leave-management__input"
+                formControlName="child2BirthDate"
+                autocomplete="off"
+              />
+              @if (showError('child2BirthDate')) {
+                <p class="leave-management__error">{{ errorMessage('child2BirthDate') }}</p>
+              }
+            </div>
+
+            <div class="leave-management__field leave-management__field--full">
+              <span class="leave-management__label">申出区分（法定帳票）</span>
+              <div class="leave-management__radio-group">
+                <label class="leave-management__radio">
+                  <input type="radio" formControlName="childcareApplicationType" value="new" />
+                  <span>新規申出</span>
+                </label>
+                <label class="leave-management__radio">
+                  <input type="radio" formControlName="childcareApplicationType" value="extension" />
+                  <span>延長</span>
+                </label>
+                <label class="leave-management__radio">
+                  <input type="radio" formControlName="childcareApplicationType" value="termination" />
+                  <span>終了届</span>
+                </label>
+              </div>
+            </div>
+
+            @if (isChildcareTerminationApplication()) {
+              <div class="leave-management__field leave-management__field--full">
+                <label class="leave-management__label" for="actualEndDate">休業終了年月日</label>
+                <input
+                  id="actualEndDate"
+                  type="date"
+                  class="leave-management__input"
+                  formControlName="actualEndDate"
+                  [min]="leaveStartDateMin()"
+                  autocomplete="off"
+                />
+                @if (showError('actualEndDate')) {
+                  <p class="leave-management__error">{{ errorMessage('actualEndDate') }}</p>
+                }
+              </div>
+            }
+          }
+        </div>
+
+        @if (showLeavePeriodLockError()) {
+          <p class="leave-management__period-lock-alert" role="alert">
+            {{ leavePeriodLockedMonthMessage }}
+          </p>
+        }
+
+        <div class="leave-management__actions">
+          <button
+            type="submit"
+            class="leave-management__submit"
+            [class.leave-management__submit--disabled]="isSaveButtonDisabled()"
+            [disabled]="isSaveButtonDisabled()"
+          >
+            {{ saving() ? '保存中...' : '休業期間を保存' }}
+          </button>
+        </div>
+      </form>
+    }
+  </div>
+
+  <div class="leave-management__card leave-management__card--table">
+    <h2 class="leave-management__section-title">休業取得中・取得予定の従業員</h2>
+
+    @if (loading()) {
+      <p class="leave-management__status">読み込み中...</p>
+    } @else if (leaveRows().length === 0) {
+      <p class="leave-management__empty">休業取得中・取得予定の従業員はいません</p>
+    } @else {
+      <div class="leave-management__table-wrap">
+        <table class="leave-management__table">
+          <thead>
+            <tr>
+              <th>社員番号</th>
+              <th>氏名</th>
+              <th>種類</th>
+              <th>開始日</th>
+              <th>終了予定日</th>
+              <th>出産予定日</th>
+              <th>出産種別</th>
+              <th>養育する子</th>
+              <th>申出区分</th>
+              <th>休業終了日</th>
+              <th>ステータス</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of leaveRows(); track row.employeeId + row.record.startDate + row.record.type) {
+              <tr>
+                <td>{{ row.employeeNumber }}</td>
+                <td>{{ row.employeeName }}</td>
+                <td>{{ typeLabel(row.record.type) }}</td>
+                <td>{{ row.record.startDate }}</td>
+                <td>{{ row.record.endDate }}</td>
+                <td>{{ row.record.expectedDeliveryDate || '—' }}</td>
+                <td>{{ deliveryTypeLabel(row.record.deliveryType) }}</td>
+                <td>{{ childcareChildrenLabel(row.record) }}</td>
+                <td>{{ childcareApplicationLabel(row.record) }}</td>
+                <td>{{ row.record.actualEndDate || '—' }}</td>
+                <td>
+                  <span
+                    class="leave-management__status-badge"
+                    [class.leave-management__status-badge--active]="row.status === 'active'"
+                    [class.leave-management__status-badge--scheduled]="row.status === 'scheduled'"
+                  >
+                    {{ statusLabel(row.status) }}
+                  </span>
+                </td>
+                <td class="leave-management__row-actions">
+                  <button
+                    type="button"
+                    class="leave-management__row-btn"
+                    [disabled]="isLeaveRecordImmutable(row)"
+                    [title]="
+                      isLeaveRecordImmutable(row)
+                        ? '確定済みの月を含む休業期間は編集できません'
+                        : '編集'
+                    "
+                  >
+                    編集
+                  </button>
+                  <button
+                    type="button"
+                    class="leave-management__row-btn leave-management__row-btn--danger"
+                    [disabled]="isLeaveRecordImmutable(row)"
+                    [title]="
+                      isLeaveRecordImmutable(row)
+                        ? '確定済みの月を含む休業期間は削除できません'
+                        : '削除'
+                    "
+                  >
+                    削除
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>

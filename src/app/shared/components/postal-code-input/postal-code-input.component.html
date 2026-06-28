@@ -14,7 +14,7 @@
       [value]="digits[i]"
       inputmode="numeric"
       maxlength="1"
-      autocomplete="postal-code"
+      autocomplete="off"
       [attr.aria-label]="'郵便番号' + (i + 1) + '桁目'"
       [disabled]="disabled"
       (input)="onDigitInput(i, $event)"

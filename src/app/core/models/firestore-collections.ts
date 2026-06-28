@@ -6,6 +6,14 @@ export const FirestoreCollections = {
   employees: 'employees',
   payrolls: 'payrolls',
   bonuses: 'bonuses',
+  monthlyLocks: 'monthlyLocks',
+} as const;
+
+export const FirestoreCompanySubcollections = {
+  insuranceRateHistory: 'insuranceRateHistory',
+  employeeTasks: 'employee_tasks',
+  requests: 'requests',
+  adminTodos: 'admin_todos',
 } as const;
 
 export type FirestoreCollectionName =

@@ -6,4 +6,6 @@ export interface CompanyDocument extends CompanySettings {
   ownerUid: string;
   /** 旧フィールド（所在地一括）。読み込み時の互換用 */
   address?: string;
+  /** 旧フィールド（事業主氏名一括）。読み込み時の互換用 */
+  ownerName?: string;
 }

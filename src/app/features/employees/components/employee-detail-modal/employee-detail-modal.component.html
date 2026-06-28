@@ -12,7 +12,15 @@
       <header class="detail-modal__header">
         <div>
           <p class="detail-modal__number">社員番号: {{ emp.employeeNumber }}</p>
-          <h2 id="employee-detail-title" class="detail-modal__title">{{ fullName(emp) }}</h2>
+          <div class="detail-modal__name-block">
+            <div class="detail-modal__title-row">
+              <h2 id="employee-detail-title" class="detail-modal__title">{{ fullName(emp) }}</h2>
+              <app-leave-compact-badge [employee]="emp" />
+            </div>
+            <p *ngIf="hasLeaveRecord(emp)" class="detail-modal__leave-period">
+              {{ getLeavePeriodText(emp) }}
+            </p>
+          </div>
           <p class="detail-modal__kana">{{ fullNameKana(emp) }}</p>
         </div>
         <button type="button" class="detail-modal__close" aria-label="閉じる" (click)="close()">
@@ -38,7 +46,43 @@
             <dd>{{ dependentsLabel(emp.hasDependents) }}</dd>
             <dt>被保険者整理番号</dt>
             <dd>{{ emp.insuredPersonNumber || '—' }}</dd>
+            <dt>メールアドレス</dt>
+            <dd>{{ emp.email || '—' }}</dd>
           </dl>
+        </section>
+
+        <section class="detail-modal__section">
+          <h3 class="detail-modal__section-title">扶養家族情報</h3>
+          @if (!hasRegisteredDependents(emp)) {
+            <p class="detail-modal__empty">
+              登録されている扶養家族はありません。「扶養」タブから登録できます。
+            </p>
+          } @else {
+            <div class="detail-modal__dependents-table-wrap">
+              <table class="detail-modal__dependents-table">
+                <thead>
+                  <tr>
+                    <th>氏名</th>
+                    <th>続柄</th>
+                    <th>生年月日</th>
+                    <th>扶養開始日</th>
+                    <th>扶養状況</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (dependent of dependents(emp); track dependent.lastName + dependent.firstName + dependent.birthDate) {
+                    <tr>
+                      <td>{{ dependentName(dependent) }}</td>
+                      <td>{{ relationshipLabel(dependent) }}</td>
+                      <td>{{ dependent.birthDate }}</td>
+                      <td>{{ dependent.dependencyStartDate }}</td>
+                      <td>{{ dependentStatus(dependent) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         </section>
 
         @if (hasPayrollHistory(emp)) {
@@ -89,6 +133,48 @@
         </section>
 
         <section class="detail-modal__section">
+          <h3 class="detail-modal__section-title">等級変更履歴</h3>
+          @if (revisionHistoryEntries(emp).length === 0) {
+            <p class="detail-modal__empty">等級変更履歴はありません</p>
+          } @else {
+            <ol class="detail-modal__timeline">
+              @for (entry of revisionHistoryEntries(emp); track entry.id) {
+                <li class="detail-modal__timeline-item">
+                  <div class="detail-modal__timeline-head">
+                    <span class="detail-modal__timeline-type">{{ entry.type }}</span>
+                    <span class="detail-modal__timeline-month"
+                      >適用月: {{ formatYearMonth(entry.applicableMonth) }}</span
+                    >
+                  </div>
+                  <div class="detail-modal__timeline-body">
+                    <p>
+                      健保:
+                      {{ formatHistoryGrade(entry.beforeHealthGrade, entry.beforeHealthAmount) }}
+                      ➔
+                      {{ formatHistoryGrade(entry.afterHealthGrade, entry.afterHealthAmount) }}
+                    </p>
+                    <p>
+                      厚年:
+                      {{ formatHistoryGrade(entry.beforePensionGrade, entry.beforePensionAmount) }}
+                      ➔
+                      {{ formatHistoryGrade(entry.afterPensionGrade, entry.afterPensionAmount) }}
+                    </p>
+                    @if (entry.changeMonth) {
+                      <p class="detail-modal__timeline-meta">
+                        変動月: {{ formatYearMonth(entry.changeMonth) }}
+                      </p>
+                    }
+                    <p class="detail-modal__timeline-meta">
+                      更新: {{ formatRevisionUpdatedAt(entry.updatedAt) }}
+                    </p>
+                  </div>
+                </li>
+              }
+            </ol>
+          }
+        </section>
+
+        <section class="detail-modal__section">
           <h3 class="detail-modal__section-title">標準報酬月額（現在）</h3>
           <dl class="detail-modal__grid">
             <dt>等級</dt>
@@ -100,9 +186,14 @@
           </dl>
         </section>
 
-        @if (ins?.premiums; as premiums) {
+        @if (displayPremiums(emp); as premiums) {
           <section class="detail-modal__section">
-            <h3 class="detail-modal__section-title">社会保険料内訳</h3>
+            <h3 class="detail-modal__section-title">社会保険料内訳（{{ currentTargetMonthLabel() }}）</h3>
+            @if (isCurrentMonthExempt(emp)) {
+              <p class="detail-modal__exempt-note">
+                育休・産休の免除期間中のため、健康保険・介護保険・厚生年金保険料は ¥0 です。
+              </p>
+            }
             <div class="detail-modal__premium-table-wrap">
               <table class="detail-modal__premium-table">
                 <thead>
@@ -120,14 +211,12 @@
                     <td>¥{{ premiums.health.employerShare | number }}</td>
                     <td>¥{{ premiums.health.total | number }}</td>
                   </tr>
-                  @if (premiums.longTermCare) {
-                    <tr>
-                      <td>介護保険</td>
-                      <td>¥{{ premiums.longTermCare.employeeShare | number }}</td>
-                      <td>¥{{ premiums.longTermCare.employerShare | number }}</td>
-                      <td>¥{{ premiums.longTermCare.total | number }}</td>
-                    </tr>
-                  }
+                  <tr>
+                    <td>介護保険</td>
+                    <td>¥{{ premiums.longTermCare.employeeShare | number }}</td>
+                    <td>¥{{ premiums.longTermCare.employerShare | number }}</td>
+                    <td>¥{{ premiums.longTermCare.total | number }}</td>
+                  </tr>
                   <tr>
                     <td>厚生年金</td>
                     <td>¥{{ premiums.pension.employeeShare | number }}</td>
@@ -136,9 +225,26 @@
                   </tr>
                   <tr class="detail-modal__premium-total">
                     <td>合計</td>
-                    <td>¥{{ premiumTotals(ins!).employeeShare | number }}</td>
-                    <td>¥{{ premiumTotals(ins!).employerShare | number }}</td>
-                    <td>¥{{ premiumTotals(ins!).total | number }}</td>
+                    <td>
+                      ¥{{
+                        premiums.health.employeeShare +
+                          premiums.longTermCare.employeeShare +
+                          premiums.pension.employeeShare | number
+                      }}
+                    </td>
+                    <td>
+                      ¥{{
+                        premiums.health.employerShare +
+                          premiums.longTermCare.employerShare +
+                          premiums.pension.employerShare | number
+                      }}
+                    </td>
+                    <td>
+                      ¥{{
+                        premiums.health.total + premiums.longTermCare.total + premiums.pension.total
+                          | number
+                      }}
+                    </td>
                   </tr>
                 </tbody>
               </table>

@@ -1,0 +1,56 @@
+@use '../../../styles/variables' as *;
+
+.employee-layout {
+  min-height: 100vh;
+  background: #f8fafc;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: #fff;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__label {
+    margin: 0 0 0.15rem;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__logout {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: $color-text;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      background: #f9fafb;
+    }
+  }
+
+  &__main {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 1.5rem;
+  }
+}

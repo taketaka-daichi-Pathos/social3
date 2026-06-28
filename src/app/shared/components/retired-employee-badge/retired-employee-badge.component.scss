@@ -1,0 +1,17 @@
+@use '../../../../styles/variables' as *;
+
+.retired-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.1rem 0.45rem;
+  border-radius: $radius-sm;
+  background: rgba($color-text-muted, 0.15);
+  color: $color-text-muted;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: keep-all;
+}

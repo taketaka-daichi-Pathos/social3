@@ -34,7 +34,7 @@
       </button>
     </nav>
 
-    <form class="company-settings__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+    <form class="company-settings__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
       @if (loading()) {
         <p class="company-settings__status">会社情報を読み込み中...</p>
       } @else if (loadError()) {
@@ -61,6 +61,27 @@
             </div>
 
             <div class="company-settings__field company-settings__field--full">
+              <label class="company-settings__label" for="linkedEmployeeId">
+                管理者に紐づく従業員
+              </label>
+              <p class="company-settings__hint">
+                プルダウンから労務担当者を選択して下さい
+              </p>
+              <select
+                id="linkedEmployeeId"
+                class="company-settings__input company-settings__select"
+                formControlName="linkedEmployeeId"
+              >
+                <option value="">未設定（メールアドレス一致で自動判定）</option>
+                @for (employee of employeeOptions(); track employee.id) {
+                  <option [value]="employee.id">
+                    {{ linkedEmployeeOptionLabel(employee) }}
+                  </option>
+                }
+              </select>
+            </div>
+
+            <div class="company-settings__field company-settings__field--full">
               <label class="company-settings__label" for="companyName">会社名</label>
               <input
                 id="companyName"
@@ -68,7 +89,7 @@
                 class="company-settings__input"
                 formControlName="companyName"
                 placeholder="例: 株式会社サンプル"
-                autocomplete="organization"
+                autocomplete="off"
               />
               @if (showError('companyName')) {
                 <p class="company-settings__error">{{ errorMessage('companyName') }}</p>
@@ -76,18 +97,79 @@
             </div>
 
             <div class="company-settings__field company-settings__field--full">
-              <label class="company-settings__label" for="ownerName">事業主氏名</label>
+              <span class="company-settings__label">事業主氏名</span>
+              <div class="company-settings__name-row">
+                <div class="company-settings__name-field">
+                  <label class="company-settings__sub-label" for="employerLastName">姓</label>
+                  <input
+                    id="employerLastName"
+                    type="text"
+                    class="company-settings__input"
+                    formControlName="employerLastName"
+                    placeholder="例: 山田"
+                    autocomplete="off"
+                  />
+                  @if (showError('employerLastName')) {
+                    <p class="company-settings__error">{{ errorMessage('employerLastName') }}</p>
+                  }
+                </div>
+                <div class="company-settings__name-field">
+                  <label class="company-settings__sub-label" for="employerFirstName">名</label>
+                  <input
+                    id="employerFirstName"
+                    type="text"
+                    class="company-settings__input"
+                    formControlName="employerFirstName"
+                    placeholder="例: 太郎"
+                    autocomplete="off"
+                  />
+                  @if (showError('employerFirstName')) {
+                    <p class="company-settings__error">{{ errorMessage('employerFirstName') }}</p>
+                  }
+                </div>
+              </div>
+              <div class="company-settings__name-row">
+                <div class="company-settings__name-field">
+                  <label class="company-settings__sub-label" for="employerLastNameKana">セイ</label>
+                  <input
+                    id="employerLastNameKana"
+                    type="text"
+                    class="company-settings__input"
+                    formControlName="employerLastNameKana"
+                    placeholder="例: ヤマダ"
+                    autocomplete="off"
+                  />
+                  @if (showError('employerLastNameKana')) {
+                    <p class="company-settings__error">{{ errorMessage('employerLastNameKana') }}</p>
+                  }
+                </div>
+                <div class="company-settings__name-field">
+                  <label class="company-settings__sub-label" for="employerFirstNameKana">メイ</label>
+                  <input
+                    id="employerFirstNameKana"
+                    type="text"
+                    class="company-settings__input"
+                    formControlName="employerFirstNameKana"
+                    placeholder="例: タロウ"
+                    autocomplete="off"
+                  />
+                  @if (showError('employerFirstNameKana')) {
+                    <p class="company-settings__error">{{ errorMessage('employerFirstNameKana') }}</p>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="company-settings__field company-settings__field--full">
+              <label class="company-settings__label" for="systemStartDate">システム利用開始年月</label>
               <input
-                id="ownerName"
-                type="text"
-                class="company-settings__input"
-                formControlName="ownerName"
-                placeholder="例: 山田 太郎"
-                autocomplete="name"
+                id="systemStartDate"
+                type="month"
+                class="company-settings__input company-settings__input--month"
+                formControlName="systemStartDate"
+                readonly
               />
-              @if (showError('ownerName')) {
-                <p class="company-settings__error">{{ errorMessage('ownerName') }}</p>
-              }
+              <p class="company-settings__hint">登録時に確定した年月です（変更できません）</p>
             </div>
 
             <div class="company-settings__field">
@@ -111,6 +193,7 @@
                 formControlName="phoneNumber"
                 placeholder="例: 03-1234-5678"
                 inputmode="tel"
+                autocomplete="off"
               />
               @if (showError('phoneNumber')) {
                 <p class="company-settings__error">{{ errorMessage('phoneNumber') }}</p>
@@ -138,7 +221,7 @@
                 class="company-settings__input"
                 formControlName="cityAddress"
                 placeholder="例: 千代田区丸の内1-1-1"
-                autocomplete="street-address"
+                autocomplete="off"
               />
               @if (showError('cityAddress')) {
                 <p class="company-settings__error">{{ errorMessage('cityAddress') }}</p>
@@ -155,6 +238,7 @@
                 placeholder="例: 13"
                 inputmode="numeric"
                 maxlength="2"
+                autocomplete="off"
               />
               @if (showError('prefectureCode')) {
                 <p class="company-settings__error">{{ errorMessage('prefectureCode') }}</p>
@@ -171,6 +255,7 @@
                 placeholder="例: 01"
                 inputmode="numeric"
                 maxlength="2"
+                autocomplete="off"
               />
               @if (showError('districtCode')) {
                 <p class="company-settings__error">{{ errorMessage('districtCode') }}</p>
@@ -185,6 +270,7 @@
                 class="company-settings__input"
                 formControlName="referenceMark"
                 placeholder="例: ア-1234"
+                autocomplete="off"
               />
               @if (showError('referenceMark')) {
                 <p class="company-settings__error">{{ errorMessage('referenceMark') }}</p>
@@ -201,6 +287,7 @@
                 placeholder="例: 12345"
                 inputmode="numeric"
                 maxlength="5"
+                autocomplete="off"
               />
               @if (showError('officeNumber')) {
                 <p class="company-settings__error">{{ errorMessage('officeNumber') }}</p>
@@ -211,8 +298,47 @@
           <div class="company-settings__grid">
             <div class="company-settings__field company-settings__field--full">
               <p class="company-settings__hint">
-                都道府県を変更すると、基本情報タブの「都道府県」に連動して健康保険料率が自動入力されます。
+                適用都道府県を変更すると、協会けんぽマスターから健康保険料率・介護保険料率が自動入力されます。適用開始月を未来に設定すると、予約した料率を履歴として保存できます。
               </p>
+            </div>
+
+            <div class="company-settings__field company-settings__field--full">
+              <label class="company-settings__label" for="applicablePrefecture">適用都道府県</label>
+              <select
+                id="applicablePrefecture"
+                class="company-settings__select"
+                formControlName="prefecture"
+                (change)="onApplicablePrefectureChange($event)"
+              >
+                <option value="" disabled>選択してください</option>
+                @for (pref of prefectures; track pref.name) {
+                  <option [value]="pref.name">{{ pref.name }}</option>
+                }
+              </select>
+              @if (showError('prefecture')) {
+                <p class="company-settings__error">{{ errorMessage('prefecture') }}</p>
+              }
+            </div>
+
+            <div class="company-settings__field">
+              <label class="company-settings__label" for="applicableMonth">適用開始月</label>
+              <input
+                id="applicableMonth"
+                type="month"
+                class="company-settings__input"
+                formControlName="applicableMonth"
+                (input)="onApplicableMonthInput($event)"
+                autocomplete="off"
+              />
+              @if (showStatutoryMasterPeriodError()) {
+                <p class="company-settings__error">{{ applicableMonthErrorMessage() }}</p>
+              } @else if (showLockedApplicableMonthError()) {
+                <p class="company-settings__error">{{ applicableMonthErrorMessage() }}</p>
+              } @else if (showDuplicateMonthError()) {
+                <p class="company-settings__error">{{ applicableMonthErrorMessage() }}</p>
+              } @else if (showApplicableMonthError()) {
+                <p class="company-settings__error">{{ applicableMonthErrorMessage() }}</p>
+              }
             </div>
 
             <div class="company-settings__field">
@@ -225,6 +351,7 @@
                 placeholder="例: 9.85"
                 min="0"
                 step="0.01"
+                autocomplete="off"
               />
               @if (showError('healthInsuranceRate')) {
                 <p class="company-settings__error">{{ errorMessage('healthInsuranceRate') }}</p>
@@ -243,12 +370,51 @@
                 placeholder="例: 1.62"
                 min="0"
                 step="0.01"
+                autocomplete="off"
               />
-              <p class="company-settings__hint">全国一律 1.62% が自動セットされます</p>
+              <p class="company-settings__hint">全国一律。適用開始月に応じた最新値が自動セットされます</p>
               @if (showError('longTermCareInsuranceRate')) {
                 <p class="company-settings__error">{{ errorMessage('longTermCareInsuranceRate') }}</p>
               }
             </div>
+
+            <div class="company-settings__field company-settings__field--full">
+              <p class="company-settings__hint">{{ statutoryMasterPeriodHint }}</p>
+            </div>
+
+            @if (insuranceRateHistory().length > 0) {
+              <div class="company-settings__field company-settings__field--full">
+                <h3 class="company-settings__history-title">料率変更履歴</h3>
+                <div class="company-settings__history-table-wrap">
+                  <table class="company-settings__history-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">適用開始月</th>
+                        <th scope="col">健康保険料率</th>
+                        <th scope="col">介護保険料率</th>
+                        <th scope="col">保存日時</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (entry of insuranceRateHistory(); track entry.id) {
+                        <tr>
+                          <td>{{ formatApplicableMonth(entry.applicableMonth) }}</td>
+                          <td>{{ entry.healthInsuranceRate | number: '1.2-2' }}%</td>
+                          <td>{{ entry.careInsuranceRate | number: '1.2-2' }}%</td>
+                          <td>
+                            @if (entry.updatedAt) {
+                              {{ entry.updatedAt | date: 'yyyy/MM/dd HH:mm' }}
+                            } @else {
+                              —
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
           </div>
         } @else {
           <div class="company-settings__allowances" formArrayName="allowances">
@@ -275,6 +441,7 @@
                       class="company-settings__input"
                       formControlName="name"
                       placeholder="手当名を入力"
+                      autocomplete="off"
                     />
                     @if (showAllowanceError($index, 'name')) {
                       <p class="company-settings__error">
@@ -296,6 +463,7 @@
                       min="0"
                       step="1"
                       inputmode="numeric"
+                      autocomplete="off"
                     />
                     @if (showAllowanceError($index, 'amount')) {
                       <p class="company-settings__error">
@@ -323,13 +491,18 @@
         }
 
         <div class="company-settings__actions">
+          @if (saveSuccess()) {
+            <p class="company-settings__success company-settings__success--banner" role="status">
+              {{ saveSuccess() }}
+            </p>
+          }
           @if (saveError()) {
             <p class="company-settings__error company-settings__error--banner">{{ saveError() }}</p>
           }
           <button
             type="submit"
             class="company-settings__submit"
-            [disabled]="form.invalid || saving()"
+            [disabled]="isSubmitDisabled()"
           >
             {{ saving() ? '保存中...' : '設定を保存' }}
           </button>

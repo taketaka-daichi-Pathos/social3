@@ -25,7 +25,8 @@ export class YearSelectComponent {
   readonly valueChange = output<number>();
 
   readonly open = signal(false);
-  readonly yearOptions = computed(() => buildYearSelectOptions(this.value()));
+  readonly yearOptions = computed(() => buildYearSelectOptions(this.normalizedValue()));
+  readonly normalizedValue = computed(() => Number(this.value()));
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
@@ -39,17 +40,20 @@ export class YearSelectComponent {
     this.open.set(next);
 
     if (next) {
-      queueMicrotask(() => {
-        const selected = (this.elementRef.nativeElement as HTMLElement).querySelector(
-          '.year-select__option--selected'
-        ) as HTMLElement | null;
-        selected?.scrollIntoView({ block: 'nearest' });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => this.scrollToSelectedYear());
       });
     }
   }
 
+  private scrollToSelectedYear(): void {
+    const host = this.elementRef.nativeElement;
+    const selected = host.querySelector('.year-select__option--selected') as HTMLElement | null;
+    selected?.scrollIntoView({ block: 'center' });
+  }
+
   selectYear(year: number): void {
-    this.valueChange.emit(year);
+    this.valueChange.emit(Number(year));
     this.open.set(false);
   }
 }

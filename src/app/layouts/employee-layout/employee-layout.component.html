@@ -1,0 +1,37 @@
+<div class="employee-layout">
+
+  <header class="employee-layout__header">
+
+    <div>
+
+      <p class="employee-layout__label">従業員ポータル</p>
+
+      <h1 class="employee-layout__title">マイページ</h1>
+
+    </div>
+
+    <div class="employee-layout__actions">
+
+      <app-header-notification-bell />
+
+      <app-portal-mode-switch mode="employee" />
+
+      <button type="button" class="employee-layout__logout" (click)="onLogout()">ログアウト</button>
+
+    </div>
+
+  </header>
+
+
+
+  <main class="employee-layout__main">
+
+    <router-outlet />
+
+  </main>
+
+  <app-toast />
+
+</div>
+
+

@@ -3,7 +3,7 @@
     <div>
       <h2 class="payroll-table__title">月次給与</h2>
       <p class="payroll-table__description">
-        {{ targetMonthLabel() }}の給与を入力・保存します。入社前の従業員は表示されません。
+        {{ targetMonthLabel() }}の給与を入力・保存します。入社前の従業員は表示されません。システム利用開始日より前の月は、従業員登録時の過去履歴データを表示します（編集不可）。
       </p>
     </div>
 
@@ -50,8 +50,49 @@
           次月 ▶
         </button>
       </div>
+
+      @if (isTargetMonthLocked()) {
+        <div class="payroll-table__month-lock-badge" role="status">🔒 確定済み</div>
+      } @else {
+        <div class="flex flex-col items-end gap-1 max-w-72">
+          <button
+            type="button"
+            class="payroll-table__lock-btn"
+            [disabled]="confirmButtonDisabled()"
+            [attr.title]="showPreviousMonthNotLockedWarning() ? previousMonthNotLockedMessage : null"
+            (click)="confirmLockTargetMonth()"
+          >
+            {{ lockingMonth() ? '確定中...' : 'この月の作業を確定する' }}
+          </button>
+          @if (showPreviousMonthNotLockedWarning()) {
+            <p class="m-0 text-xs leading-snug text-amber-700 text-right" role="status">
+              {{ previousMonthNotLockedMessage }}
+            </p>
+          }
+        </div>
+      }
     </div>
   </header>
+
+  <div class="payroll-table__toolbar">
+    <div class="payroll-table__filter">
+      <label class="payroll-table__filter-label" for="payrollSocialInsuranceFilter">社会保険区分</label>
+      <select
+        id="payrollSocialInsuranceFilter"
+        class="payroll-table__filter-select"
+        [value]="socialInsuranceFilter()"
+        (change)="onSocialInsuranceFilterChange($event)"
+      >
+        @for (option of socialInsuranceFilterOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (lockActionError()) {
+    <p class="payroll-table__alert" role="alert">{{ lockActionError() }}</p>
+  }
 
   @if (loadError()) {
     <p class="payroll-table__alert" role="alert">{{ loadError() }}</p>
@@ -63,43 +104,64 @@
     <p class="payroll-table__status">データを表示できません</p>
   } @else if (entries.length === 0) {
     <p class="payroll-table__status">対象月に該当する従業員がいません</p>
+  } @else if (visibleRowIndices().length === 0) {
+    <p class="payroll-table__status">該当する従業員がいません</p>
   } @else {
-    <div class="payroll-table__wrap" [formGroup]="form">
-      <table class="payroll-table__grid">
-        <colgroup>
-          <col class="payroll-table__col-number" />
-          <col class="payroll-table__col-name" />
-          <col class="payroll-table__col-fixed" />
-          <col class="payroll-table__col-amount" />
-          <col class="payroll-table__col-days" />
-          <col class="payroll-table__col-total" />
-          <col class="payroll-table__col-action" />
-        </colgroup>
+    <div class="payroll-table__wrap" [formGroup]="form" autocomplete="off">
+      <table class="payroll-table__grid w-full table-fixed">
         <thead>
           <tr>
-            <th>社員番号</th>
-            <th>名前</th>
-            <th class="payroll-table__th-amount">予定固定賃金</th>
-            <th class="payroll-table__th-amount">非固定的賃金</th>
-            <th class="payroll-table__th-days">基礎日数</th>
-            <th class="payroll-table__th-amount">合計</th>
-            <th class="payroll-table__th-action">操作</th>
+            <th class="payroll-table__th-number w-[12%] text-left">社員番号</th>
+            <th class="payroll-table__th-name w-[14%] text-left">名前</th>
+            <th class="payroll-table__th-fixed w-[14%] text-right">固定賃金</th>
+            <th class="payroll-table__th-amount w-[14%] text-right">非固定的賃金</th>
+            <th class="payroll-table__th-days w-[12%] text-right">基礎日数</th>
+            <th class="payroll-table__th-total w-[14%] text-right">合計</th>
+            <th class="payroll-table__th-action w-[20%] text-right">操作</th>
           </tr>
         </thead>
         <tbody formArrayName="entries">
-          @for (row of entries.controls; track row.controls.employeeId.value; let i = $index) {
+          @for (i of visibleRowIndices(); track entries.at(i).controls.employeeId.value) {
+            @let row = entries.at(i);
+            @let employeeId = row.controls.employeeId.value;
+            @let rowSaving = !!savingState()[employeeId];
             <tr
               class="payroll-table__row"
-              [class.payroll-table__row--locked]="isRowLocked(i)"
+              [class.payroll-table__row--locked]="isRowLocked(i) && !isRowRegistrationLocked(i)"
+              [class.payroll-table__row--registration-locked]="isRowRegistrationLocked(i)"
               [class.payroll-table__row--pre-hire]="isRowBeforeHire(i)"
+              [class.payroll-table__row--saving]="rowSaving"
+              [attr.data-payroll-row-id]="employeeId"
               [formGroupName]="i"
             >
-              <td class="payroll-table__cell-number">{{ row.controls.employeeNumber.value }}</td>
-              <td class="payroll-table__cell-name">{{ row.controls.employeeName.value }}</td>
-              <td class="payroll-table__cell-fixed">
+              <td class="payroll-table__cell-number w-[12%] text-left">
+                {{ row.controls.employeeNumber.value }}
+              </td>
+              <td class="payroll-table__cell-name w-[14%] text-left">
+                <div class="payroll-table__name-cell">
+                  <div class="payroll-table__name-row">
+                    <span>{{ row.controls.employeeName.value }}</span>
+                    <app-social-insurance-type-badge
+                      [socialInsuranceType]="employeeForRow(i)?.socialInsuranceType"
+                    />
+                    @if (isRetiredRow(i)) {
+                      <app-retired-employee-badge [employee]="employeeForRow(i)" />
+                    }
+                  </div>
+                  @if (isRowRegistrationLocked(i)) {
+                    <span
+                      class="payroll-table__registration-lock-badge"
+                      title="従業員登録時に確定した過去データのため編集できません"
+                    >
+                      🔒 初期登録データ（編集不可）
+                    </span>
+                  }
+                </div>
+              </td>
+              <td class="payroll-table__cell-fixed w-[14%] text-right">
                 <div class="payroll-table__fixed-summary">
                   <span class="payroll-table__fixed-total">¥{{ rowFixedTotal(i) | number }}</span>
-                  @if (!isRowDisabled(i)) {
+                  @if (!isRowDisabled(i) && !rowSaving) {
                     <button
                       type="button"
                       class="payroll-table__edit-btn"
@@ -110,48 +172,84 @@
                   }
                 </div>
               </td>
-              <td class="payroll-table__cell-amount">
+              <td class="payroll-table__cell-amount w-[14%] text-right">
                 <input
                   type="number"
                   class="payroll-table__input"
                   formControlName="nonFixedWages"
+                  data-payroll-field="nonFixedWages"
                   min="0"
                   step="1"
                   inputmode="numeric"
+                  autocomplete="off"
+                  [attr.readonly]="rowSaving ? true : null"
+                  [class.payroll-table__input--locked]="rowSaving || isRowDisabled(i)"
                 />
               </td>
-              <td class="payroll-table__cell-days">
+              <td class="payroll-table__cell-days w-[12%] text-right">
                 <input
                   type="number"
                   class="payroll-table__input payroll-table__input--days"
                   formControlName="baseDays"
+                  data-payroll-field="baseDays"
                   min="0"
                   max="31"
                   step="1"
                   inputmode="numeric"
+                  autocomplete="off"
+                  [attr.readonly]="rowSaving ? true : null"
+                  [class.payroll-table__input--locked]="rowSaving || isRowDisabled(i)"
                 />
               </td>
-              <td class="payroll-table__cell-total">¥{{ rowTotal(i) | number }}</td>
-              <td class="payroll-table__cell-action">
+              <td class="payroll-table__cell-total w-[14%] text-right">
+                <div class="flex flex-col items-end gap-0.5">
+                  <span class="payroll-table__total-amount">¥{{ rowTotal(i) | number }}</span>
+                  @if (hasRowAdjustment(i)) {
+                    <small class="text-xs text-gray-500 leading-snug">{{ rowAdjustmentNote(i) }}</small>
+                  }
+                </div>
+              </td>
+              <td class="payroll-table__cell-action w-[20%] text-right">
                 @if (isRowBeforeHire(i)) {
-                  <span class="payroll-table__pre-hire-badge" title="入社前のため操作不可">
-                    ※入社前のため操作不可
+                  <span class="payroll-table__pre-hire-badge" title="入社前実績のため操作不可">
+                    ※入社前実績のため操作不可
+                  </span>
+                } @else if (isRowRegistrationLocked(i)) {
+                  <span
+                    class="payroll-table__registration-lock-badge payroll-table__registration-lock-badge--action"
+                    title="従業員登録時に確定した過去データのため編集できません"
+                  >
+                    🔒 編集不可
+                  </span>
+                } @else if (isTargetMonthLocked()) {
+                  <span class="payroll-table__month-lock-badge payroll-table__month-lock-badge--inline">
+                    🔒 確定済み
                   </span>
                 } @else if (isRowLocked(i)) {
                   <span class="payroll-table__locked-badge">保存済</span>
                 } @else {
-                  <button
-                    type="button"
-                    class="payroll-table__save-btn"
-                    [disabled]="
-                      row.invalid ||
-                      isRowSaving(row.controls.employeeId.value) ||
-                      !canSaveRow(i)
-                    "
-                    (click)="onSaveRow(i)"
-                  >
-                    {{ isRowSaving(row.controls.employeeId.value) ? '保存中...' : '保存' }}
-                  </button>
+                  <div class="flex flex-row justify-end items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      class="payroll-table__edit-btn"
+                      [disabled]="rowSaving"
+                      [class.payroll-table__edit-btn--disabled]="rowSaving"
+                      (click)="openAdjustmentModal(i)"
+                    >
+                      金額調整
+                    </button>
+                    <button
+                      type="button"
+                      class="payroll-table__save-btn"
+                      [disabled]="row.invalid || rowSaving || !canSaveRow(i)"
+                      [class.payroll-table__save-btn--saving]="rowSaving"
+                      [attr.aria-busy]="rowSaving"
+                      (mousedown)="onSaveRowPrepare(i)"
+                      (click)="onSaveRow(i)"
+                    >
+                      {{ rowSaving ? '保存中...' : '保存' }}
+                    </button>
+                  </div>
                 }
                 @if (needsPreviousMonthSave(i)) {
                   <p class="payroll-table__warning">前月の保存が必要です</p>
@@ -182,4 +280,16 @@
   [error]="breakdownError()"
   (confirmed)="onBreakdownConfirmed($event)"
   (closed)="onBreakdownModalClosed()"
+/>
+
+<app-payroll-adjustment-modal
+  [open]="adjustmentModalOpen()"
+  [employeeName]="
+    adjustmentRowIndex() != null
+      ? entries.at(adjustmentRowIndex()!).controls.employeeName.value
+      : ''
+  "
+  [value]="adjustmentValue()"
+  (confirmed)="onAdjustmentConfirmed($event)"
+  (closed)="onAdjustmentModalClosed()"
 />

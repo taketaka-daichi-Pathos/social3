@@ -1,0 +1,203 @@
+@use '../../../styles/variables' as *;
+
+.header-bell {
+  position: relative;
+
+  &__trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #f8f9fb;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: #eef1f5;
+    }
+  }
+
+  &__icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  &__badge {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.25rem;
+    border-radius: $radius-pill;
+    background: $color-danger;
+    color: #fff;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1.1rem;
+    text-align: center;
+  }
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: $z-index-global-notification;
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  &__panel {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: calc($z-index-global-notification + 1);
+    width: min(24rem, calc(100vw - 2rem));
+    max-height: 20rem;
+    overflow: auto;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: $color-bg-surface;
+    box-shadow: $shadow-card;
+  }
+
+  &__panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__panel-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    min-width: 0;
+  }
+
+  &__panel-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__clear-all {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: $color-primary;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    color: $color-text-muted;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  &__empty {
+    margin: 0;
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: $color-text-muted;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0.5rem 0;
+    list-style: none;
+  }
+
+  &__item {
+    position: relative;
+    border-bottom: 1px solid $color-border;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__item-button {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 2.25rem 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+
+    &--clickable {
+      cursor: pointer;
+
+      &:hover {
+        background: #f8fafc;
+      }
+    }
+  }
+
+  &__item-kind {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: $color-primary;
+    letter-spacing: 0.02em;
+  }
+
+  &__item-title {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__item-message {
+    display: block;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: $color-text-muted;
+  }
+
+  &__dismiss {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: none;
+    border-radius: $radius-sm;
+    background: transparent;
+    color: $color-text-muted;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: #f1f5f9;
+      color: $color-text;
+    }
+  }
+}

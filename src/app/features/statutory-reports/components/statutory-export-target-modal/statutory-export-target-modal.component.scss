@@ -1,0 +1,306 @@
+@use '../../../../../styles/variables' as *;
+
+.export-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(17, 24, 39, 0.45);
+
+  &__panel {
+    width: 100%;
+    max-width: 42rem;
+    max-height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid $color-border;
+    background: #f8fafc;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    margin: 0 0 0.2rem;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: $color-text;
+    line-height: 1.4;
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    color: $color-text-muted;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  &__body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  &__description,
+  &__notice {
+    margin: 0 0 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: $color-text-muted;
+  }
+
+  &__field-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #f8fafc;
+  }
+
+  &__field-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__year-input {
+    width: 6rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font-size: 0.875rem;
+  }
+
+  &__month-input {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font-size: 0.875rem;
+  }
+
+  &__field-hint {
+    flex: 1 1 100%;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+  }
+
+  &__notice {
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #fde68a;
+    border-radius: $radius-sm;
+    background: #fffbeb;
+    color: #92400e;
+  }
+
+  &__status {
+    margin: 0;
+    padding: 1rem;
+    border: 1px dashed $color-border;
+    border-radius: $radius-sm;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+    text-align: center;
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+    cursor: pointer;
+  }
+
+  &__count {
+    font-size: 0.75rem;
+    color: $color-text-muted;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &__item {
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+
+    &--blocked {
+      background: #fffafa;
+      border-color: #fecaca;
+    }
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  &__item-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+
+    input:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  &__item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  &__item-name-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  &__warning {
+    color: #dc2626;
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  &__item-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__item-meta {
+    font-size: 0.75rem;
+    color: $color-text-muted;
+    line-height: 1.4;
+  }
+
+  &__actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  &__request-btn {
+    padding: 0.35rem 0.65rem;
+    border: 1px solid #bfdbfe;
+    border-radius: $radius-sm;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  &__pending {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #b45309;
+    white-space: nowrap;
+  }
+
+  &__hint {
+    font-size: 0.6875rem;
+    color: $color-text-muted;
+    white-space: nowrap;
+  }
+
+  &__error {
+    margin: 0.85rem 0 0;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #fecaca;
+    border-radius: $radius-sm;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.75rem;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid $color-border;
+    flex-shrink: 0;
+  }
+
+  &__btn {
+    padding: 0.55rem 1rem;
+    border-radius: $radius-sm;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    &--ghost {
+      border: 1px solid $color-border;
+      background: #fff;
+      color: $color-text;
+    }
+
+    &--primary {
+      border: none;
+      background: $color-primary;
+      color: #fff;
+    }
+  }
+}

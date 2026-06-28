@@ -1,0 +1,155 @@
+<section class="dependent-page">
+  <header class="dependent-page__header">
+    <div>
+      <h1 class="dependent-page__title">扶養</h1>
+      <p class="dependent-page__description">
+        従業員の扶養家族を登録・管理します。職業や状況に応じて必要な証明書類が自動で案内されます。
+      </p>
+    </div>
+  </header>
+
+  @if (loadError()) {
+    <p class="dependent-page__alert" role="alert">{{ loadError() }}</p>
+  }
+
+  @if (saveError()) {
+    <p class="dependent-page__alert" role="alert">{{ saveError() }}</p>
+  }
+
+  @if (saveSuccess()) {
+    <p class="dependent-page__success" role="status">{{ saveSuccess() }}</p>
+  }
+
+  @if (requestSuccess()) {
+    <p class="dependent-page__success" role="status">{{ requestSuccess() }}</p>
+  }
+
+  <div class="dependent-page__card">
+    <h2 class="dependent-page__section-title">扶養家族の登録</h2>
+
+    @if (loading()) {
+      <p class="dependent-page__status">読み込み中...</p>
+    } @else {
+      <div class="dependent-page__toolbar">
+        <div class="dependent-page__field dependent-page__field--grow">
+          <label class="dependent-page__label" for="dependentEmployeeId">従業員</label>
+          <select
+            id="dependentEmployeeId"
+            class="dependent-page__select"
+            [formControl]="employeeIdControl"
+          >
+            <option value="">選択してください</option>
+            @for (employee of employeeOptions(); track employee.id) {
+              <option [value]="employee.id">{{ employeeLabel(employee) }}</option>
+            }
+          </select>
+        </div>
+
+        <button
+          type="button"
+          class="dependent-page__add-btn"
+          [disabled]="saving() || !selectedEmployee()"
+          (click)="openAddModal()"
+        >
+          扶養家族を追加
+        </button>
+      </div>
+
+      @if (selectedEmployee()) {
+        <div class="dependent-page__request-row">
+          @if (hasPendingDependentInfoRequest()) {
+            <p class="dependent-page__request-status">扶養情報の提出依頼済み（従業員未対応）</p>
+          } @else if (!selectedEmployee()?.authUid) {
+            <p class="dependent-page__request-status dependent-page__request-status--muted">
+              従業員ポータル未設定のため、提出依頼タスクは送信できません
+            </p>
+          } @else {
+            <button
+              type="button"
+              class="dependent-page__request-btn"
+              [disabled]="requestingSubmission() || !canRequestDependentSubmission()"
+              (click)="requestDependentSubmission()"
+            >
+              {{
+                requestingSubmission()
+                  ? '送信中…'
+                  : 'この従業員に扶養情報の入力・証明書類の提出を依頼する'
+              }}
+            </button>
+          }
+        </div>
+
+        @if (hasPendingDependentSubmission()) {
+          <div class="dependent-page__submission-banner">
+            <p>
+              従業員から扶養家族情報が提出されています。内容と証明書類を確認のうえ登録してください。
+            </p>
+            <button
+              type="button"
+              class="dependent-page__submission-btn"
+              (click)="openAddModalFromEmployeeSubmission()"
+            >
+              提出内容を確認して登録
+            </button>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  <div class="dependent-page__card dependent-page__card--table">
+    <h2 class="dependent-page__section-title">扶養家族一覧</h2>
+
+    @if (loading()) {
+      <p class="dependent-page__status">読み込み中...</p>
+    } @else if (!selectedEmployee()) {
+      <p class="dependent-page__empty">従業員を選択すると、登録済みの扶養家族が表示されます</p>
+    } @else if (dependentRows().length === 0) {
+      <p class="dependent-page__empty">登録されている扶養家族はいません</p>
+    } @else {
+      <div class="dependent-page__table-wrap">
+        <table class="dependent-page__table">
+          <thead>
+            <tr>
+              <th>氏名</th>
+              <th>続柄</th>
+              <th>生年月日</th>
+              <th>扶養開始日</th>
+              <th>同居/別居</th>
+              <th>職業</th>
+              <th>現在の状況</th>
+              <th>扶養状況</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of dependentRows(); track row.dependent.lastName + row.dependent.firstName + row.dependent.birthDate) {
+              <tr>
+                <td>{{ fullName(row.dependent) }}</td>
+                <td>{{ relationshipLabel(row.dependent.relationship) }}</td>
+                <td>{{ row.dependent.birthDate }}</td>
+                <td>{{ row.dependent.dependencyStartDate }}</td>
+                <td>{{ livingArrangementLabel(row.dependent.livingArrangement) }}</td>
+                <td>{{ occupationLabel(row.dependent.occupation) }}</td>
+                <td>{{ situationLabel(row.dependent.currentSituation) }}</td>
+                <td>{{ statusLabel(row.dependent) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>
+
+<app-add-dependent-modal
+  [open]="addModalOpen()"
+  [saving]="saving()"
+  [draftDependent]="modalDraftDependent()"
+  [showSubmissionRequest]="true"
+  [submissionRequestPending]="hasPendingDependentInfoRequest()"
+  [submissionRequestSending]="requestingSubmission()"
+  [submissionRequestDisabled]="!canRequestDependentSubmission()"
+  (closed)="closeAddModal()"
+  (saved)="onDependentSaved($event)"
+  (submissionRequested)="requestDependentSubmission()"
+/>

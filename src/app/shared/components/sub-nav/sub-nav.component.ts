@@ -3,6 +3,10 @@ import { Component, input, output } from '@angular/core';
 export interface SubNavItem {
   label: string;
   id: string;
+  /** 未処理の要対応者がいる場合に赤丸バッジを表示 */
+  showBadge?: boolean;
+  /** バッジ表示時のホバーツールチップ（title属性） */
+  badgeTooltip?: string;
 }
 
 @Component({

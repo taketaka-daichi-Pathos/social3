@@ -1,0 +1,26 @@
+.social-insurance-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+
+  &--general {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  &--short-time-worker {
+    background: #ffedd5;
+    color: #9a3412;
+  }
+
+  &--part-time-special {
+    background: #dcfce7;
+    color: #166534;
+  }
+}

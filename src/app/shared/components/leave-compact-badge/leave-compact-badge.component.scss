@@ -1,0 +1,23 @@
+// monthly-insurance-premium-table の insurance-table__badge（マスタ）と同一形状
+.leave-compact-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25;
+
+  &--maternity {
+    border-color: #f9a8d4;
+    color: #db2777;
+  }
+
+  &--childcare {
+    border-color: #7dd3fc;
+    color: #0284c7;
+  }
+}

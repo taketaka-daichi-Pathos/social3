@@ -1,0 +1,344 @@
+@if (open() && task(); as currentTask) {
+  <div
+    class="task-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="employee-task-response-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="task-modal__panel">
+      <header class="task-modal__header">
+        <div>
+          <p class="task-modal__label">タスク回答</p>
+          <h2 id="employee-task-response-title" class="task-modal__title">
+            {{ taskTitle(currentTask) }}
+          </h2>
+          <p class="task-modal__description">{{ taskDescription(currentTask) }}</p>
+        </div>
+        <button type="button" class="task-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <form class="task-modal__body" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
+        @if (includesField('myNumber')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="myNumber">{{ fieldLabel('myNumber') }}</label>
+            <input
+              id="myNumber"
+              type="text"
+              class="task-modal__input"
+              formControlName="myNumber"
+              inputmode="numeric"
+              maxlength="12"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('birthDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="birthDate">{{ fieldLabel('birthDate') }}</label>
+            <input id="birthDate" type="date" class="task-modal__input" formControlName="birthDate" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('hireDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="hireDate">{{ fieldLabel('hireDate') }}</label>
+            <input id="hireDate" type="date" class="task-modal__input" formControlName="hireDate" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('retirementDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="retirementDate">
+              {{ fieldLabel('retirementDate') }}
+            </label>
+            <input
+              id="retirementDate"
+              type="date"
+              class="task-modal__input"
+              formControlName="retirementDate"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('insuranceCardReturned')) {
+          <fieldset class="task-modal__field">
+            <legend class="task-modal__field-label">{{ fieldLabel('insuranceCardReturned') }}</legend>
+            <label class="task-modal__radio">
+              <input type="radio" formControlName="insuranceCardReturned" value="yes" />
+              <span>返却済み</span>
+            </label>
+            <label class="task-modal__radio">
+              <input type="radio" formControlName="insuranceCardReturned" value="no" />
+              <span>未返却</span>
+            </label>
+          </fieldset>
+        }
+
+        @if (includesField('postRetirementAddress')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="postRetirementAddress">
+              {{ fieldLabel('postRetirementAddress') }}
+            </label>
+            <textarea
+              id="postRetirementAddress"
+              class="task-modal__textarea"
+              formControlName="postRetirementAddress"
+              rows="3"
+              autocomplete="off"
+            ></textarea>
+          </div>
+        }
+
+        @if (includesField('postRetirementEmail')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="postRetirementEmail">
+              {{ fieldLabel('postRetirementEmail') }}
+            </label>
+            <input
+              id="postRetirementEmail"
+              type="email"
+              class="task-modal__input"
+              formControlName="postRetirementEmail"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('insuranceCardReturnCommitment')) {
+          <div class="task-modal__field">
+            <label class="task-modal__checkbox">
+              <input type="checkbox" formControlName="insuranceCardReturnCommitment" />
+              <span>退職日をもって健康保険証を返却します</span>
+            </label>
+          </div>
+        }
+
+        @if (includesField('postalCode')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="postalCode">{{ fieldLabel('postalCode') }}</label>
+            <input
+              id="postalCode"
+              type="text"
+              class="task-modal__input"
+              formControlName="postalCode"
+              inputmode="numeric"
+              maxlength="8"
+              placeholder="1234567"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('address')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="address">{{ fieldLabel('address') }}</label>
+            <textarea
+              id="address"
+              class="task-modal__textarea"
+              formControlName="address"
+              rows="3"
+              autocomplete="off"
+            ></textarea>
+          </div>
+        }
+
+        @if (includesField('expectedDeliveryDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="expectedDeliveryDate">
+              {{ fieldLabel('expectedDeliveryDate') }}
+            </label>
+            <input
+              id="expectedDeliveryDate"
+              type="date"
+              class="task-modal__input"
+              formControlName="expectedDeliveryDate"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('deliveryType')) {
+          <fieldset class="task-modal__field">
+            <legend class="task-modal__field-label">{{ fieldLabel('deliveryType') }}</legend>
+            <label class="task-modal__radio">
+              <input type="radio" formControlName="deliveryType" value="1" />
+              <span>単胎</span>
+            </label>
+            <label class="task-modal__radio">
+              <input type="radio" formControlName="deliveryType" value="2" />
+              <span>多胎</span>
+            </label>
+          </fieldset>
+        }
+
+        @if (includesField('childcareChild1NameKana')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="childcareChild1NameKana">
+              {{ fieldLabel('childcareChild1NameKana') }}
+            </label>
+            <input
+              id="childcareChild1NameKana"
+              type="text"
+              class="task-modal__input"
+              formControlName="childcareChild1NameKana"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('childcareChild1NameKanji')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="childcareChild1NameKanji">
+              {{ fieldLabel('childcareChild1NameKanji') }}
+            </label>
+            <input
+              id="childcareChild1NameKanji"
+              type="text"
+              class="task-modal__input"
+              formControlName="childcareChild1NameKanji"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (includesField('childcareChild1BirthDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="childcareChild1BirthDate">
+              {{ fieldLabel('childcareChild1BirthDate') }}
+            </label>
+            <input
+              id="childcareChild1BirthDate"
+              type="date"
+              class="task-modal__input"
+              formControlName="childcareChild1BirthDate"
+              autocomplete="off"
+            />
+          </div>
+        }
+
+        @if (isDependentInfoTask()) {
+          <p class="task-modal__helper">
+            入力後、必要な証明書類を担当者へ提出してください。担当者が内容を確認して扶養登録します。
+          </p>
+        }
+
+        @if (includesField('dependentLastName')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentLastName">
+              {{ fieldLabel('dependentLastName') }}
+            </label>
+            <input id="dependentLastName" type="text" class="task-modal__input" formControlName="dependentLastName" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('dependentFirstName')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentFirstName">
+              {{ fieldLabel('dependentFirstName') }}
+            </label>
+            <input id="dependentFirstName" type="text" class="task-modal__input" formControlName="dependentFirstName" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('dependentLastNameKana')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentLastNameKana">
+              {{ fieldLabel('dependentLastNameKana') }}
+            </label>
+            <input id="dependentLastNameKana" type="text" class="task-modal__input" formControlName="dependentLastNameKana" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('dependentFirstNameKana')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentFirstNameKana">
+              {{ fieldLabel('dependentFirstNameKana') }}
+            </label>
+            <input id="dependentFirstNameKana" type="text" class="task-modal__input" formControlName="dependentFirstNameKana" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('dependentBirthDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentBirthDate">
+              {{ fieldLabel('dependentBirthDate') }}
+            </label>
+            <input id="dependentBirthDate" type="date" class="task-modal__input" formControlName="dependentBirthDate" autocomplete="off" />
+          </div>
+        }
+
+        @if (includesField('dependentRelationship')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentRelationship">
+              {{ fieldLabel('dependentRelationship') }}
+            </label>
+            <select id="dependentRelationship" class="task-modal__input" formControlName="dependentRelationship">
+              <option value="">選択してください</option>
+              @for (option of relationshipOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        @if (includesField('dependentDependencyStartDate')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentDependencyStartDate">
+              {{ fieldLabel('dependentDependencyStartDate') }}
+            </label>
+            <input
+              id="dependentDependencyStartDate"
+              type="date"
+              class="task-modal__input"
+              formControlName="dependentDependencyStartDate"
+            />
+          </div>
+        }
+
+        @if (includesField('dependentDocumentSubmission')) {
+          <div class="task-modal__field">
+            <label class="task-modal__checkbox">
+              <input type="checkbox" formControlName="dependentDocumentSubmission" />
+              <span>必要な証明書類を担当者へ提出しました（または提出予定です）</span>
+            </label>
+          </div>
+        }
+
+        @if (errorMessage()) {
+          <p class="task-modal__error" role="alert">{{ errorMessage() }}</p>
+        }
+
+        @if (validationError()) {
+          <p class="task-modal__error" role="alert">{{ validationError() }}</p>
+        }
+
+        <footer class="task-modal__footer">
+          <button
+            type="button"
+            class="task-modal__btn task-modal__btn--ghost"
+            [disabled]="submitting()"
+            (click)="close()"
+          >
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            class="task-modal__btn task-modal__btn--primary"
+            [disabled]="submitting()"
+          >
+            @if (submitting()) {
+              送信中…
+            } @else {
+              {{ submitButtonLabel() }}
+            }
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+}

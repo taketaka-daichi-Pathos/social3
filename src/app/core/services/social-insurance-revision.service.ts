@@ -6,7 +6,7 @@ import { PayrollEntry, PayrollRecord } from '@features/payroll/models/compensati
 import {
   getAnnualDeterminationMonths,
   getNextYearMonthKey,
-  getPreviousYearMonthKey,
+  isEmployeeVisibleForTargetMonth,
   isHiredOnOrAfterJuneFirst,
   parseYearMonthKey,
   payrollEntryToSnapshot,
@@ -22,29 +22,56 @@ import {
   PayrollMonthSnapshot,
   RevisionStatus,
 } from '@features/revision/models/revision.model';
+import { resolveOccasionalPriorityOverAnnual, resolveEmployeeMasterCurrentGrades, resolveStandardRemunerationAtMonth, findAppliedOccasionalRevision, findAppliedAnnualRevision, overlayAnnualResultWithRevisionHistory } from '@features/revision/utils/revision-history.utils';
+import { assessAnnualDeterminationBonusAdjustment, enrichRevisionMonthDetailsWithBonus, resolveOccasionalRevisionAverageWithBonus } from '@features/revision/utils/annual-determination-bonus.utils';
+import { SanteiCalculatorService } from '@features/revision/services/santei-calculator.service';
+import { ZuijiCalculatorService } from '@features/revision/services/zuiji-calculator.service';
+import {
+  evaluateOccasionalRevisionCandidate,
+  logOccasionalRevisionDebug,
+  normalizeSnapshotFixedWages,
+} from '@features/revision/utils/occasional-revision.utils';
+import { CompanySettings } from '@features/settings/models/company-settings.model';
+import { resolvePayrollInsuranceRates, parseTargetYearMonth } from '@features/payroll/utils/bonus-insurance.utils';
+import { emptyPremiumBreakdown } from '@features/payroll/utils/premium-merge.utils';
+import { isSocialInsuranceExemptForMonth } from '@features/employees/utils/leave-record.utils';
+import { isSocialInsuranceExemptForRetirementMonth } from '@features/employees/utils/retirement.utils';
+import {
+  parseInsuranceRateTargetDate,
+  toRateTargetDateFromYearMonth,
+} from '@features/settings/utils/insurance-rate-date.utils';
+import {
+  getOccasionalRevisionSearchRangeForMonth,
+  hasAnnualDeterminationTargetsForMonth,
+  hasOccasionalRevisionTargetsForMonth,
+} from '@features/payroll/utils/monthly-lock-revision-impact.utils';
 
-const MIN_BASE_DAYS = 17;
 const ANNUAL_APPLICATION_MONTH = 9;
-const OCCASIONAL_MIN_GRADE_DIFF = 2;
 
 const ANNUAL_EXCLUSION_LABELS: Record<AnnualExclusionReason, string> = {
   insufficient_base_days: '基礎日数不足',
   hired_after_june: '6月以降入社のため対象外',
   occasional_revision_scheduled: '随時改定対象のため除外',
   missing_payroll: '給与未保存',
+  negative_average_payment: '平均支給額がマイナスのため',
 };
 
 const OCCASIONAL_EXCLUSION_LABELS: Record<OccasionalExclusionReason, string> = {
   no_fixed_wage_change: '固定的賃金の変動なし',
   insufficient_base_days: '基礎日数不足',
   grade_difference_under_2: '等級差2未満',
+  no_grade_change: '等級変動がないため変更なし',
+  fixed_wage_grade_direction_mismatch: '固定的賃金と等級の変動方向不一致',
   missing_payroll: '給与未保存',
+  negative_average_payment: '平均支給額がマイナスのため',
 };
 
 @Injectable({ providedIn: 'root' })
 export class SocialInsuranceRevisionService {
   private readonly standardRemunerationService = inject(StandardRemunerationService);
   private readonly insuranceCalculator = inject(SocialInsuranceCalculatorService);
+  private readonly santeiCalculator = inject(SanteiCalculatorService);
+  private readonly zuijiCalculator = inject(ZuijiCalculatorService);
 
   buildPayrollSnapshotMap(records: PayrollRecord[]): Map<string, Map<string, PayrollMonthSnapshot>> {
     const map = new Map<string, Map<string, PayrollMonthSnapshot>>();
@@ -67,6 +94,33 @@ export class SocialInsuranceRevisionService {
     return map;
   }
 
+  /** 月次確定時に算定基礎・随時改定の警告を出すべき従業員がいるか */
+  hasRevisionTargetsForMonthLock(
+    targetMonth: string,
+    employees: Employee[],
+    payrollRecords: PayrollRecord[]
+  ): boolean {
+    const payrollRecord =
+      payrollRecords.find((record) => record.targetMonth === targetMonth) ?? null;
+
+    if (
+      hasAnnualDeterminationTargetsForMonth(targetMonth, employees, payrollRecord)
+    ) {
+      return true;
+    }
+
+    const payrollSnapshots = this.buildPayrollSnapshotMap(payrollRecords);
+    const { searchFrom, searchTo } = getOccasionalRevisionSearchRangeForMonth(targetMonth);
+    const occasionalResults = this.calculateOccasionalRevisions(
+      employees,
+      payrollSnapshots,
+      searchFrom,
+      searchTo
+    );
+
+    return hasOccasionalRevisionTargetsForMonth(targetMonth, occasionalResults);
+  }
+
   calculateOccasionalRevisions(
     employees: Employee[],
     payrollSnapshots: Map<string, Map<string, PayrollMonthSnapshot>>,
@@ -78,6 +132,12 @@ export class SocialInsuranceRevisionService {
     for (const employee of employees) {
       const employeeSnapshots = payrollSnapshots.get(employee.id);
       if (!employeeSnapshots) {
+        logOccasionalRevisionDebug({
+          employeeNumber: employee.employeeNumber,
+          changeMonth: null,
+          result: 'skip',
+          reason: '給与データなし',
+        });
         continue;
       }
 
@@ -89,11 +149,67 @@ export class SocialInsuranceRevisionService {
         const current = employeeSnapshots.get(changeMonth);
         const previous = employeeSnapshots.get(previousMonth);
 
+        const debugBase = {
+          employeeNumber: employee.employeeNumber,
+          changeMonth,
+          previousMonth,
+        };
+
         if (!current || !previous) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '給与データなし',
+          });
           continue;
         }
 
-        if (current.fixedWages === previous.fixedWages) {
+        if (
+          !isEmployeeVisibleForTargetMonth(employee, changeMonth) ||
+          !isEmployeeVisibleForTargetMonth(employee, previousMonth)
+        ) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '対象月の在籍対象外',
+          });
+          continue;
+        }
+
+        if (!current.locked || !previous.locked) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '給与未保存',
+          });
+          continue;
+        }
+
+        const currentFixedWages = normalizeSnapshotFixedWages(current);
+        const previousFixedWages = normalizeSnapshotFixedWages(previous);
+
+        if (!Number.isFinite(currentFixedWages) || !Number.isFinite(previousFixedWages)) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '固定的賃金が不正',
+            currentFixedWages,
+            previousFixedWages,
+          });
+          continue;
+        }
+
+        // ① 固定的賃金（基本給＋固定手当）のみの変動を起算月とする
+        const fixedWageDiff = currentFixedWages - previousFixedWages;
+        if (fixedWageDiff === 0) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '固定的賃金の変動なし',
+            currentFixedWages,
+            previousFixedWages,
+            fixedWageDiff,
+          });
           continue;
         }
 
@@ -102,74 +218,237 @@ export class SocialInsuranceRevisionService {
           getNextYearMonthKey(changeMonth),
           getNextYearMonthKey(getNextYearMonthKey(changeMonth)),
         ];
-        const monthDetails = targetMonths.map((yearMonth) => {
-          const snapshot = employeeSnapshots.get(yearMonth);
-          const included = Boolean(snapshot && snapshot.baseDays >= MIN_BASE_DAYS && snapshot.locked);
+        const monthSnapshots = targetMonths.map((yearMonth) => employeeSnapshots.get(yearMonth));
 
-          return {
-            yearMonth,
-            baseDays: snapshot?.baseDays ?? 0,
-            totalPayment: snapshot?.totalPayment ?? 0,
-            included,
-            note:
-              !snapshot || !snapshot.locked
-                ? '給与未保存'
-                : snapshot.baseDays < MIN_BASE_DAYS
-                  ? '基礎日数不足'
-                  : null,
-          };
-        });
+        if (monthSnapshots.some((snapshot) => !snapshot?.locked)) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '給与未保存',
+            targetMonths,
+          });
+          continue;
+        }
+
+        const [firstSnapshot, secondSnapshot, thirdSnapshot] = monthSnapshots as [
+          PayrollMonthSnapshot,
+          PayrollMonthSnapshot,
+          PayrollMonthSnapshot,
+        ];
+
+        const firstFixedWages = normalizeSnapshotFixedWages(firstSnapshot);
+        const secondFixedWages = normalizeSnapshotFixedWages(secondSnapshot);
+        const thirdFixedWages = normalizeSnapshotFixedWages(thirdSnapshot);
+
+        // ② 2・3ヶ月目も起算月と同じ固定的賃金額であること
+        if (
+          !Number.isFinite(firstFixedWages) ||
+          !Number.isFinite(secondFixedWages) ||
+          !Number.isFinite(thirdFixedWages) ||
+          secondFixedWages !== firstFixedWages ||
+          thirdFixedWages !== firstFixedWages
+        ) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '固定的賃金の3ヶ月継続不一致',
+            fixedWageDiff,
+            firstFixedWages,
+            secondFixedWages,
+            thirdFixedWages,
+          });
+          continue;
+        }
+
+        const monthDetails = this.zuijiCalculator.buildOccasionalMonthDetailsForEmployee(
+          targetMonths,
+          monthSnapshots as PayrollMonthSnapshot[],
+          employee
+        );
+
+        if (!monthDetails.every((row) => row.included)) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '基礎日数不足',
+            fixedWageDiff,
+            monthDetails,
+          });
+          continue;
+        }
+
+        const currentGrades = this.resolveRevisionCurrentGrades(employee);
+        const currentHealthGrade = currentGrades.healthGrade;
+        const currentPensionGrade = currentGrades.pensionGrade;
+
+        // ③ 3ヶ月の報酬月額平均 → 年4回以上賞与の1/12加算 → 等級差判定（適用月は起算月の4ヶ月目）
+        const payrollOnlyAverage = Math.round(
+          monthDetails.reduce((sum, row) => sum + row.totalPayment, 0) / monthDetails.length
+        );
+
+        if (!Number.isFinite(payrollOnlyAverage)) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '平均支給額が不正',
+            fixedWageDiff,
+            monthDetails,
+          });
+          continue;
+        }
+
+        const { averagePayment, frequentBonusAdjustment } = resolveOccasionalRevisionAverageWithBonus(
+          payrollOnlyAverage,
+          employee.bonusHistory,
+          changeMonth
+        );
+        const enrichedMonthDetails = enrichRevisionMonthDetailsWithBonus(
+          monthDetails,
+          frequentBonusAdjustment.monthlyBonusAllocation
+        );
+
+        if (!Number.isFinite(averagePayment)) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: '平均支給額が不正',
+            fixedWageDiff,
+            monthDetails,
+          });
+          continue;
+        }
+
+        const healthGrade = this.standardRemunerationService.resolveHealthGrade(averagePayment);
+        const pensionGrade = this.standardRemunerationService.resolvePensionGrade(averagePayment);
+        const proposedHealthStandard = healthGrade?.monthlyAmount ?? null;
+        const proposedPensionStandard = pensionGrade?.monthlyAmount ?? null;
+        const proposedHealthGrade = healthGrade?.grade ?? null;
+        const proposedPensionGrade = pensionGrade?.grade ?? null;
+        const applicationMonth = getNextYearMonthKey(targetMonths[2]);
+
+        const appliedEntry = findAppliedOccasionalRevision(
+          employee,
+          changeMonth,
+          applicationMonth
+        );
+        if (appliedEntry) {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'applied',
+            reason: '適用済み',
+            fixedWageDiff,
+            averagePayment,
+            oldHealthGrade: appliedEntry.beforeHealthGrade,
+            oldPensionGrade: appliedEntry.beforePensionGrade,
+            newHealthGrade: appliedEntry.afterHealthGrade,
+            newPensionGrade: appliedEntry.afterPensionGrade,
+          });
+
+          results.push({
+            employeeId: employee.id,
+            employeeName: `${employee.lastName} ${employee.firstName}`,
+            employeeNumber: employee.employeeNumber,
+            changeMonth,
+            status: 'eligible',
+            exclusionReasons: [],
+            exclusionLabels: [],
+            targetMonths,
+            monthDetails: enrichedMonthDetails,
+            frequentBonusAdjustment,
+            averagePayment: appliedEntry.averageAmount ?? averagePayment,
+            currentHealthStandard: appliedEntry.beforeHealthAmount,
+            currentPensionStandard: appliedEntry.beforePensionAmount,
+            currentHealthGrade: appliedEntry.beforeHealthGrade,
+            currentPensionGrade: appliedEntry.beforePensionGrade,
+            proposedHealthStandard: appliedEntry.afterHealthAmount,
+            proposedPensionStandard: appliedEntry.afterPensionAmount,
+            proposedHealthGrade: appliedEntry.afterHealthGrade,
+            proposedPensionGrade: appliedEntry.afterPensionGrade,
+            gradeDifference: Math.max(
+              Math.abs(appliedEntry.afterHealthGrade - appliedEntry.beforeHealthGrade),
+              Math.abs(appliedEntry.afterPensionGrade - appliedEntry.beforePensionGrade)
+            ),
+            applicationMonth,
+          });
+          continue;
+        }
+
+        const candidateEvaluation = evaluateOccasionalRevisionCandidate(
+          fixedWageDiff,
+          currentHealthGrade,
+          currentPensionGrade,
+          proposedHealthGrade,
+          proposedPensionGrade
+        );
+
+        if (candidateEvaluation.outcome === 'skip') {
+          logOccasionalRevisionDebug({
+            ...debugBase,
+            result: 'skip',
+            reason: candidateEvaluation.reason,
+            fixedWageDiff,
+            averagePayment,
+            oldHealthGrade: currentHealthGrade,
+            oldPensionGrade: currentPensionGrade,
+            newHealthGrade: proposedHealthGrade,
+            newPensionGrade: proposedPensionGrade,
+            gradeDifference: candidateEvaluation.gradeDifference,
+          });
+          continue;
+        }
 
         const exclusionReasons: OccasionalExclusionReason[] = [];
-        const allIncluded = monthDetails.every((row) => row.included);
+        const exclusionLabels: string[] = [];
+        let status: RevisionStatus =
+          candidateEvaluation.outcome === 'eligible' ? 'eligible' : 'excluded';
+        let resolvedProposedHealthStandard = proposedHealthStandard;
+        let resolvedProposedPensionStandard = proposedPensionStandard;
+        let resolvedProposedHealthGrade = proposedHealthGrade;
+        let resolvedProposedPensionGrade = proposedPensionGrade;
+        const gradeDifference = candidateEvaluation.gradeDifference;
 
-        if (!allIncluded) {
-          exclusionReasons.push('insufficient_base_days');
-        }
+        if (
+          candidateEvaluation.outcome === 'excluded' &&
+          candidateEvaluation.exclusionReason
+        ) {
+          exclusionReasons.push(candidateEvaluation.exclusionReason);
+          exclusionLabels.push(OCCASIONAL_EXCLUSION_LABELS[candidateEvaluation.exclusionReason]);
 
-        let averagePayment: number | null = null;
-        let proposedHealthStandard: number | null = null;
-        let proposedPensionStandard: number | null = null;
-        let proposedHealthGrade: number | null = null;
-        let proposedPensionGrade: number | null = null;
-        let gradeDifference: number | null = null;
-        let applicationMonth: string | null = null;
-        let status: RevisionStatus = 'excluded';
-
-        if (allIncluded) {
-          averagePayment = Math.round(
-            monthDetails.reduce((sum, row) => sum + row.totalPayment, 0) / monthDetails.length
-          );
-          const healthGrade = this.standardRemunerationService.resolveHealthGrade(averagePayment);
-          const pensionGrade = this.standardRemunerationService.resolvePensionGrade(averagePayment);
-          proposedHealthStandard = healthGrade?.monthlyAmount ?? null;
-          proposedPensionStandard = pensionGrade?.monthlyAmount ?? null;
-          proposedHealthGrade = healthGrade?.grade ?? null;
-          proposedPensionGrade = pensionGrade?.grade ?? null;
-
-          const currentHealthGrade =
-            this.standardRemunerationService.findHealthGradeByAmount(
-              employee.healthStandardRemuneration
-            )?.grade ?? 0;
-          const currentPensionGrade =
-            this.standardRemunerationService.findPensionGradeByAmount(
-              employee.pensionStandardRemuneration
-            )?.grade ?? 0;
-
-          gradeDifference = Math.max(
-            Math.abs((proposedHealthGrade ?? 0) - currentHealthGrade),
-            Math.abs((proposedPensionGrade ?? 0) - currentPensionGrade)
-          );
-
-          if (gradeDifference >= OCCASIONAL_MIN_GRADE_DIFF) {
-            status = 'eligible';
-            applicationMonth = getNextYearMonthKey(targetMonths[2]);
-          } else {
-            exclusionReasons.push('grade_difference_under_2');
+          if (candidateEvaluation.exclusionReason === 'fixed_wage_grade_direction_mismatch') {
+            resolvedProposedHealthStandard = null;
+            resolvedProposedPensionStandard = null;
+            resolvedProposedHealthGrade = null;
+            resolvedProposedPensionGrade = null;
           }
-        } else {
-          exclusionReasons.push('missing_payroll');
         }
+
+        if (averagePayment < 0) {
+          status = 'excluded';
+          exclusionReasons.push('negative_average_payment');
+          exclusionLabels.push(OCCASIONAL_EXCLUSION_LABELS.negative_average_payment);
+          resolvedProposedHealthStandard = null;
+          resolvedProposedPensionStandard = null;
+          resolvedProposedHealthGrade = null;
+          resolvedProposedPensionGrade = null;
+        }
+
+        logOccasionalRevisionDebug({
+          ...debugBase,
+          result: status,
+          reason:
+            exclusionReasons.length > 0
+              ? exclusionLabels.join(' / ')
+              : candidateEvaluation.reason,
+          fixedWageDiff,
+          averagePayment,
+          payrollOnlyAverage,
+          monthlyBonusAllocation: frequentBonusAdjustment.monthlyBonusAllocation,
+          oldHealthGrade: currentHealthGrade,
+          oldPensionGrade: currentPensionGrade,
+          newHealthGrade: proposedHealthGrade,
+          newPensionGrade: proposedPensionGrade,
+          gradeDifference,
+        });
 
         results.push({
           employeeId: employee.id,
@@ -178,16 +457,19 @@ export class SocialInsuranceRevisionService {
           changeMonth,
           status,
           exclusionReasons,
-          exclusionLabels: exclusionReasons.map((reason) => OCCASIONAL_EXCLUSION_LABELS[reason]),
+          exclusionLabels,
           targetMonths,
-          monthDetails,
+          monthDetails: enrichedMonthDetails,
+          frequentBonusAdjustment,
           averagePayment,
-          currentHealthStandard: employee.healthStandardRemuneration,
-          currentPensionStandard: employee.pensionStandardRemuneration,
-          proposedHealthStandard,
-          proposedPensionStandard,
-          proposedHealthGrade,
-          proposedPensionGrade,
+          currentHealthStandard: currentGrades.healthStandard,
+          currentPensionStandard: currentGrades.pensionStandard,
+          currentHealthGrade,
+          currentPensionGrade,
+          proposedHealthStandard: resolvedProposedHealthStandard,
+          proposedPensionStandard: resolvedProposedPensionStandard,
+          proposedHealthGrade: resolvedProposedHealthGrade,
+          proposedPensionGrade: resolvedProposedPensionGrade,
           gradeDifference,
           applicationMonth,
         });
@@ -204,15 +486,11 @@ export class SocialInsuranceRevisionService {
     occasionalRevisions: OccasionalRevisionResult[]
   ): AnnualDeterminationResult[] {
     const determinationMonths = getAnnualDeterminationMonths(targetYear);
-    const scheduledOccasional = occasionalRevisions.filter(
-      (revision) =>
-        revision.status === 'eligible' &&
-        revision.applicationMonth != null &&
-        ['07', '08', '09'].includes(revision.applicationMonth.split('-')[1])
-    );
 
     return employees.map((employee) => {
       const employeeSnapshots = payrollSnapshots.get(employee.id) ?? new Map();
+      const applicationMonth = toYearMonthKeyFromParts(targetYear, ANNUAL_APPLICATION_MONTH);
+      const currentGrades = this.resolveRevisionCurrentGrades(employee);
       const exclusionReasons: AnnualExclusionReason[] = [];
       const exclusionLabels: string[] = [];
 
@@ -221,48 +499,62 @@ export class SocialInsuranceRevisionService {
         exclusionLabels.push(ANNUAL_EXCLUSION_LABELS.hired_after_june);
       }
 
-      const isOccasionalTarget = scheduledOccasional.some(
-        (revision) =>
-          revision.employeeId === employee.id &&
-          revision.applicationMonth!.startsWith(String(targetYear))
+      const prioritizedOccasionalApplicationMonth = resolveOccasionalPriorityOverAnnual(
+        employee,
+        targetYear,
+        occasionalRevisions
       );
+      let occasionalPriorityApplicationMonth: string | null = null;
 
-      if (isOccasionalTarget) {
+      if (prioritizedOccasionalApplicationMonth) {
         exclusionReasons.push('occasional_revision_scheduled');
-        exclusionLabels.push(ANNUAL_EXCLUSION_LABELS.occasional_revision_scheduled);
+        occasionalPriorityApplicationMonth = prioritizedOccasionalApplicationMonth;
+        exclusionLabels.push(
+          this.buildOccasionalPriorityLabel(prioritizedOccasionalApplicationMonth)
+        );
       }
 
       const hireMonth = toYearMonthKey(employee.hireDate);
       const validMonths = determinationMonths.filter((yearMonth) => hireMonth <= yearMonth);
+      const bonusAssessment = assessAnnualDeterminationBonusAdjustment(
+        employee.bonusHistory,
+        targetYear
+      );
+      const monthlyBonusAddition = bonusAssessment.applied
+        ? bonusAssessment.monthlyBonusAllocation
+        : 0;
+
+      const monthEvaluations = this.santeiCalculator.buildAnnualDeterminationEvaluations(
+        employee,
+        validMonths,
+        employeeSnapshots
+      );
 
       const monthDetails = validMonths.map((yearMonth) => {
         const snapshot = employeeSnapshots.get(yearMonth);
-        const included = Boolean(snapshot && snapshot.locked && snapshot.baseDays >= MIN_BASE_DAYS);
-
-        if (!snapshot || !snapshot.locked) {
-          exclusionReasons.push('missing_payroll');
-        } else if (snapshot.baseDays < MIN_BASE_DAYS) {
-          exclusionReasons.push('insufficient_base_days');
-        }
+        const evaluation = monthEvaluations.get(yearMonth) ?? {
+          included: false,
+          calculationAmount: 0,
+          note: '給与未保存',
+        };
+        const payrollTotal = evaluation.calculationAmount;
 
         return {
           yearMonth,
           baseDays: snapshot?.baseDays ?? 0,
-          totalPayment: snapshot?.totalPayment ?? 0,
-          included,
-          note: !snapshot || !snapshot.locked
-            ? '給与未保存'
-            : snapshot.baseDays < MIN_BASE_DAYS
-              ? '基礎日数不足'
-              : null,
+          totalPayment: payrollTotal,
+          bonusAddition: monthlyBonusAddition,
+          adjustedTotalPayment: payrollTotal + monthlyBonusAddition,
+          included: evaluation.included,
+          note: evaluation.note,
         };
       });
 
       const includedRows = monthDetails.filter((row) => row.included);
       const uniqueExclusions = [...new Set(exclusionReasons)];
-      const labels = uniqueExclusions.map((reason) => ANNUAL_EXCLUSION_LABELS[reason]);
 
       let averagePayment: number | null = null;
+      let payrollOnlyAverage: number | null = null;
       let proposedHealthStandard: number | null = null;
       let proposedPensionStandard: number | null = null;
       let proposedHealthGrade: number | null = null;
@@ -277,51 +569,129 @@ export class SocialInsuranceRevisionService {
       if (hasBlockingExclusion) {
         status = 'excluded';
       } else if (includedRows.length === 0) {
-        status = 'excluded';
-      } else if (includedRows.length < validMonths.length) {
-        status = 'excluded';
+        proposedHealthStandard = currentGrades.healthStandard;
+        proposedPensionStandard = currentGrades.pensionStandard;
+        proposedHealthGrade =
+          currentGrades.healthGrade ??
+          this.standardRemunerationService.findHealthGradeByAmount(currentGrades.healthStandard)
+            ?.grade ??
+          null;
+        proposedPensionGrade =
+          currentGrades.pensionGrade ??
+          this.standardRemunerationService.findPensionGradeByAmount(currentGrades.pensionStandard)
+            ?.grade ??
+          null;
+        hasGradeChange = false;
+        status = 'applied';
       } else {
-        averagePayment = Math.round(
+        payrollOnlyAverage = Math.round(
           includedRows.reduce((sum, row) => sum + row.totalPayment, 0) / includedRows.length
         );
-        const healthGrade = this.standardRemunerationService.resolveHealthGrade(averagePayment);
-        const pensionGrade = this.standardRemunerationService.resolvePensionGrade(averagePayment);
-        proposedHealthStandard = healthGrade?.monthlyAmount ?? null;
-        proposedPensionStandard = pensionGrade?.monthlyAmount ?? null;
-        proposedHealthGrade = healthGrade?.grade ?? null;
-        proposedPensionGrade = pensionGrade?.grade ?? null;
+        averagePayment = Math.round(
+          includedRows.reduce((sum, row) => sum + row.adjustedTotalPayment, 0) /
+            includedRows.length
+        );
 
-        hasGradeChange =
-          proposedHealthStandard !== employee.healthStandardRemuneration ||
-          proposedPensionStandard !== employee.pensionStandardRemuneration;
+        if (averagePayment < 0) {
+          status = 'excluded';
+          exclusionReasons.push('negative_average_payment');
+          exclusionLabels.push(ANNUAL_EXCLUSION_LABELS.negative_average_payment);
+        } else {
+          const healthGrade = this.standardRemunerationService.resolveHealthGrade(averagePayment);
+          const pensionGrade = this.standardRemunerationService.resolvePensionGrade(averagePayment);
+          proposedHealthStandard = healthGrade?.monthlyAmount ?? null;
+          proposedPensionStandard = pensionGrade?.monthlyAmount ?? null;
+          proposedHealthGrade = healthGrade?.grade ?? null;
+          proposedPensionGrade = pensionGrade?.grade ?? null;
 
-        status = hasGradeChange ? 'eligible' : 'applied';
+          hasGradeChange =
+            proposedHealthStandard !== currentGrades.healthStandard ||
+            proposedPensionStandard !== currentGrades.pensionStandard;
+
+          status = hasGradeChange ? 'eligible' : 'applied';
+        }
       }
 
-      return {
+      const row: AnnualDeterminationResult = {
         employeeId: employee.id,
         employeeName: `${employee.lastName} ${employee.firstName}`,
         employeeNumber: employee.employeeNumber,
         targetYear,
         status,
-        exclusionReasons: uniqueExclusions,
-        exclusionLabels: [...new Set([...exclusionLabels, ...labels])],
+        exclusionReasons: [...new Set(exclusionReasons)],
+        exclusionLabels: [
+          ...new Set([
+            ...exclusionLabels,
+            ...exclusionReasons.map((reason) => ANNUAL_EXCLUSION_LABELS[reason]),
+          ]),
+        ],
+        occasionalPriorityApplicationMonth,
         validMonths: includedRows.map((row) => row.yearMonth),
         monthDetails,
+        frequentBonusAdjustment: {
+          ...bonusAssessment,
+          payrollOnlyAverage,
+        },
         averagePayment,
-        currentHealthStandard: employee.healthStandardRemuneration,
-        currentPensionStandard: employee.pensionStandardRemuneration,
+        currentHealthStandard: currentGrades.healthStandard,
+        currentPensionStandard: currentGrades.pensionStandard,
+        currentHealthGrade:
+          currentGrades.healthGrade ??
+          this.standardRemunerationService.findHealthGradeByAmount(currentGrades.healthStandard)
+            ?.grade ??
+          null,
+        currentPensionGrade:
+          currentGrades.pensionGrade ??
+          this.standardRemunerationService.findPensionGradeByAmount(currentGrades.pensionStandard)
+            ?.grade ??
+          null,
         proposedHealthStandard,
         proposedPensionStandard,
         proposedHealthGrade,
         proposedPensionGrade,
-        applicationMonth: toYearMonthKeyFromParts(targetYear, ANNUAL_APPLICATION_MONTH),
+        applicationMonth,
         hasGradeChange,
       };
+
+      if (findAppliedAnnualRevision(employee, targetYear, applicationMonth)) {
+        return overlayAnnualResultWithRevisionHistory(row, employee);
+      }
+
+      return row;
     });
   }
 
   getEffectiveStandardRemuneration(
+    employee: Employee,
+    targetYearMonth: string
+  ): EffectiveStandardRemuneration {
+    return this.getEffectiveStandardRemunerationFromHistory(employee, targetYearMonth);
+  }
+
+  getEffectiveStandardRemunerationFromHistory(
+    employee: Employee,
+    targetYearMonth: string
+  ): EffectiveStandardRemuneration {
+    const resolved = resolveStandardRemunerationAtMonth(employee, targetYearMonth);
+    const healthGrade = this.standardRemunerationService.findHealthGradeByAmount(
+      resolved.healthStandard
+    );
+    const pensionGrade = this.standardRemunerationService.findPensionGradeByAmount(
+      resolved.pensionStandard
+    );
+
+    return {
+      healthStandard: resolved.healthStandard,
+      pensionStandard: resolved.pensionStandard,
+      healthGrade: healthGrade?.grade ?? null,
+      pensionGrade: pensionGrade?.grade ?? null,
+      source: resolved.source,
+      applicationMonth: resolved.applicationMonth,
+    };
+  }
+
+  /** @deprecated 履歴ベースの getEffectiveStandardRemuneration を使用してください */
+  getEffectiveStandardRemunerationFromCalculations(
     employee: Employee,
     targetYearMonth: string,
     annualResults: AnnualDeterminationResult[],
@@ -385,24 +755,105 @@ export class SocialInsuranceRevisionService {
   calculatePremiumsForEmployee(
     employee: Employee,
     targetYearMonth: string,
-    annualResults: AnnualDeterminationResult[],
-    occasionalResults: OccasionalRevisionResult[]
+    company: CompanySettings | null = null,
+    options: { forEmployeeListEstimate?: boolean } = {}
   ) {
-    const effective = this.getEffectiveStandardRemuneration(
-      employee,
+    const parsedTarget = parseTargetYearMonth(targetYearMonth);
+    const rateTargetDate = toRateTargetDateFromYearMonth(targetYearMonth);
+
+    console.log('[Debug] SocialInsuranceRevisionService.calculatePremiumsForEmployee 呼び出し:', {
+      employeeId: employee.id,
+      employeeNumber: employee.employeeNumber,
       targetYearMonth,
-      annualResults,
-      occasionalResults
+      parsedTarget,
+      targetYear: parsedTarget?.targetYear,
+      targetMonth: parsedTarget?.targetMonth,
+      prefecture: company?.prefecture ?? null,
+      forEmployeeListEstimate: options.forEmployeeListEstimate ?? false,
+    });
+
+    if (!parsedTarget && !options.forEmployeeListEstimate) {
+      console.warn(
+        '[Debug] targetYear / targetMonth が未解析です。rateTargetDate にフォールバックします:',
+        rateTargetDate
+      );
+    }
+
+    const referenceDate = parseInsuranceRateTargetDate(rateTargetDate) ?? new Date();
+    const age = this.insuranceCalculator.calculateAge(employee.birthDate, referenceDate);
+    const isLongTermCareInsured = this.insuranceCalculator.resolveLongTermCareInclusion(
+      employee.birthDate,
+      targetYearMonth
     );
-    const age = this.insuranceCalculator.calculateAge(employee.birthDate);
-    const isLongTermCareInsured = this.insuranceCalculator.isLongTermCareInsured(age);
-    const premiums = this.insuranceCalculator.calculatePremiums(
-      effective.healthStandard,
-      effective.pensionStandard,
-      isLongTermCareInsured
+
+    const effective = options.forEmployeeListEstimate
+      ? this.buildEmployeeListEffectiveRemuneration(employee)
+      : this.getEffectiveStandardRemunerationFromHistory(employee, targetYearMonth);
+
+    if (
+      isSocialInsuranceExemptForMonth(employee, targetYearMonth) ||
+      isSocialInsuranceExemptForRetirementMonth(employee, targetYearMonth)
+    ) {
+      return {
+        effective,
+        age,
+        isLongTermCareInsured,
+        premiums: emptyPremiumBreakdown(),
+      };
+    }
+
+    const rates = parsedTarget
+      ? resolvePayrollInsuranceRates(company, parsedTarget)
+      : resolvePayrollInsuranceRates(company, rateTargetDate);
+
+    const premiums = this.insuranceCalculator.applyAgePremiumExemptions(
+      this.insuranceCalculator.calculatePremiums(
+        effective.healthStandard,
+        effective.pensionStandard,
+        isLongTermCareInsured,
+        rates.healthRate,
+        rates.longTermCareRate * 100
+      ),
+      employee.birthDate,
+      targetYearMonth
     );
 
     return { effective, age, isLongTermCareInsured, premiums };
+  }
+
+  private buildEmployeeListEffectiveRemuneration(employee: Employee): EffectiveStandardRemuneration {
+    const master = this.resolveRevisionCurrentGrades(employee);
+
+    return {
+      healthStandard: master.healthStandard,
+      pensionStandard: master.pensionStandard,
+      healthGrade: master.healthGrade,
+      pensionGrade: master.pensionGrade,
+      source: 'employee_master',
+      applicationMonth: null,
+    };
+  }
+
+  private resolveRevisionCurrentGrades(employee: Employee): {
+    healthStandard: number;
+    pensionStandard: number;
+    healthGrade: number | null;
+    pensionGrade: number | null;
+  } {
+    const master = resolveEmployeeMasterCurrentGrades(employee);
+
+    return {
+      healthStandard: master.healthStandard,
+      pensionStandard: master.pensionStandard,
+      healthGrade:
+        master.healthGrade ??
+        this.standardRemunerationService.findHealthGradeByAmount(master.healthStandard)?.grade ??
+        null,
+      pensionGrade:
+        master.pensionGrade ??
+        this.standardRemunerationService.findPensionGradeByAmount(master.pensionStandard)?.grade ??
+        null,
+    };
   }
 
   private entryToSnapshot(targetMonth: string, entry: PayrollEntry): PayrollMonthSnapshot {
@@ -424,5 +875,10 @@ export class SocialInsuranceRevisionService {
     }
 
     return months;
+  }
+
+  private buildOccasionalPriorityLabel(applicationMonth: string): string {
+    const month = parseYearMonthKey(applicationMonth).month;
+    return `${month}月随時改定を優先`;
   }
 }

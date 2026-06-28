@@ -1,0 +1,66 @@
+<section class="statutory-reports">
+  <header class="statutory-reports__header">
+    <div>
+      <h1 class="statutory-reports__title">法定帳票出力</h1>
+      <p class="statutory-reports__description">
+        e-Gov連携用のCSV等を出力します。手続きを選択して、対象者の確認または帳票の出力に進んでください。
+      </p>
+    </div>
+  </header>
+
+  @if (requestNotice()) {
+    <p class="statutory-reports__notice" role="status">{{ requestNotice() }}</p>
+  }
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    @for (item of menuItems; track item.id) {
+      <article
+        class="group flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300"
+      >
+        <div class="flex items-start gap-3 mb-4">
+          <span
+            class="inline-flex shrink-0 items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-sm font-bold"
+            aria-hidden="true"
+          >
+            {{ item.order }}
+          </span>
+          <div class="min-w-0 flex-1">
+            <h2 class="text-sm font-bold text-slate-900 leading-snug">
+              {{ item.primaryTitle }}
+            </h2>
+            @if (item.secondaryTitle) {
+              <p class="mt-1.5 text-xs text-slate-500 leading-relaxed">
+                ／ {{ item.secondaryTitle }}
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="mt-auto pt-4 border-t border-slate-100">
+          <button
+            type="button"
+            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold transition-colors duration-150 hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            (click)="openExportDialog(item.id)"
+          >
+            対象者選択
+          </button>
+        </div>
+      </article>
+    }
+  </div>
+</section>
+
+<app-statutory-export-target-modal
+  [open]="targetModalOpen()"
+  [reportId]="activeReportId()"
+  [reportTitle]="activeReportTitle()"
+  [employees]="employees()"
+  [companyTasks]="companyTasks()"
+  [loading]="employeesLoading()"
+  [exporting]="exportLoading()"
+  [requestingEmployeeId]="requestingEmployeeId()"
+  [errorMessage]="exportError()"
+  (confirmed)="onExportConfirmed($event)"
+  (requestInput)="onRequestInput($event)"
+  (closed)="closeTargetModal()"
+/>
