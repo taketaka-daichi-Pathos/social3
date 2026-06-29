@@ -29,9 +29,10 @@ import {
   summarizeFiscalYearCumulativeBonus,
 } from '@features/payroll/utils/bonus-insurance.utils';
 import {
-  composeBonusPaymentDateFromYearAndSetting,
+  filterBonusPaymentSettingsByYear,
   formatBonusTemplateLabel,
   getBonusPaymentYearOptionsFromSystemStart,
+  resolveBonusPaymentDateFromSelection,
   resolveBonusPaymentSelectionFromDate,
   sortBonusPaymentSettings,
 } from '@features/settings/utils/bonus-payment-settings.utils';
@@ -48,8 +49,9 @@ import {
 import {
   calculatePayrollEntryFixedWages,
   employeeFullName,
-  filterEmployeesForTargetMonth,
+  filterEmployeesForBonusTargetMonth,
   getCurrentYearMonthKey,
+  isBonusPaymentBeforeHireDate,
   resolvePayrollAllowances,
   resolvePayrollBaseSalary,
   roundNonNegativePayrollYen,
@@ -155,7 +157,7 @@ export class CompensationEntryTableComponent implements OnInit {
           }
 
           if (wasLoading || this.shouldRebuildForm(employees)) {
-            void this.rebuildForm();
+            void this.rebuildForm({ preserveUnlockedInput: this.hasPaymentDate() });
             return;
           }
 
@@ -179,6 +181,14 @@ export class CompensationEntryTableComponent implements OnInit {
 
   formatBonusTemplateLabel(setting: BonusPaymentSetting): string {
     return formatBonusTemplateLabel(setting);
+  }
+
+  /** 選択中の年に紐づく賞与マスタのみ */
+  filteredBonusPaymentSettings(): BonusPaymentSetting[] {
+    return filterBonusPaymentSettingsByYear(
+      this.bonusPaymentSettings(),
+      this.form.controls.selectedYear.value
+    );
   }
 
   yearSelectPlaceholder(): string {
@@ -259,17 +269,33 @@ export class CompensationEntryTableComponent implements OnInit {
     return this.entries.at(index)?.controls.blockedByRetirement.value === true;
   }
 
+  isRowBlockedByBeforeHire(index: number): boolean {
+    const employee = this.employeeForRow(index);
+    const paymentDate = this.normalizedPaymentDate();
+    return Boolean(employee && paymentDate && isBonusPaymentBeforeHireDate(employee, paymentDate));
+  }
+
+  /** 現在の支払日で保存済みか（HTML の readonly 判定の主条件） */
+  isRowSavedForCurrentPaymentDate(index: number): boolean {
+    return this.isRowLocked(index);
+  }
+
+  /** 賞与額入力欄を読み取り専用にするか（FormControl は常に enable、UI のみロック） */
+  isRowBonusAmountReadonly(index: number): boolean {
+    if (!this.hasValidBonusPaymentSelection()) {
+      return true;
+    }
+
+    if (this.isRowSavedForCurrentPaymentDate(index)) {
+      return true;
+    }
+
+    return this.isRowBlockedByRetirement(index) || this.isRowBlockedByBeforeHire(index);
+  }
+
   /** 賞与額入力・保存が不可な行か（支払日未確定・保存済み・退職後支払日） */
   isRowInputDisabled(index: number): boolean {
-    if (!this.hasPaymentDate()) {
-      return true;
-    }
-
-    if (this.isRowLocked(index)) {
-      return true;
-    }
-
-    return this.isRowBlockedByRetirement(index);
+    return this.isRowBonusAmountReadonly(index);
   }
 
   isRowInputEnabled(index: number): boolean {
@@ -282,10 +308,6 @@ export class CompensationEntryTableComponent implements OnInit {
     }
 
     return isAfterRetirementDate(employee, paymentDate);
-  }
-
-  onBonusPaymentSelectionChange(): void {
-    void this.applyComposedBonusPaymentDateSelection();
   }
 
   private async applyComposedBonusPaymentDateSelection(): Promise<void> {
@@ -306,19 +328,13 @@ export class CompensationEntryTableComponent implements OnInit {
         saveStoredBonusPaymentDate(nextPaymentDate);
       }
 
-      const previousTargetMonth =
-        resolveTargetMonthFromPaymentDate(previousPaymentDate) ?? getCurrentYearMonthKey();
-      const nextTargetMonth =
-        resolveTargetMonthFromPaymentDate(nextPaymentDate) ?? getCurrentYearMonthKey();
-
-      if (previousTargetMonth !== nextTargetMonth || this.shouldRebuildForm(this.employees())) {
-        await this.rebuildForm({ preserveUnlockedInput: Boolean(nextPaymentDate) });
-        this.cdr.markForCheck();
-        return;
-      }
+      await this.rebuildForm({ preserveUnlockedInput: Boolean(nextPaymentDate) });
+      this.cdr.markForCheck();
+      return;
     }
 
     await this.applyPaymentDateContext(true);
+    this.logBonusRowLockStates('applyComposedBonusPaymentDateSelection');
     this.cdr.markForCheck();
   }
 
@@ -375,7 +391,7 @@ export class CompensationEntryTableComponent implements OnInit {
       .map((group) => group.controls.employeeId.value)
       .sort()
       .join(',');
-    const nextIds = filterEmployeesForTargetMonth(employees, this.derivedTargetMonth())
+    const nextIds = this.eligibleBonusEmployees(employees)
       .map((employee) => employee.id)
       .sort()
       .join(',');
@@ -445,6 +461,9 @@ export class CompensationEntryTableComponent implements OnInit {
     for (const group of this.entries.controls) {
       this.applyRowStateForPaymentDate(group, paymentDate, preserveUnlockedInput);
     }
+
+    this.ensureAllBonusAmountControlsEnabled();
+    this.logBonusRowLockStates('syncAllRowLockStates');
   }
 
   private applyRowStateForPaymentDate(
@@ -458,7 +477,11 @@ export class CompensationEntryTableComponent implements OnInit {
 
     group.controls.blockedByRetirement.setValue(blockedByRetirement, { emitEvent: false });
 
-    if (blockedByRetirement) {
+    const blockedBeforeHire = employee
+      ? isBonusPaymentBeforeHireDate(employee, paymentDate)
+      : false;
+
+    if (blockedByRetirement || blockedBeforeHire) {
       group.controls.fixedWages.setValue(0, { emitEvent: false });
       group.controls.nonFixedWages.setValue(0, { emitEvent: false });
       group.controls.locked.setValue(false, { emitEvent: false });
@@ -477,16 +500,40 @@ export class CompensationEntryTableComponent implements OnInit {
       group.controls.nonFixedWages.setValue(0, { emitEvent: false });
     }
 
-    group.controls.locked.setValue(locked, { emitEvent: false });
+    group.controls.locked.setValue(
+      this.isEmployeeSavedForPaymentDate(employeeId, paymentDate),
+      { emitEvent: false }
+    );
     this.syncRowControlState(group);
   }
 
-  private shouldDisableRowAmountInput(group: EntryFormGroup): boolean {
-    return (
-      !this.hasPaymentDate() ||
-      group.controls.locked.value ||
-      group.controls.blockedByRetirement.value
+  private eligibleBonusEmployees(employees: Employee[] = this.employees()): Employee[] {
+    return filterEmployeesForBonusTargetMonth(
+      employees,
+      this.derivedTargetMonth(),
+      this.normalizedPaymentDate()
     );
+  }
+
+  private hasValidBonusPaymentSelection(): boolean {
+    return (
+      this.form.controls.selectedYear.valid &&
+      this.form.controls.bonusPaymentSettingId.valid &&
+      this.form.controls.paymentDate.valid &&
+      this.hasPaymentDate()
+    );
+  }
+
+  private syncBonusPaymentSettingIdForSelectedYear(): void {
+    const { selectedYear, bonusPaymentSettingId } = this.readBonusPaymentSelectionRawValue();
+    const filtered = filterBonusPaymentSettingsByYear(this.bonusPaymentSettings(), selectedYear);
+    const currentStillValid = filtered.some((row) => row.id === bonusPaymentSettingId);
+
+    if (!currentStillValid) {
+      this.form.controls.bonusPaymentSettingId.setValue(filtered[0]?.id ?? '', {
+        emitEvent: false,
+      });
+    }
   }
 
   private lockSavedRow(group: EntryFormGroup, bonusAmount: number): void {
@@ -494,6 +541,8 @@ export class CompensationEntryTableComponent implements OnInit {
     group.controls.nonFixedWages.setValue(0, { emitEvent: false });
     group.controls.locked.setValue(true, { emitEvent: false });
     this.syncRowControlState(group);
+    this.ensureAllBonusAmountControlsEnabled();
+    this.logBonusRowLockStates('lockSavedRow');
   }
 
   private async applyPaymentDateContext(preserveUnlockedInput = false): Promise<void> {
@@ -577,12 +626,17 @@ export class CompensationEntryTableComponent implements OnInit {
     const settings = this.sortedBonusPaymentSettings();
     const selection = stored ? resolveBonusPaymentSelectionFromDate(stored, settings) : null;
     const defaultYear = String(this.bonusPaymentYearOptions()[0] ?? new Date().getFullYear());
-    const defaultSettingId = settings[0]?.id ?? '';
+    const initialYear = selection?.year ?? defaultYear;
+    const filteredForYear = filterBonusPaymentSettingsByYear(settings, initialYear);
+    const initialSettingId =
+      selection?.settingId && filteredForYear.some((row) => row.id === selection.settingId)
+        ? selection.settingId
+        : (filteredForYear[0]?.id ?? '');
 
     this.form.patchValue(
       {
-        selectedYear: selection?.year ?? defaultYear,
-        bonusPaymentSettingId: selection?.settingId ?? defaultSettingId,
+        selectedYear: initialYear,
+        bonusPaymentSettingId: initialSettingId,
         paymentDate: '',
       },
       { emitEvent: false }
@@ -602,6 +656,7 @@ export class CompensationEntryTableComponent implements OnInit {
     ])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.syncBonusPaymentSettingIdForSelectedYear();
         void this.applyComposedBonusPaymentDateSelection();
       });
   }
@@ -620,9 +675,11 @@ export class CompensationEntryTableComponent implements OnInit {
   private syncComposedPaymentDateFromSelection(): void {
     const { selectedYear: year, bonusPaymentSettingId: settingId } =
       this.readBonusPaymentSelectionRawValue();
-    const setting = this.bonusPaymentSettings().find((row) => row.id === settingId);
-    const paymentDate =
-      year && setting ? composeBonusPaymentDateFromYearAndSetting(year, setting) : '';
+    const paymentDate = resolveBonusPaymentDateFromSelection(
+      year,
+      settingId,
+      this.bonusPaymentSettings()
+    );
 
     if (this.form.controls.paymentDate.value === paymentDate) {
       return;
@@ -669,10 +726,8 @@ export class CompensationEntryTableComponent implements OnInit {
 
   canSaveRow(index: number): boolean {
     return (
-      this.hasBonusPaymentSettings() &&
-      this.form.controls.paymentDate.valid &&
+      this.hasValidBonusPaymentSelection() &&
       this.isRowInputEnabled(index) &&
-      this.hasPaymentDate() &&
       !this.isRowLocked(index) &&
       this.hasBonusAmount(index)
     );
@@ -687,7 +742,7 @@ export class CompensationEntryTableComponent implements OnInit {
       return '';
     }
 
-    if (!this.hasPaymentDate()) {
+    if (!this.hasValidBonusPaymentSelection()) {
       return '支払い日を選択してください';
     }
 
@@ -973,16 +1028,12 @@ export class CompensationEntryTableComponent implements OnInit {
   }
 
   private async rebuildForm(options: { preserveUnlockedInput?: boolean } = {}): Promise<void> {
-    if (this.loading()) {
-      return;
-    }
-
     const version = ++this.rebuildVersion;
     const paymentDate = this.normalizedPaymentDate();
     const preserveUnlockedInput = options.preserveUnlockedInput ?? false;
     const preservedInputs = preserveUnlockedInput ? this.captureUnlockedRowInputs() : new Map();
     const targetMonth = this.derivedTargetMonth();
-    const eligibleEmployees = filterEmployeesForTargetMonth(this.employees(), targetMonth);
+    const eligibleEmployees = this.eligibleBonusEmployees();
 
     if (paymentDate) {
       try {
@@ -1047,21 +1098,49 @@ export class CompensationEntryTableComponent implements OnInit {
     this.entries.controls.forEach((group) => {
       this.syncRowControlState(group);
     });
+    this.ensureAllBonusAmountControlsEnabled();
+    this.logBonusRowLockStates('rebuildForm');
     this.cdr.detectChanges();
   }
 
+  /** 賞与額は FormControl を disable せず、行単位の HTML readonly でロックする */
   private syncRowControlState(group: EntryFormGroup): void {
-    const inputDisabled = this.shouldDisableRowAmountInput(group);
-
     group.controls.employeeNumber.disable({ emitEvent: false });
     group.controls.employeeName.disable({ emitEvent: false });
     group.controls.nonFixedWages.disable({ emitEvent: false });
-
-    if (inputDisabled) {
-      group.controls.fixedWages.disable({ emitEvent: false });
-      return;
-    }
-
     group.controls.fixedWages.enable({ emitEvent: false });
+  }
+
+  /** 巻き添え防止: 全行の賞与額 FormControl を明示的に enable */
+  private ensureAllBonusAmountControlsEnabled(): void {
+    for (const group of this.entries.controls) {
+      if (group.controls.fixedWages.disabled) {
+        group.controls.fixedWages.enable({ emitEvent: false });
+      }
+    }
+  }
+
+  private logBonusRowLockStates(context: string): void {
+    console.log(`--- 賞与入力欄のロック状態チェック (${context}) ---`);
+    console.log(`支払日: ${this.normalizedPaymentDate() || '(未選択)'}`);
+    console.log(`支払日選択有効: ${this.hasValidBonusPaymentSelection()}`);
+
+    this.entries.controls.forEach((control, index) => {
+      const row = control.getRawValue();
+      const employeeId = row.employeeId;
+      const paymentDate = this.normalizedPaymentDate();
+      const isSaved = this.isEmployeeSavedForPaymentDate(employeeId, paymentDate);
+      const blockedByRetirement = control.controls.blockedByRetirement.value === true;
+      const blockedBeforeHire = this.isRowBlockedByBeforeHire(index);
+      const bonusAmountControl = control.controls.fixedWages;
+
+      console.log(`[行${index}] 社員番号: ${row.employeeNumber}, 名前: ${row.employeeName}`);
+      console.log(`  - 保存済みフラグ(isSaved): ${isSaved}`);
+      console.log(`  - locked FormControl: ${control.controls.locked.value}`);
+      console.log(`  - 退職後ブロック: ${blockedByRetirement}`);
+      console.log(`  - 入社前ブロック: ${blockedBeforeHire}`);
+      console.log(`  - フォームコントロールの状態(disabled): ${bonusAmountControl.disabled}`);
+      console.log(`  - UI readonly判定: ${this.isRowBonusAmountReadonly(index)}`);
+    });
   }
 }

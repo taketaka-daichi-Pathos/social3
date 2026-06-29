@@ -52,6 +52,10 @@ import {
   toYearMonthKey,
 } from '@features/payroll/utils/compensation.utils';
 import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
+import {
+  MONTHLY_LOCK_ERROR_MESSAGE,
+  resolveEmployeeRegistrationLockCheckMonths,
+} from '@features/payroll/utils/monthly-lock.utils';
 import { RevisionHistoryEntry } from '@features/revision/models/revision-history.model';
 import {
   hasScheduledAnnualDetermination,
@@ -140,7 +144,10 @@ export class EmployeeService {
       employeeData = this.applyExistingEmployeeHistoryToMaster(employeeData, systemStartDate);
     }
 
-    await this.assertEmployeeRegistrationMonthsEditable(data.hireDate);
+    await this.assertEmployeeRegistrationMonthsEditable(
+      data.hireDate,
+      isExistingEmployee ? historyRows.map((row) => row.targetMonth) : []
+    );
 
     try {
       await this.ensureEmployeeNumberAvailable(companyUid, employeeNumber);
@@ -1473,15 +1480,22 @@ export class EmployeeService {
     }
   }
 
-  private async assertEmployeeRegistrationMonthsEditable(hireDate: string): Promise<void> {
-    const months = new Set<string>([getCurrentYearMonthKey()]);
-    const hireMonth = toYearMonthKey(hireDate);
-    if (hireMonth) {
-      months.add(hireMonth);
-    }
+  private async assertEmployeeRegistrationMonthsEditable(
+    hireDate: string,
+    payrollHistoryMonths: string[] = []
+  ): Promise<void> {
+    const months = resolveEmployeeRegistrationLockCheckMonths(hireDate, payrollHistoryMonths);
 
-    for (const month of months) {
-      await this.monthlyLockService.assertMonthEditable(month);
+    for (const targetMonth of months) {
+      console.log('--- 従業員登録: ロック判定 ---');
+      console.log('対象の入社日:', hireDate);
+      console.log('判定対象の月:', targetMonth);
+      const isLocked = await this.monthlyLockService.isMonthLocked(targetMonth);
+      console.log('ロック状態:', isLocked);
+
+      if (isLocked) {
+        throw new Error(MONTHLY_LOCK_ERROR_MESSAGE);
+      }
     }
   }
 

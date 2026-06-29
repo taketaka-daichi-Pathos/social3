@@ -3,6 +3,7 @@ import {
   canSaveCompensationForTargetMonth,
   isExemptFromPreviousMonthLockRequirement,
   isMonthlyLockDocumentLocked,
+  resolveEmployeeRegistrationLockCheckMonths,
   shouldShowPreviousMonthNotLockedCompensationSaveWarning,
 } from './monthly-lock.utils';
 
@@ -145,5 +146,17 @@ describe('canSaveCompensationForTargetMonth', () => {
         companySettingsLoaded: true,
       })
     ).toBe(false);
+  });
+});
+
+describe('resolveEmployeeRegistrationLockCheckMonths', () => {
+  it('checks hire month only for new employees (not the calendar month)', () => {
+    expect(resolveEmployeeRegistrationLockCheckMonths('2026-11-01')).toEqual(['2026-11']);
+  });
+
+  it('includes payroll history months for existing employees', () => {
+    expect(
+      resolveEmployeeRegistrationLockCheckMonths('2024-04-01', ['2024-04', '2024-05'])
+    ).toEqual(['2024-04', '2024-05']);
   });
 });

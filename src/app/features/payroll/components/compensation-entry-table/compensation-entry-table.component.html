@@ -25,7 +25,6 @@
             id="bonusPaymentYearSelect"
             class="comp-table__filter-select comp-table__date-input--year"
             formControlName="selectedYear"
-            (change)="onBonusPaymentSelectionChange()"
           >
             <option value="">{{ yearSelectPlaceholder() }}</option>
             @if (companySettingsLoaded() && hasBonusPaymentSettings()) {
@@ -40,11 +39,10 @@
             id="bonusPaymentSettingSelect"
             class="comp-table__filter-select comp-table__date-input--month"
             formControlName="bonusPaymentSettingId"
-            (change)="onBonusPaymentSelectionChange()"
           >
             <option value="">{{ bonusPaymentSelectPlaceholder() }}</option>
             @if (companySettingsLoaded() && hasBonusPaymentSettings()) {
-              @for (setting of sortedBonusPaymentSettings(); track setting.id) {
+              @for (setting of filteredBonusPaymentSettings(); track setting.id) {
                 <option [value]="setting.id">{{ formatBonusTemplateLabel(setting) }}</option>
               }
             }
@@ -174,7 +172,8 @@
                   <input
                     type="number"
                     class="comp-table__input"
-                    [class.comp-table__input--disabled]="isRowInputDisabled(i)"
+                    [class.comp-table__input--disabled]="isRowBonusAmountReadonly(i)"
+                    [readOnly]="isRowSavedForCurrentPaymentDate(i)"
                     formControlName="fixedWages"
                     min="0"
                     step="1"
@@ -185,6 +184,10 @@
                   @if (isRowBlockedByRetirement(i)) {
                     <p class="comp-table__row-error comp-table__row-error--hint">
                       退職日より後の支払日のため入力できません
+                    </p>
+                  } @else if (isRowBlockedByBeforeHire(i)) {
+                    <p class="comp-table__row-error comp-table__row-error--hint">
+                      入社日より前の支払日のため入力できません
                     </p>
                   }
                 </td>

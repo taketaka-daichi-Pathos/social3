@@ -2,6 +2,8 @@ import {
   calculateFixedWagesTotal,
   calculatePayrollDisplayTotal,
   getCurrentYearAprilMonthKey,
+  isBonusPaymentBeforeHireDate,
+  isEmployeeVisibleForBonusPayment,
   PAYROLL_DISPLAY_TOTAL_FLOOR_ERROR,
   roundNonNegativePayrollYen,
   roundPayrollYen,
@@ -62,5 +64,33 @@ describe('compensation.utils payroll yen rounding', () => {
     expect(
       calculatePayrollDisplayTotal(150_000, allowances, 0, 0)
     ).toBe(300_000);
+  });
+});
+
+describe('compensation.utils bonus employee visibility', () => {
+  const employee = {
+    id: 'emp-1',
+    hireDate: '2026-06-15',
+    resignationDate: '2026-08-31',
+    status: 'retired',
+    registrationType: 'new',
+    applicableStartMonth: '',
+    salaryHistory: [],
+  } as import('@features/employees/models/employee.model').Employee;
+
+  it('excludes bonus payment before hire date', () => {
+    expect(isBonusPaymentBeforeHireDate(employee, '2026-06-10')).toBe(true);
+    expect(
+      isEmployeeVisibleForBonusPayment(employee, '2026-06-10', '2026-06')
+    ).toBe(false);
+    expect(
+      isEmployeeVisibleForBonusPayment(employee, '2026-06-20', '2026-06')
+    ).toBe(true);
+  });
+
+  it('excludes bonus payment after retirement date', () => {
+    expect(
+      isEmployeeVisibleForBonusPayment(employee, '2026-09-01', '2026-09')
+    ).toBe(false);
   });
 });

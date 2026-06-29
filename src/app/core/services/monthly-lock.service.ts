@@ -29,13 +29,13 @@ import {
   PREVIOUS_MONTH_NOT_LOCKED_MESSAGE,
   validatePayrollMonthReadyForLock,
 } from '@features/payroll/utils/monthly-lock.utils';
-import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
-import { getCurrentYearMonthKey } from '@features/payroll/utils/compensation.utils';
 import {
   isValidYearMonthKey,
+  normalizeYearMonthKey,
   resolveSystemOperationMonthFromLatestLock,
   SystemOperationMonthFallbackOptions,
 } from '@features/payroll/utils/system-operation-month.utils';
+import { getCurrentYearMonthKey } from '@features/payroll/utils/compensation.utils';
 import { catchError, defer, distinctUntilChanged, map, Observable, of, switchMap } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
@@ -108,6 +108,10 @@ export class MonthlyLockService {
 
   async isMonthLocked(targetMonth: string): Promise<boolean> {
     const monthKey = this.resolveLockMonthKey(targetMonth);
+    if (!isValidYearMonthKey(monthKey)) {
+      return false;
+    }
+
     const cached = this.lockCache.get(monthKey);
     if (cached !== undefined) {
       return cached;

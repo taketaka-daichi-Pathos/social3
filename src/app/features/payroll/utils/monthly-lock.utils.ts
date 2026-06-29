@@ -247,3 +247,25 @@ export function listYearMonthsBetweenIsoDates(startDate: string, endDate: string
 
   return months;
 }
+
+/** 従業員登録時に月次確定ロックを確認すべき年月一覧（入社月＋既存社員の給与履歴月） */
+export function resolveEmployeeRegistrationLockCheckMonths(
+  hireDate: string,
+  payrollHistoryMonths: string[] = []
+): string[] {
+  const months = new Set<string>();
+  const hireMonth = toYearMonthKey(hireDate);
+
+  if (hireMonth) {
+    months.add(hireMonth);
+  }
+
+  for (const month of payrollHistoryMonths) {
+    const normalized = normalizeYearMonthKey(month);
+    if (normalized) {
+      months.add(normalized);
+    }
+  }
+
+  return [...months];
+}

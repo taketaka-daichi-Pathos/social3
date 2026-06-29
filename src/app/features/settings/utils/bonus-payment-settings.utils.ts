@@ -161,6 +161,32 @@ export function getBonusPaymentYearOptionsFromSystemStart(
   return years;
 }
 
+export function filterBonusPaymentSettingsByYear(
+  settings: BonusPaymentSetting[],
+  year: string | number
+): BonusPaymentSetting[] {
+  const yearString = String(year).trim();
+  if (!/^\d{4}$/.test(yearString)) {
+    return [];
+  }
+
+  return sortBonusPaymentSettings(
+    settings.filter((setting) => setting.paymentDate.startsWith(`${yearString}-`))
+  );
+}
+
+export function resolveBonusPaymentDateFromSelection(
+  year: string,
+  settingId: string,
+  settings: BonusPaymentSetting[]
+): string {
+  const setting = filterBonusPaymentSettingsByYear(settings, year).find(
+    (row) => row.id === settingId.trim()
+  );
+
+  return setting?.paymentDate ?? '';
+}
+
 export function resolveBonusPaymentSelectionFromDate(
   paymentDate: string,
   settings: BonusPaymentSetting[]
@@ -170,20 +196,14 @@ export function resolveBonusPaymentSelectionFromDate(
     return null;
   }
 
-  const year = normalized.slice(0, 4);
-  const monthDay = normalized.slice(5);
   const exactMatch = settings.find((row) => row.paymentDate === normalized);
-  const templateMatch = settings.find(
-    (row) => extractMonthDayFromBonusPaymentDate(row.paymentDate) === monthDay
-  );
-  const setting = exactMatch ?? templateMatch;
-  if (!setting) {
+  if (!exactMatch) {
     return null;
   }
 
   return {
-    year,
-    settingId: setting.id,
+    year: normalized.slice(0, 4),
+    settingId: exactMatch.id,
   };
 }
 

@@ -391,8 +391,19 @@ export function isEmployeeVisibleForTargetMonth(
   return true;
 }
 
-/** 賞与タブ: 支払日を考慮した表示可否（退職日以前の支払いは表示） */
-/** 賞与タブ: 支払日を考慮した表示可否（退職日以前の支払いは表示） */
+/** 賞与支払日が入社日より前か（YYYY-MM-DD 同士の辞書順比較） */
+export function isBonusPaymentBeforeHireDate(employee: Employee, paymentDate: string): boolean {
+  const hireDate = employee.hireDate?.trim();
+  const normalizedPaymentDate = paymentDate.trim();
+
+  if (!hireDate || !normalizedPaymentDate) {
+    return false;
+  }
+
+  return normalizedPaymentDate < hireDate;
+}
+
+/** 賞与タブ: 支払日を考慮した表示可否（入社前・退職後の支払日は対象外） */
 export function isEmployeeVisibleForBonusPayment(
   employee: Employee,
   paymentDate: string,
@@ -403,11 +414,15 @@ export function isEmployeeVisibleForBonusPayment(
   }
 
   const normalizedPaymentDate = paymentDate.trim();
-  if (
-    normalizedPaymentDate &&
-    isRetiredEmployee(employee) &&
-    isAfterRetirementDate(employee, normalizedPaymentDate)
-  ) {
+  if (!normalizedPaymentDate) {
+    return true;
+  }
+
+  if (isBonusPaymentBeforeHireDate(employee, normalizedPaymentDate)) {
+    return false;
+  }
+
+  if (isRetiredEmployee(employee) && isAfterRetirementDate(employee, normalizedPaymentDate)) {
     return false;
   }
 
