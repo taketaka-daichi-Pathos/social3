@@ -1,7 +1,12 @@
 import { CompanySettings } from '@features/settings/models/company-settings.model';
+import { CompensationEntry, CompensationRecord } from '@features/payroll/models/compensation.model';
 import {
+  calculateBonusInsurancePremiums,
+  getSameMonthExistingStandardBonusTotal,
   parseTargetYearMonth,
+  PENSION_BONUS_STANDARD_CAP,
   resolvePayrollInsuranceRates,
+  resolvePensionBonusStandard,
 } from '@features/payroll/utils/bonus-insurance.utils';
 
 function createCompany(
@@ -26,6 +31,7 @@ function createCompany(
     longTermCareInsuranceRate: 1.62,
     insuranceRateHistory: [],
     allowances: [],
+    systemStartDate: '2025-04',
     ...overrides,
   };
 }
@@ -80,5 +86,75 @@ describe('parseTargetYearMonth', () => {
   it('returns null for invalid values', () => {
     expect(parseTargetYearMonth('2025-13')).toBeNull();
     expect(parseTargetYearMonth('invalid')).toBeNull();
+  });
+});
+
+describe('resolvePensionBonusStandard', () => {
+  it('applies the monthly pension cap against existing same-month bonuses', () => {
+    expect(resolvePensionBonusStandard(800_000, 1_000_000)).toBe(500_000);
+    expect(resolvePensionBonusStandard(800_000, 1_500_000)).toBe(0);
+    expect(resolvePensionBonusStandard(800_000, 0)).toBe(800_000);
+  });
+
+  it('does not exceed the statutory monthly cap even without prior bonuses', () => {
+    expect(resolvePensionBonusStandard(2_000_000, 0)).toBe(PENSION_BONUS_STANDARD_CAP);
+  });
+});
+
+describe('getSameMonthExistingStandardBonusTotal', () => {
+  it('sums locked bonuses in the same month while excluding the current payment date', () => {
+    const record: CompensationRecord = {
+      targetMonth: '2026-07',
+      entries: [
+        {
+          employeeId: 'emp-1',
+          locked: true,
+          paymentDate: '2026-07-10',
+          bonusAmount: 1_000_000,
+          standardBonusAmount: 1_000_000,
+        } as CompensationEntry,
+        {
+          employeeId: 'emp-1',
+          locked: true,
+          paymentDate: '2026-07-25',
+          bonusAmount: 200_000,
+          standardBonusAmount: 200_000,
+        } as CompensationEntry,
+        {
+          employeeId: 'emp-2',
+          locked: true,
+          paymentDate: '2026-07-15',
+          bonusAmount: 500_000,
+          standardBonusAmount: 500_000,
+        } as CompensationEntry,
+      ],
+    };
+
+    const recordsByMonth = new Map<string, CompensationRecord>([['2026-07', record]]);
+
+    expect(
+      getSameMonthExistingStandardBonusTotal('emp-1', '2026-07', recordsByMonth, '2026-07-25')
+    ).toBe(1_000_000);
+    expect(getSameMonthExistingStandardBonusTotal('emp-1', '2026-07', recordsByMonth)).toBe(
+      1_200_000
+    );
+    expect(getSameMonthExistingStandardBonusTotal('emp-2', '2026-07', recordsByMonth)).toBe(
+      500_000
+    );
+  });
+});
+
+describe('calculateBonusInsurancePremiums', () => {
+  const rates = {
+    healthRate: 0.1,
+    longTermCareRate: 0.02,
+    pensionRate: 0.183,
+  };
+
+  it('allocates remaining monthly pension cap when prior bonuses exist in the same month', () => {
+    const result = calculateBonusInsurancePremiums(800_000, 0, true, rates, 1_000_000);
+
+    expect(result.pensionStandardBonus).toBe(500_000);
+    expect(result.healthStandardBonus).toBe(800_000);
   });
 });

@@ -26,4 +26,8 @@ export class ToastService {
 
     this.message.set(null);
   }
+
+  resetState(): void {
+    this.clear();
+  }
 }

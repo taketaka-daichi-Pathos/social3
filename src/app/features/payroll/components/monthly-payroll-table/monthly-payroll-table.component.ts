@@ -49,6 +49,7 @@ import {
   getPreviousYearMonthKey,
   isFirstPayrollMonth,
   isBeforeHireMonth,
+  isPayrollEntryLocked,
   isPayrollRowEditable,
   isRegistrationInitialPayrollRow,
   parseYearMonthKey,
@@ -72,9 +73,11 @@ import {
   canLockPayrollMonthSequentially,
   canSaveCompensationForTargetMonth,
   isSystemStartMonth,
+  isBeforeSystemStartMonth,
   PREVIOUS_MONTH_NOT_LOCKED_MESSAGE,
   PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_GUARD_MESSAGE,
   PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE,
+  PRE_SYSTEM_START_HISTORY_COMPENSATION_MESSAGE,
   shouldShowPreviousMonthNotLockedCompensationSaveWarning,
 } from '@features/payroll/utils/monthly-lock.utils';
 import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
@@ -176,6 +179,10 @@ export class MonthlyPayrollTableComponent implements OnInit {
   readonly socialInsuranceFilterOptions = SOCIAL_INSURANCE_CATEGORY_FILTER_OPTIONS;
 
   readonly canConfirmTargetMonthLock = computed(() => {
+    if (this.isTargetMonthBeforeSystemStart()) {
+      return false;
+    }
+
     if (this.isTargetMonthLocked() || this.loading()) {
       return false;
     }
@@ -232,6 +239,12 @@ export class MonthlyPayrollTableComponent implements OnInit {
   readonly previousMonthNotLockedMessage = PREVIOUS_MONTH_NOT_LOCKED_MESSAGE;
   readonly previousMonthNotLockedCompensationSaveMessage =
     PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE;
+  readonly preSystemStartHistoryCompensationMessage =
+    PRE_SYSTEM_START_HISTORY_COMPENSATION_MESSAGE;
+
+  readonly isTargetMonthBeforeSystemStart = computed(() =>
+    isBeforeSystemStartMonth(this.targetMonth(), this.systemStartDate())
+  );
 
   readonly canSaveCompensationForTargetMonth = computed(() =>
     canSaveCompensationForTargetMonth({
@@ -286,6 +299,8 @@ export class MonthlyPayrollTableComponent implements OnInit {
       this.previousMonthLocked();
       this.companySettingsLoaded();
       this.latestLockedMonth();
+      this.isTargetMonthBeforeSystemStart();
+      this.systemStartDate();
       this.canConfirmTargetMonthLock();
 
       untracked(() => this.refreshConfirmButtonDisabledState('effect'));
@@ -492,7 +507,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   isRowLocked(index: number): boolean {
-    return this.entries.at(index).controls.locked.value;
+    return this.entries.at(index).controls.locked.value === true;
   }
 
   isRowBeforeHire(index: number): boolean {
@@ -528,6 +543,10 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   async confirmLockTargetMonth(): Promise<void> {
+    if (this.isTargetMonthBeforeSystemStart()) {
+      return;
+    }
+
     if (this.confirmButtonDisabled() || this.lockingMonth()) {
       return;
     }
@@ -605,11 +624,14 @@ export class MonthlyPayrollTableComponent implements OnInit {
       return true;
     }
 
-    const previousEntry = this.previousMonthRecord()?.entries.find(
-      (entry) => entry.employeeId === employeeId
+    const previousMonth = getPreviousYearMonthKey(this.targetMonth());
+    const previousEntry = resolvePayrollEntryForMonth(
+      employee,
+      previousMonth,
+      this.previousMonthRecord()
     );
 
-    return Boolean(previousEntry?.locked);
+    return isPayrollEntryLocked(previousEntry);
   }
 
   isRowSaving(employeeId: string): boolean {
@@ -736,7 +758,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
 
   async onBreakdownConfirmed(value: PayrollBreakdownValue): Promise<void> {
     const index = this.breakdownRowIndex();
-    if (index == null || this.breakdownSaving()) {
+    if (index == null || this.breakdownSaving() || this.isTargetMonthLocked()) {
       return;
     }
 
@@ -758,10 +780,14 @@ export class MonthlyPayrollTableComponent implements OnInit {
     try {
       const employeeAllowances = toEmployeeAllowances(value.allowances);
 
-      await this.employeeService.updateEmployeePayrollData(employeeId, {
-        baseSalary: value.baseSalary,
-        allowances: employeeAllowances,
-      });
+      await this.employeeService.updateEmployeePayrollData(
+        employeeId,
+        {
+          baseSalary: value.baseSalary,
+          allowances: employeeAllowances,
+        },
+        this.targetMonth()
+      );
 
       this.syncEmployeeMasterLocally(employeeId, value.baseSalary, employeeAllowances);
       this.onBreakdownModalClosed();
@@ -811,7 +837,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
     }
 
     if (
-      group.controls.locked.value ||
+      group.controls.locked.value === true ||
       this.isRowRegistrationLocked(index) ||
       !this.canSaveRow(index)
     ) {
@@ -838,10 +864,14 @@ export class MonthlyPayrollTableComponent implements OnInit {
     try {
       await this.compensationService.upsertPayrollEntry(this.targetMonth(), entry);
       this.mergePayrollEntryIntoLocalRecord(entry);
-      await this.employeeService.updateEmployeePayrollData(employeeId, {
-        baseSalary: entry.baseSalary,
-        allowances: toEmployeeAllowances(entry.allowances),
-      });
+      await this.employeeService.updateEmployeePayrollData(
+        employeeId,
+        {
+          baseSalary: entry.baseSalary,
+          allowances: toEmployeeAllowances(entry.allowances),
+        },
+        this.targetMonth()
+      );
 
       const employee = this.employeeById()[employeeId];
       if (employee) {
@@ -999,7 +1029,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   private isRowSaved(group: PayrollRowFormGroup, savedEntry: PayrollEntry | null): boolean {
-    return Boolean(savedEntry?.locked) || group.controls.locked.value;
+    return isPayrollEntryLocked(savedEntry) || group.controls.locked.value === true;
   }
 
   private applyRowControlStateAfterInit(
@@ -1088,7 +1118,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
     );
     const baseDays = resolvePayrollBaseDays(savedEntry, this.targetMonth());
     const saved =
-      Boolean(savedEntry?.locked) ||
+      isPayrollEntryLocked(savedEntry) ||
       isRegistrationInitialPayrollRow(employee, this.targetMonth(), savedEntry);
 
     return this.fb.group({

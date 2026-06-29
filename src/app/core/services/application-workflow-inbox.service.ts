@@ -6,6 +6,14 @@ import { isChangeApplicationWorkflowRequestType } from '@features/workflow/utils
 export class ApplicationWorkflowInboxService {
   readonly selectedRequest = signal<WorkflowRequest | null>(null);
 
+  resetState(): void {
+    this.clearSelection();
+  }
+
+  hasCachedState(): boolean {
+    return this.selectedRequest() != null;
+  }
+
   select(request: WorkflowRequest): void {
     if (request.status !== 'pending' || !isChangeApplicationWorkflowRequestType(request.type)) {
       return;

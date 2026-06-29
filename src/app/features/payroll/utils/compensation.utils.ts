@@ -316,6 +316,11 @@ export function resolveCountablePayrollEntryForMonth(
   return entry?.locked ? entry : null;
 }
 
+/** 給与エントリが個別保存済み（確定）か。locked が null/undefined の場合は未確定として扱う */
+export function isPayrollEntryLocked(entry: PayrollEntry | null | undefined): boolean {
+  return entry?.locked === true;
+}
+
 /** 月次給与行が従業員登録時の初期履歴データか */
 export function isRegistrationInitialPayrollRow(
   employee: Employee,
@@ -433,11 +438,14 @@ export function employeeFullName(employee: Employee): string {
 }
 
 export function getAllowanceTemplate(companyAllowances: CompanyAllowance[]): CompanyAllowance[] {
-  if (companyAllowances.length > 0) {
-    return companyAllowances;
-  }
+  const byName = new Map(
+    companyAllowances.map((row) => [String(row.name ?? '').trim(), row.amount ?? null])
+  );
 
-  return [...DEFAULT_COMPANY_ALLOWANCES];
+  return DEFAULT_COMPANY_ALLOWANCES.map((row) => ({
+    name: row.name,
+    amount: byName.get(row.name) ?? null,
+  }));
 }
 
 export function resolvePayrollAllowances(

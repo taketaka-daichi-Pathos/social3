@@ -59,6 +59,10 @@ export const PREVIOUS_MONTH_NOT_LOCKED_MESSAGE =
 export const PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE =
   '※前月の作業が確定されていないため、この月の給与・賞与データの入力および保存はできません。先に前月の確定処理を行ってください。';
 
+/** システム利用開始月より前の月次給与タブ向けアラートメッセージ */
+export const PRE_SYSTEM_START_HISTORY_COMPENSATION_MESSAGE =
+  '※この月はシステム利用開始前のため、過去履歴データとして表示されています。給与データの編集および確定処理はできません。';
+
 /** 保存ガード発火時のトースト等に表示する短文 */
 export const PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_GUARD_MESSAGE =
   '前月の作業を確定させてから保存してください';
@@ -125,6 +129,21 @@ export function isSystemStartMonth(
     normalizedStart != null &&
     normalizedTarget === normalizedStart
   );
+}
+
+/** 対象月がシステム利用開始月より前か（正規化済み YYYY-MM で比較） */
+export function isBeforeSystemStartMonth(
+  targetMonth: string,
+  systemStartDate?: string | null
+): boolean {
+  const normalizedTarget = normalizeYearMonthKey(targetMonth);
+  const normalizedStart = normalizeYearMonthKey(systemStartDate);
+
+  if (!normalizedTarget || !normalizedStart) {
+    return false;
+  }
+
+  return compareYearMonths(normalizedTarget, normalizedStart) < 0;
 }
 
 /** 前月確定チェックを省略してよい月か（利用開始月・初回確定月など） */

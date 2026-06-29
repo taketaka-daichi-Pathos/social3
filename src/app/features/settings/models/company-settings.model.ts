@@ -1,15 +1,23 @@
 import { InsuranceRateHistoryEntry } from './insurance-rate-history.model';
 
-export interface CompanyAllowance {  name: string;
+export interface CompanyAllowance {
+  name: string;
   amount: number | null;
 }
 
-export const DEFAULT_COMPANY_ALLOWANCES: readonly CompanyAllowance[] = [
-  { name: '家族手当', amount: null },
-  { name: '家賃手当', amount: null },
-  { name: '固定残業代', amount: null },
-  { name: '交通費（定期代）', amount: null },
-];
+export const FIXED_COMPANY_ALLOWANCES = [
+  { key: 'familyAllowance', name: '家族手当' },
+  { key: 'rentAllowance', name: '家賃手当' },
+  { key: 'fixedOvertimeAllowance', name: '固定残業代' },
+  { key: 'commutingAllowance', name: '交通費（定期代）' },
+  { key: 'otherAllowance', name: 'その他の手当' },
+] as const;
+
+export type CompanyAllowanceFormField = (typeof FIXED_COMPANY_ALLOWANCES)[number]['key'];
+
+export const DEFAULT_COMPANY_ALLOWANCES: readonly CompanyAllowance[] = FIXED_COMPANY_ALLOWANCES.map(
+  ({ name }) => ({ name, amount: null })
+);
 
 export interface CompanySettings {
   companyId: string;

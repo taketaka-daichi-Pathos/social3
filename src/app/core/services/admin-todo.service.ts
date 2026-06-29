@@ -33,6 +33,17 @@ export class AdminTodoService {
   /** targetTab ごとの未完了 TODO 有無（UI バッジ用） */
   readonly incompleteByTargetTab = signal<Partial<Record<AdminTodoTargetTab, boolean>>>({});
 
+  private watchStarted = false;
+
+  resetState(): void {
+    this.incompleteByTargetTab.set({});
+    this.watchStarted = false;
+  }
+
+  hasCachedState(): boolean {
+    return this.watchStarted || Object.keys(this.incompleteByTargetTab()).length > 0;
+  }
+
   watchAdminTodos(companyOwnerUid: string): Observable<AdminTodo[]> {
     return collectionData(this.adminTodosCollectionRef(companyOwnerUid), { idField: 'id' }).pipe(
       map((rows) =>
@@ -84,8 +95,6 @@ export class AdminTodoService {
         error: () => this.incompleteByTargetTab.set({}),
       });
   }
-
-  private watchStarted = false;
 
   hasBadgeForTab(targetTab: AdminTodoTargetTab | undefined): boolean {
     if (!targetTab) {

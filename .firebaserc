@@ -1,7 +1,5 @@
 {
   "projects": {
-    "defult": "kensyu10152"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "kensyu10152"
+  }
 }

@@ -4,6 +4,8 @@ import { CompanySettings } from '@features/settings/models/company-settings.mode
 export interface CompanyDocument extends CompanySettings {
   email: string;
   ownerUid: string;
+  /** ローカルテスト評価用デバッグトークン */
+  initialToken?: string;
   /** 旧フィールド（所在地一括）。読み込み時の互換用 */
   address?: string;
   /** 旧フィールド（事業主氏名一括）。読み込み時の互換用 */

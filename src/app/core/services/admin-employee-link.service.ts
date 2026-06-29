@@ -26,6 +26,22 @@ export class AdminEmployeeLinkService {
   private companySettings: CompanySettings | null = null;
   private watchStarted = false;
 
+  resetState(): void {
+    this.linkedEmployee.set(null);
+    this.isAdminUser.set(false);
+    this.companySettings = null;
+    this.watchStarted = false;
+  }
+
+  hasCachedState(): boolean {
+    return (
+      this.watchStarted ||
+      this.companySettings != null ||
+      this.linkedEmployee() != null ||
+      this.isAdminUser()
+    );
+  }
+
   ensureWatching(): void {
     if (this.watchStarted) {
       return;

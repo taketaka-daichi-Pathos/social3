@@ -1,11 +1,8 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Auth } from '@angular/fire/auth';
 import {
-  FormArray,
-  FormControl,
-  FormGroup,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   Validators,
@@ -15,20 +12,21 @@ import { AdminEmployeeLinkService } from '@core/services/admin-employee-link.ser
 import { EmployeeService } from '@core/services/employee.service';
 import { MonthlyLockService } from '@core/services/monthly-lock.service';
 import { PostalCodeInputComponent } from '@shared/components/postal-code-input/postal-code-input.component';
-import { getCurrentYearMonthKey } from '@features/payroll/utils/compensation.utils';
+import { getCurrentYearMonthKey, getNextYearMonthKey } from '@features/payroll/utils/compensation.utils';
 import {
   normalizeYearMonthKey,
   resolveSystemOperationMonthFromLatestLock,
 } from '@features/payroll/utils/system-operation-month.utils';
 import {
   CompanyAllowance,
+  CompanyAllowanceFormField,
   CompanySettings,
   CompanySettingsFormField,
   CompanySettingsTab,
-  DEFAULT_COMPANY_ALLOWANCES,
 } from '../../models/company-settings.model';
 import { InsuranceRateHistoryEntry } from '../../models/insurance-rate-history.model';
 import { PREFECTURE_INSURANCE_RATES } from '../../models/prefecture-insurance-rates.constants';
+import { resolveSocialInsurancePrefectureCode } from '../../models/social-insurance-prefecture-codes.constants';
 import { resolveCompanyInsuranceRatesForPrefecture } from '../../utils/company-insurance-rate.utils';
 import { toRateTargetDateFromYearMonth } from '../../utils/insurance-rate-date.utils';
 import {
@@ -36,7 +34,11 @@ import {
   shouldAppendInsuranceRateHistory,
   sortInsuranceRateHistoryDesc,
 } from '../../utils/insurance-rate-history.utils';
-import { normalizeCompanyAllowancesForSave } from '../../utils/allowance-sync.utils';
+import {
+  COMPANY_ALLOWANCE_FORM_FIELDS,
+  companyAllowancesFromFormValues,
+  formValuesFromCompanyAllowances,
+} from '../../utils/allowance-sync.utils';
 import { employeeFullName } from '@features/payroll/utils/compensation.utils';
 import { Employee } from '@features/employees/models/employee.model';
 import { duplicateApplicableMonthValidator, lockedApplicableMonthValidator, statutoryMasterPeriodValidator } from '../../validators/insurance-rate-history.validators';
@@ -55,12 +57,9 @@ import {
   PREFECTURE_CODE_PATTERN,
 } from '../../validators/company-settings.validators';
 
-type AllowanceFormGroup = FormGroup<{
-  name: FormControl<string>;
-  amount: FormControl<number | null>;
-}>;
-
 const APPLICABLE_MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+const ALLOWANCE_AMOUNT_VALIDATORS = [Validators.min(0)];
 
 @Component({
   selector: 'app-company-settings',
@@ -81,6 +80,15 @@ export class CompanySettingsComponent implements OnInit {
   readonly prefectures = PREFECTURE_INSURANCE_RATES;
   readonly activeTab = signal<CompanySettingsTab>('basic');
   readonly insuranceRateHistory = signal<InsuranceRateHistoryEntry[]>([]);
+  readonly editingInsuranceRateEntryId = signal<string | null>(null);
+  readonly editingInsuranceRateEntry = computed(() => {
+    const editingId = this.editingInsuranceRateEntryId();
+    if (!editingId) {
+      return null;
+    }
+
+    return this.insuranceRateHistory().find((entry) => entry.id === editingId) ?? null;
+  });
   readonly latestLockedMonth = signal<string | null>(null);
   readonly statutoryMasterPeriodHint = STATUTORY_MASTER_MANUAL_ENTRY_RESTRICTION_HINT;
   readonly adminEmail = signal('');
@@ -136,7 +144,11 @@ export class CompanySettingsComponent implements OnInit {
       Validators.required,
       Validators.min(0),
     ]),
-    allowances: this.fb.array<AllowanceFormGroup>([]),
+    familyAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
+    rentAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
+    fixedOvertimeAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
+    commutingAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
+    otherAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
   });
 
   readonly loading = signal(true);
@@ -149,12 +161,13 @@ export class CompanySettingsComponent implements OnInit {
   private successMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
-    this.populateAllowances([...DEFAULT_COMPANY_ALLOWANCES]);
     this.setupApplicableMonthValidator();
 
     this.form.controls.prefecture.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((prefectureName) => {
+        this.applySocialInsurancePrefectureCode(prefectureName);
+
         if (this.activeTab() !== 'rates') {
           return;
         }
@@ -171,6 +184,7 @@ export class CompanySettingsComponent implements OnInit {
         }
 
         this.userEditedApplicableMonth.set(true);
+        this.syncEditingEntryIdWithApplicableMonth();
         this.refreshApplicableMonthValidation();
 
         console.log('[CompanySettings] applicableMonth valueChanges', applicableMonth);
@@ -197,12 +211,32 @@ export class CompanySettingsComponent implements OnInit {
     return `${employee.employeeNumber} ${name}${emailSuffix}`;
   }
 
-  get allowances(): FormArray<AllowanceFormGroup> {
-    return this.form.controls.allowances;
-  }
-
   formatApplicableMonth(applicableMonth: string): string {
     return formatApplicableMonthLabel(applicableMonth);
+  }
+
+  isEditingInsuranceRateHistory(): boolean {
+    return this.editingInsuranceRateEntryId() != null;
+  }
+
+  isEditingInsuranceRateHistoryEntry(entryId: string): boolean {
+    return this.editingInsuranceRateEntryId() === entryId;
+  }
+
+  submitButtonLabel(): string {
+    if (this.activeTab() === 'rates') {
+      return this.isEditingInsuranceRateHistory() ? '更新' : '保存';
+    }
+
+    return '設定を保存';
+  }
+
+  selectInsuranceRateHistoryEntry(entry: InsuranceRateHistoryEntry): void {
+    this.enterInsuranceRateEditMode(entry);
+  }
+
+  cancelInsuranceRateEditMode(): void {
+    this.resetInsuranceRateFormForNewEntry();
   }
 
   setTab(tab: CompanySettingsTab): void {
@@ -258,6 +292,7 @@ export class CompanySettingsComponent implements OnInit {
   onApplicablePrefectureChange(event: Event): void {
     const prefectureName = (event.target as HTMLSelectElement).value;
     console.log('[CompanySettings] 適用都道府県変更', prefectureName);
+    this.applySocialInsurancePrefectureCode(prefectureName);
     this.applyMasterRatesForPrefecture(prefectureName);
   }
 
@@ -271,16 +306,9 @@ export class CompanySettingsComponent implements OnInit {
     }
 
     this.form.controls.applicableMonth.setValue(applicableMonth, { emitEvent: false });
+    this.syncEditingEntryIdWithApplicableMonth();
     this.refreshApplicableMonthValidation();
     this.applyMasterRatesForPrefecture(this.form.controls.prefecture.value, applicableMonth);
-  }
-
-  addAllowance(): void {
-    this.allowances.push(this.createAllowanceGroup());
-  }
-
-  removeAllowance(index: number): void {
-    this.allowances.removeAt(index);
   }
 
   async onSubmit(): Promise<void> {
@@ -307,19 +335,23 @@ export class CompanySettingsComponent implements OnInit {
     const data = this.buildCompanySettings();
     console.log('保存する会社データ:', data);
     const historyEntry = this.buildInsuranceRateHistoryEntry();
+    const editingEntryId = this.editingInsuranceRateEntryId();
     const shouldSaveHistory =
       this.activeTab() === 'rates' &&
       historyEntry != null &&
-      shouldAppendInsuranceRateHistory(this.insuranceRateHistory(), historyEntry);
+      (editingEntryId != null ||
+        shouldAppendInsuranceRateHistory(this.insuranceRateHistory(), historyEntry));
     const shouldSyncAllowances = this.activeTab() === 'allowances';
+    const wasEditingInsuranceRate = editingEntryId != null;
 
     this.saving.set(true);
     try {
       const updatedHistory = await this.companyService.updateCompany(data, {
         insuranceRateHistoryEntry: shouldSaveHistory ? historyEntry : null,
+        insuranceRateHistoryEntryId: shouldSaveHistory ? editingEntryId : null,
       });
       this.insuranceRateHistory.set(updatedHistory);
-      this.refreshApplicableMonthValidation();
+      this.submitted = false;
 
       if (shouldSyncAllowances) {
         await this.employeeService.syncAllowancesFromCompany(data.allowances);
@@ -327,7 +359,7 @@ export class CompanySettingsComponent implements OnInit {
           '手当設定を保存し、未確定の従業員データに反映しました（※確定済みの給与には影響しません）'
         );
       } else if (this.activeTab() === 'rates') {
-        this.showSaveSuccessMessage('社会保険料率と適用都道府県を保存しました');
+        this.completeRatesTabSave(historyEntry, updatedHistory, wasEditingInsuranceRate);
       } else if (this.activeTab() === 'basic') {
         await this.syncLinkedEmployeeEmailIfNeeded(data);
         await this.adminEmployeeLinkService.reloadLink();
@@ -348,19 +380,16 @@ export class CompanySettingsComponent implements OnInit {
     const tab = this.activeTab();
 
     if (tab === 'allowances') {
-      if (this.allowances.length === 0) {
-        return false;
-      }
-
       let valid = true;
-      for (const group of this.allowances.controls) {
-        group.controls.name.updateValueAndValidity({ emitEvent: false });
-        group.controls.amount.updateValueAndValidity({ emitEvent: false });
 
-        if (group.invalid) {
+      for (const field of COMPANY_ALLOWANCE_FORM_FIELDS) {
+        const control = this.form.controls[field];
+        control.updateValueAndValidity({ emitEvent: false });
+
+        if (control.invalid) {
           valid = false;
           if (markTouched) {
-            group.markAllAsTouched();
+            control.markAsTouched();
           }
         }
       }
@@ -438,17 +467,13 @@ export class CompanySettingsComponent implements OnInit {
     return control.invalid && (control.touched || this.submitted);
   }
 
-  showAllowanceError(index: number, field: 'name' | 'amount'): boolean {
-    const control = this.allowances.at(index).controls[field];
+  showAllowanceFieldError(field: CompanyAllowanceFormField): boolean {
+    const control = this.form.controls[field];
     return control.invalid && (control.touched || this.submitted);
   }
 
-  allowanceErrorMessage(index: number, field: 'name' | 'amount'): string {
-    const control = this.allowances.at(index).controls[field];
-
-    if (control.errors?.['required']) {
-      return '必須項目です';
-    }
+  allowanceFieldErrorMessage(field: CompanyAllowanceFormField): string {
+    const control = this.form.controls[field];
 
     if (control.errors?.['min']) {
       return '0以上の数値を入力してください';
@@ -503,7 +528,7 @@ export class CompanySettingsComponent implements OnInit {
     this.form.controls.applicableMonth.addValidators(
       duplicateApplicableMonthValidator(() => ({
         history: this.insuranceRateHistory(),
-        editingEntryId: null,
+        editingEntryId: this.editingInsuranceRateEntryId(),
       }))
     );
     this.form.controls.applicableMonth.addValidators(
@@ -514,11 +539,123 @@ export class CompanySettingsComponent implements OnInit {
     this.form.controls.applicableMonth.addValidators(
       statutoryMasterPeriodValidator(() => ({
         history: this.insuranceRateHistory(),
-        editingEntryId: null,
+        editingEntryId: this.editingInsuranceRateEntryId(),
         systemStartDate: this.form.controls.systemStartDate.value,
         userEditedApplicableMonth: this.userEditedApplicableMonth(),
       }))
     );
+  }
+
+  private completeRatesTabSave(
+    historyEntry: ReturnType<CompanySettingsComponent['buildInsuranceRateHistoryEntry']>,
+    updatedHistory: InsuranceRateHistoryEntry[],
+    wasEditing: boolean
+  ): void {
+    if (historyEntry) {
+      const savedMonth =
+        normalizeYearMonthKey(historyEntry.applicableMonth) ?? historyEntry.applicableMonth.trim();
+      const savedEntry = updatedHistory.find(
+        (entry) =>
+          (normalizeYearMonthKey(entry.applicableMonth) ?? entry.applicableMonth.trim()) ===
+          savedMonth
+      );
+
+      if (savedEntry) {
+        this.enterInsuranceRateEditMode(savedEntry, { markPristine: true });
+      } else {
+        this.resetInsuranceRateFormForNewEntry();
+      }
+    }
+
+    this.showSaveSuccessMessage(
+      wasEditing
+        ? '社会保険料率の履歴を更新しました'
+        : '社会保険料率と適用都道府県を保存しました'
+    );
+  }
+
+  private enterInsuranceRateEditMode(
+    entry: InsuranceRateHistoryEntry,
+    options: { markPristine?: boolean } = {}
+  ): void {
+    this.editingInsuranceRateEntryId.set(entry.id);
+    this.userEditedApplicableMonth.set(true);
+    this.form.patchValue(
+      {
+        applicableMonth: entry.applicableMonth,
+        healthInsuranceRate: entry.healthInsuranceRate,
+        longTermCareInsuranceRate: entry.careInsuranceRate,
+      },
+      { emitEvent: false }
+    );
+
+    const rateFields = [
+      'applicableMonth',
+      'healthInsuranceRate',
+      'longTermCareInsuranceRate',
+    ] as const;
+
+    for (const field of rateFields) {
+      const control = this.form.controls[field];
+      if (options.markPristine) {
+        control.markAsPristine();
+        control.markAsUntouched();
+      } else {
+        control.markAsDirty();
+      }
+    }
+
+    this.refreshApplicableMonthValidation();
+  }
+
+  private resetInsuranceRateFormForNewEntry(): void {
+    this.editingInsuranceRateEntryId.set(null);
+    this.userEditedApplicableMonth.set(false);
+
+    const nextMonth = this.resolveNextApplicableMonthForNewEntry();
+    this.form.patchValue({ applicableMonth: nextMonth }, { emitEvent: false });
+    this.applyMasterRatesForPrefecture(this.form.controls.prefecture.value, nextMonth);
+
+    const control = this.form.controls.applicableMonth;
+    control.markAsPristine();
+    control.markAsUntouched();
+    this.refreshApplicableMonthValidation();
+  }
+
+  private resolveNextApplicableMonthForNewEntry(): string {
+    const history = this.insuranceRateHistory();
+    if (history.length === 0) {
+      return (
+        normalizeYearMonthKey(this.form.controls.systemStartDate.value) ?? getCurrentYearMonthKey()
+      );
+    }
+
+    const latestMonth =
+      normalizeYearMonthKey(history[0].applicableMonth) ?? history[0].applicableMonth.trim();
+    return getNextYearMonthKey(latestMonth);
+  }
+
+  private syncEditingEntryIdWithApplicableMonth(): void {
+    const editingId = this.editingInsuranceRateEntryId();
+    if (!editingId) {
+      return;
+    }
+
+    const editingEntry = this.insuranceRateHistory().find((entry) => entry.id === editingId);
+    if (!editingEntry) {
+      this.editingInsuranceRateEntryId.set(null);
+      return;
+    }
+
+    const currentMonth =
+      normalizeYearMonthKey(this.form.controls.applicableMonth.value) ??
+      this.form.controls.applicableMonth.value.trim();
+    const entryMonth =
+      normalizeYearMonthKey(editingEntry.applicableMonth) ?? editingEntry.applicableMonth.trim();
+
+    if (currentMonth !== entryMonth) {
+      this.editingInsuranceRateEntryId.set(null);
+    }
   }
 
   private refreshApplicableMonthValidation(): void {
@@ -556,6 +693,7 @@ export class CompanySettingsComponent implements OnInit {
   }
 
   private patchCompanySettings(company: CompanySettings, defaultApplicableMonth: string): void {
+    this.editingInsuranceRateEntryId.set(null);
     this.userEditedApplicableMonth.set(false);
     this.form.patchValue(
       {
@@ -608,6 +746,11 @@ export class CompanySettingsComponent implements OnInit {
     );
   }
 
+  private applySocialInsurancePrefectureCode(prefectureName: string): void {
+    const code = resolveSocialInsurancePrefectureCode(prefectureName);
+    this.form.controls.prefectureCode.setValue(code, { emitEvent: false });
+  }
+
   private applyMasterRatesForPrefecture(
     prefectureName: string,
     applicableMonth = this.form.controls.applicableMonth.value
@@ -645,7 +788,7 @@ export class CompanySettingsComponent implements OnInit {
       tab === 'rates'
         ? ['prefecture', 'applicableMonth', 'healthInsuranceRate', 'longTermCareInsuranceRate']
         : tab === 'allowances'
-          ? []
+          ? [...COMPANY_ALLOWANCE_FORM_FIELDS]
           : [
               'companyName',
               'employerLastName',
@@ -702,7 +845,13 @@ export class CompanySettingsComponent implements OnInit {
       systemStartDate: raw.systemStartDate,
       healthInsuranceRate: raw.healthInsuranceRate,
       longTermCareInsuranceRate: raw.longTermCareInsuranceRate,
-      allowances: normalizeCompanyAllowancesForSave(raw.allowances),
+      allowances: companyAllowancesFromFormValues({
+        familyAllowance: raw.familyAllowance,
+        rentAllowance: raw.rentAllowance,
+        fixedOvertimeAllowance: raw.fixedOvertimeAllowance,
+        commutingAllowance: raw.commutingAllowance,
+        otherAllowance: raw.otherAllowance,
+      }),
       insuranceRateHistory: this.insuranceRateHistory(),
     };
   }
@@ -769,20 +918,7 @@ export class CompanySettingsComponent implements OnInit {
   }
 
   private populateAllowances(allowances: CompanyAllowance[]): void {
-    this.allowances.clear();
-
-    const items = allowances.length > 0 ? allowances : [...DEFAULT_COMPANY_ALLOWANCES];
-
-    for (const allowance of items) {
-      this.allowances.push(this.createAllowanceGroup(allowance.name, allowance.amount));
-    }
-  }
-
-  private createAllowanceGroup(name = '', amount: number | null = null): AllowanceFormGroup {
-    return this.fb.group({
-      name: this.fb.control(name, Validators.required),
-      amount: this.fb.control<number | null>(amount, Validators.min(0)),
-    });
+    this.form.patchValue(formValuesFromCompanyAllowances(allowances), { emitEvent: false });
   }
 
   private patternErrorMessage(field: CompanySettingsFormField): string {

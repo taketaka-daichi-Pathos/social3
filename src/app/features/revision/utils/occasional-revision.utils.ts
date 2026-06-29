@@ -1,11 +1,47 @@
-import { PayrollMonthSnapshot } from '@features/revision/models/revision.model';
+import { PayrollMonthSnapshot, RevisionStatus } from '@features/revision/models/revision.model';
+import { OccasionalExclusionReason } from '@features/revision/models/revision.model';
+import { resolveRevisionMonthPaymentAmount } from '@features/revision/utils/annual-determination-adjustment.utils';
+import { OccasionalRevisionMonthDetail } from '@features/revision/services/zuiji-calculator.service';
 import {
   getNextYearMonthKey,
+  getPreviousYearMonthKey,
   parseYearMonthKey,
+  toYearMonthKeyFromParts,
 } from '@features/payroll/utils/compensation.utils';
 
 /** 随時改定の原則となる等級差（2等級以上） */
 export const OCCASIONAL_MIN_GRADE_DIFF = 2;
+
+export interface OccasionalRevisionDashboardSearchRange {
+  /** 変動検知の走査開始（当年1月の前月） */
+  searchFrom: string;
+  /** 変動検知の走査終了（当年12月） */
+  searchTo: string;
+  /** 給与確定データの読込開始（searchFrom と同じ） */
+  payrollLoadFrom: string;
+  /** 給与確定データの読込終了（12月変動の3ヶ月継続確認用に+2ヶ月） */
+  payrollLoadTo: string;
+}
+
+/**
+ * 随時改定ダッシュボード用の検索・給与読込範囲。
+ * 1月起算の変動を検知するため、当年1月の前月から走査する。
+ */
+export function getOccasionalRevisionDashboardSearchRange(
+  targetYear: number
+): OccasionalRevisionDashboardSearchRange {
+  const firstChangeMonth = toYearMonthKeyFromParts(targetYear, 1);
+  const lastChangeMonth = toYearMonthKeyFromParts(targetYear, 12);
+  const searchFrom = getPreviousYearMonthKey(firstChangeMonth);
+  const searchTo = lastChangeMonth;
+
+  return {
+    searchFrom,
+    searchTo,
+    payrollLoadFrom: searchFrom,
+    payrollLoadTo: getNextYearMonthKey(getNextYearMonthKey(lastChangeMonth)),
+  };
+}
 
 export const OCCASIONAL_HEALTH_MIN_GRADE = 1;
 export const OCCASIONAL_HEALTH_MAX_GRADE = 50;
@@ -250,6 +286,173 @@ export function hasOccasionalFixedWageGradeDirectionMismatch(
   );
 
   return evaluation.outcome === 'excluded' && evaluation.reason === '方向不一致';
+}
+
+export const OCCASIONAL_TARGET_MONTH_COUNT = 3;
+
+export function countLockedOccasionalTargetMonths(
+  monthSnapshots: ReadonlyArray<PayrollMonthSnapshot | undefined>
+): number {
+  return monthSnapshots.filter((snapshot) => snapshot?.locked).length;
+}
+
+export function buildOccasionalPayrollIncompleteReason(lockedCount: number): string {
+  return `3ヶ月分の給与データが未確定です（現在${lockedCount}ヶ月）`;
+}
+
+export function buildOccasionalMonthDetailsForDisplay(
+  targetMonths: string[],
+  monthSnapshots: ReadonlyArray<PayrollMonthSnapshot | undefined>,
+  buildFullDetails: (
+    months: string[],
+    snapshots: PayrollMonthSnapshot[]
+  ) => OccasionalRevisionMonthDetail[]
+): OccasionalRevisionMonthDetail[] {
+  if (monthSnapshots.every((snapshot) => snapshot?.locked)) {
+    return buildFullDetails(targetMonths, monthSnapshots as PayrollMonthSnapshot[]);
+  }
+
+  return targetMonths.map((yearMonth, index) => {
+    const snapshot = monthSnapshots[index];
+    if (!snapshot?.locked) {
+      return {
+        yearMonth,
+        baseDays: snapshot?.baseDays ?? 0,
+        totalPayment: snapshot ? resolveRevisionMonthPaymentAmount(snapshot) : 0,
+        included: false,
+        note: '給与未保存',
+      };
+    }
+
+    return buildFullDetails([yearMonth], [snapshot])[0];
+  });
+}
+
+export interface OccasionalRevisionEligibilityResolution {
+  isEligible: boolean;
+  ineligibleReason: string | null;
+  status: RevisionStatus;
+  exclusionReasons: OccasionalExclusionReason[];
+  exclusionLabels: string[];
+}
+
+export function resolveOccasionalRevisionEligibility(params: {
+  lockedCount: number;
+  fixedWageContinuityOk: boolean;
+  monthDetails: ReadonlyArray<{ included: boolean }>;
+  candidateEvaluation: OccasionalRevisionCandidateEvaluation | null;
+  averagePayment: number | null;
+  exclusionLabels: Record<OccasionalExclusionReason, string>;
+}): {
+  isEligible: boolean;
+  ineligibleReason: string | null;
+  status: RevisionStatus;
+  exclusionReasons: OccasionalExclusionReason[];
+  exclusionLabels: string[];
+} {
+  const exclusionReasons: OccasionalExclusionReason[] = [];
+  const exclusionLabels: string[] = [];
+
+  if (params.lockedCount < OCCASIONAL_TARGET_MONTH_COUNT) {
+    return {
+      isEligible: false,
+      ineligibleReason: buildOccasionalPayrollIncompleteReason(params.lockedCount),
+      status: 'pending',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  if (!params.fixedWageContinuityOk) {
+    return {
+      isEligible: false,
+      ineligibleReason: '起算月以降3ヶ月間の固定賃金が継続していません',
+      status: 'pending',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  if (!params.monthDetails.every((row) => row.included)) {
+    exclusionReasons.push('insufficient_base_days');
+    exclusionLabels.push(params.exclusionLabels.insufficient_base_days);
+    return {
+      isEligible: false,
+      ineligibleReason: params.exclusionLabels.insufficient_base_days,
+      status: 'excluded',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  if (params.candidateEvaluation == null) {
+    return {
+      isEligible: false,
+      ineligibleReason: '平均報酬月額を算出できません',
+      status: 'pending',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  if (params.candidateEvaluation.outcome === 'eligible') {
+    if (params.averagePayment != null && params.averagePayment < 0) {
+      exclusionReasons.push('negative_average_payment');
+      exclusionLabels.push(params.exclusionLabels.negative_average_payment);
+      return {
+        isEligible: false,
+        ineligibleReason: params.exclusionLabels.negative_average_payment,
+        status: 'excluded',
+        exclusionReasons,
+        exclusionLabels,
+      };
+    }
+
+    return {
+      isEligible: true,
+      ineligibleReason: null,
+      status: 'eligible',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  if (params.candidateEvaluation.exclusionReason === 'fixed_wage_grade_direction_mismatch') {
+    exclusionReasons.push('fixed_wage_grade_direction_mismatch');
+    exclusionLabels.push(params.exclusionLabels.fixed_wage_grade_direction_mismatch);
+    return {
+      isEligible: false,
+      ineligibleReason: '固定賃金と平均報酬の変動方向が不一致です',
+      status: 'excluded',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  if (
+    params.candidateEvaluation.exclusionReason === 'grade_difference_under_2' ||
+    params.candidateEvaluation.exclusionReason === 'no_grade_change'
+  ) {
+    if (params.candidateEvaluation.exclusionReason) {
+      exclusionReasons.push(params.candidateEvaluation.exclusionReason);
+      exclusionLabels.push(params.exclusionLabels[params.candidateEvaluation.exclusionReason]);
+    }
+    return {
+      isEligible: false,
+      ineligibleReason: '2等級以上の変動がありません',
+      status: 'excluded',
+      exclusionReasons,
+      exclusionLabels,
+    };
+  }
+
+  return {
+    isEligible: false,
+    ineligibleReason: params.candidateEvaluation.reason,
+    status: 'excluded',
+    exclusionReasons,
+    exclusionLabels,
+  };
 }
 
 /** 随時改定の変動月（起算月）から新等級の適用月（変動月の3ヶ月後）を算出する */

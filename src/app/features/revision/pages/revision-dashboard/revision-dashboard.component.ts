@@ -39,7 +39,11 @@ import {
   resolveOccasionalPriorityOverAnnual,
 } from '@features/revision/utils/revision-history.utils';
 import { formatAnnualDeterminationBonusPeriodLabel } from '@features/revision/utils/annual-determination-bonus.utils';
-import { formatOccasionalRevisionPeriodLabel } from '@features/revision/utils/occasional-revision.utils';
+import {
+  formatOccasionalRevisionPeriodLabel,
+  getOccasionalRevisionDashboardSearchRange,
+} from '@features/revision/utils/occasional-revision.utils';
+import { expandPayrollLoadMonthsWithRegistrationHistory } from '@features/payroll/utils/payroll-engine-sync.utils';
 import {
   hasMissingPayrollInRevisionMonthDetails,
   REVISION_MISSING_PAYROLL_APPLY_ERROR,
@@ -320,7 +324,7 @@ export class RevisionDashboardComponent implements OnInit {
   }
 
   private isOccasionalActionRequired(row: OccasionalRevisionResult): boolean {
-    return row.status === 'eligible' && !this.isOccasionalApplied(row);
+    return row.isEligible && !this.isOccasionalApplied(row);
   }
 
   private matchesOccasionalStatusFilter(
@@ -333,7 +337,7 @@ export class RevisionDashboardComponent implements OnInit {
       case 'applied':
         return this.isOccasionalApplied(row);
       case 'excluded':
-        return !this.isOccasionalApplied(row) && row.status === 'excluded';
+        return !this.isOccasionalApplied(row) && !row.isEligible && row.status === 'excluded';
       case 'all':
         return true;
       default:
@@ -405,6 +409,10 @@ export class RevisionDashboardComponent implements OnInit {
       return this.occasionalAppliedHasGradeChange(row) ? '改定対象' : '等級変更なし';
     }
 
+    if (!row.isEligible && row.status === 'pending') {
+      return '昇給検知・確認中';
+    }
+
     return this.statusLabel(row.status);
   }
 
@@ -413,6 +421,10 @@ export class RevisionDashboardComponent implements OnInit {
       return this.occasionalAppliedHasGradeChange(row)
         ? 'revision__badge revision__badge--eligible'
         : 'revision__badge revision__badge--applied';
+    }
+
+    if (!row.isEligible && row.status === 'pending') {
+      return 'revision__badge revision__badge--watching';
     }
 
     return this.statusClass(row.status);
@@ -506,7 +518,7 @@ export class RevisionDashboardComponent implements OnInit {
   }
 
   occasionalPanelNote(): string {
-    return '固定的賃金に変動があり、その後継続する3ヶ月間の平均報酬月額が、現在の標準報酬月額と比べて2等級以上の差が生じた従業員を抽出します。';
+    return '固定的賃金の変動があった従業員をすべて表示します。3ヶ月分の給与確定と等級差の条件を満たした場合のみ「適用」できます。';
   }
 
   annualApplyKey(row: AnnualDeterminationResult): string {
@@ -535,12 +547,45 @@ export class RevisionDashboardComponent implements OnInit {
     return row.exclusionLabels;
   }
 
+  occasionalExclusionBadgeClass(row: OccasionalRevisionResult): string {
+    if (this.isOccasionalRowWatching(row)) {
+      return 'revision__badge revision__badge--watching';
+    }
+
+    return 'revision__badge revision__badge--excluded';
+  }
+
+  occasionalApplyButtonTitle(row: OccasionalRevisionResult): string | null {
+    if (this.isOccasionalApplyDisabledByMissingPayroll(row)) {
+      return this.revisionMissingPayrollApplyTooltip;
+    }
+
+    if (!row.isEligible && row.ineligibleReason) {
+      return row.ineligibleReason;
+    }
+
+    return null;
+  }
+
   occasionalExclusionLabels(row: OccasionalRevisionResult): string[] {
     if (this.isOccasionalApplied(row)) {
       return [];
     }
 
+    if (row.ineligibleReason) {
+      return [row.ineligibleReason, ...row.exclusionLabels.filter((label) => label !== row.ineligibleReason)];
+    }
+
     return row.exclusionLabels;
+  }
+
+  isOccasionalRowWatching(row: OccasionalRevisionResult): boolean {
+    return (
+      row.status === 'pending' &&
+      row.isFixedWageChanged &&
+      !row.isEligible &&
+      !this.isOccasionalApplied(row)
+    );
   }
 
   isAnnualRowMuted(row: AnnualDeterminationResult): boolean {
@@ -548,7 +593,7 @@ export class RevisionDashboardComponent implements OnInit {
   }
 
   isOccasionalRowMuted(row: OccasionalRevisionResult): boolean {
-    return row.status === 'excluded' && !this.isOccasionalApplied(row);
+    return !row.isEligible && row.status === 'excluded' && !this.isOccasionalApplied(row);
   }
 
   canApplyAnnual(row: AnnualDeterminationResult): boolean {
@@ -571,13 +616,14 @@ export class RevisionDashboardComponent implements OnInit {
 
   canApplyOccasional(row: OccasionalRevisionResult): boolean {
     return (
+      row.isEligible &&
       this.canApplyOccasionalIfPayrollComplete(row) &&
       !this.hasMissingPayrollInOccasional(row)
     );
   }
 
   showOccasionalApplyButton(row: OccasionalRevisionResult): boolean {
-    return this.canApplyOccasionalIfPayrollComplete(row);
+    return !this.isOccasionalApplied(row);
   }
 
   isOccasionalApplyDisabledByMissingPayroll(row: OccasionalRevisionResult): boolean {
@@ -627,7 +673,7 @@ export class RevisionDashboardComponent implements OnInit {
   }
 
   private canApplyOccasionalIfPayrollComplete(row: OccasionalRevisionResult): boolean {
-    if (row.status !== 'eligible' || this.isOccasionalApplied(row)) {
+    if (!row.isEligible || this.isOccasionalApplied(row)) {
       return false;
     }
 
@@ -792,10 +838,26 @@ export class RevisionDashboardComponent implements OnInit {
     const employees = this.employeesForCalculation();
     const targetYear = this.targetYear();
     const determinationMonths = getAnnualDeterminationMonths(targetYear);
-    const searchFrom = determinationMonths[0];
-    const searchTo = toYearMonthKeyFromParts(targetYear + 1, 3);
+    const annualLoadFrom = determinationMonths[0];
+    const annualLoadTo = toYearMonthKeyFromParts(targetYear + 1, 3);
+    const occasionalRange = getOccasionalRevisionDashboardSearchRange(targetYear);
+    const loadFrom =
+      occasionalRange.payrollLoadFrom < annualLoadFrom
+        ? occasionalRange.payrollLoadFrom
+        : annualLoadFrom;
+    const loadTo =
+      occasionalRange.payrollLoadTo > annualLoadTo ? occasionalRange.payrollLoadTo : annualLoadTo;
 
-    const monthsToLoad = this.collectMonths(searchFrom, searchTo, determinationMonths);
+    const monthsToLoad = expandPayrollLoadMonthsWithRegistrationHistory(
+      this.collectMonths(loadFrom, loadTo, [
+        ...determinationMonths,
+        occasionalRange.searchFrom,
+        occasionalRange.searchTo,
+      ]),
+      employees,
+      loadFrom,
+      loadTo
+    );
 
     try {
       const payrollRecords = await this.compensationService.getPayrollRecordsForMonths(monthsToLoad);
@@ -808,12 +870,15 @@ export class RevisionDashboardComponent implements OnInit {
         return;
       }
 
-      const payrollSnapshots = this.revisionService.buildPayrollSnapshotMap(payrollRecords);
+      const payrollSnapshots = this.revisionService.buildPayrollSnapshotMap(
+        payrollRecords,
+        employees
+      );
       const allOccasionalResults = this.revisionService.calculateOccasionalRevisions(
         employees,
         payrollSnapshots,
-        toYearMonthKeyFromParts(targetYear, 1),
-        toYearMonthKeyFromParts(targetYear, 12)
+        occasionalRange.searchFrom,
+        occasionalRange.searchTo
       );
       const annualResults = this.revisionService.calculateAnnualDeterminations(
         targetYear,

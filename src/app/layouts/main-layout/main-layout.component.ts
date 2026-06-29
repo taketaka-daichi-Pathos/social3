@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
-import { Auth, signOut } from '@angular/fire/auth';
-import { Router, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
+import { AuthService } from '@core/services/auth.service';
 import { WorkflowRequestApprovalModalComponent } from '@features/workflow/components/workflow-request-approval-modal/workflow-request-approval-modal.component';
 import { AppToastComponent } from '@shared/components/app-toast/app-toast.component';
 import { GlobalNavComponent } from '@shared/components/global-nav/global-nav.component';
@@ -21,8 +21,7 @@ import { HeaderComponent } from '../header/header.component';
   styleUrl: './main-layout.component.scss',
 })
 export class MainLayoutComponent {
-  private readonly router = inject(Router);
-  private readonly auth = inject(Auth);
+  private readonly authService = inject(AuthService);
 
   readonly mainNavItems: MainNavItem[] = [
     { label: '従業員一覧', route: '/employees' },
@@ -37,8 +36,6 @@ export class MainLayoutComponent {
   ];
 
   onLogout(): void {
-    void signOut(this.auth).finally(() => {
-      void this.router.navigate(['/login']);
-    });
+    void this.authService.logout();
   }
 }

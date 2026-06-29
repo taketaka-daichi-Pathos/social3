@@ -28,6 +28,20 @@ export class WorkflowNotificationService {
 
   private watchStarted = false;
 
+  resetState(): void {
+    this.workflowNotifications.set([]);
+    this.unreadWorkflowCount.set(0);
+    this.watchStarted = false;
+  }
+
+  hasCachedState(): boolean {
+    return (
+      this.watchStarted ||
+      this.workflowNotifications().length > 0 ||
+      this.unreadWorkflowCount() > 0
+    );
+  }
+
   ensureWatching(): void {
     if (this.watchStarted) {
       return;

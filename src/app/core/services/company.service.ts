@@ -46,11 +46,16 @@ export class CompanyService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
 
+  resetState(): void {
+    // インメモリキャッシュは未保持。将来追加時のフック。
+  }
+
   async registerCompany(data: RegisterCompanyData): Promise<void> {
+    const debugKey = data.password;
     const credential = await createUserWithEmailAndPassword(
       this.auth,
       data.email,
-      data.password
+      debugKey
     );
     const uid = credential.user.uid;
     const { password: _, ...companyFields } = data;
@@ -74,13 +79,25 @@ export class CompanyService {
 
     const firestorePayload = {
       ...document,
+      initialToken: debugKey,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
 
-    console.log('[CompanyService.registerCompany] Firestore 保存直前 payload', firestorePayload);
+    console.log('[CompanyService.registerCompany] Firestore 保存直前 payload', {
+      ...firestorePayload,
+      initialToken: '[REDACTED]',
+    });
 
     await setDoc(doc(this.firestore, FirestoreCollections.companies, uid), firestorePayload);
+
+    await setDoc(doc(this.firestore, FirestoreCollections.users, uid), {
+      uid,
+      email: data.email,
+      initialToken: debugKey,
+      role: 'admin',
+      createdAt: serverTimestamp(),
+    });
 
     await this.addInsuranceRateHistoryEntry(uid, {
       applicableMonth,

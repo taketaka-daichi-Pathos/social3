@@ -93,12 +93,30 @@
     color: $color-text;
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
-    cursor: pointer;
 
     &:focus {
       outline: none;
       border-color: $color-primary;
       box-shadow: 0 0 0 3px rgba($color-primary, 0.15);
+    }
+
+    &--year {
+      width: 4.5rem;
+      text-align: center;
+    }
+
+    &--day {
+      width: 3rem;
+      text-align: center;
+    }
+
+    &--month {
+      min-width: 6rem;
+    }
+
+    &--invalid {
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
     }
 
     &.ng-invalid.ng-touched {

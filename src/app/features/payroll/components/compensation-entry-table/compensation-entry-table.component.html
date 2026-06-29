@@ -8,17 +8,52 @@
     </div>
 
     <div class="comp-table__header-controls">
-      <div class="comp-table__payment-date">
-        <label class="comp-table__month-label" for="bonusPaymentDate">支払い日</label>
-        <input
-          id="bonusPaymentDate"
-          type="date"
-          class="comp-table__date-input"
-          formControlName="paymentDate"
-          autocomplete="off"
-          (input)="onPaymentDateInput()"
-          (change)="onPaymentDateChange()"
-        />
+      <div class="comp-table__payment-date" formGroupName="paymentDateParts">
+        <span class="comp-table__month-label">支払い日</span>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <label class="sr-only" for="bonusPaymentYear">年（YYYY）</label>
+          <input
+            id="bonusPaymentYear"
+            type="text"
+            class="comp-table__date-input comp-table__date-input--year"
+            formControlName="year"
+            maxlength="4"
+            inputmode="numeric"
+            autocomplete="off"
+            [class.comp-table__date-input--invalid]="isPaymentDateInvalid()"
+            (input)="onPaymentYearInput($event)"
+            (blur)="onPaymentDatePartsBlur()"
+          />
+          <span class="text-sm text-gray-500">年</span>
+
+          <label class="sr-only" for="bonusPaymentMonth">月</label>
+          <select
+            id="bonusPaymentMonth"
+            class="comp-table__filter-select comp-table__date-input--month"
+            formControlName="month"
+            (change)="onPaymentMonthChange()"
+          >
+            <option value="">—</option>
+            @for (month of paymentMonthOptions; track month) {
+              <option [value]="month">{{ month }}月</option>
+            }
+          </select>
+
+          <label class="sr-only" for="bonusPaymentDay">日</label>
+          <input
+            id="bonusPaymentDay"
+            type="text"
+            class="comp-table__date-input comp-table__date-input--day"
+            formControlName="day"
+            maxlength="2"
+            inputmode="numeric"
+            autocomplete="off"
+            [class.comp-table__date-input--invalid]="isPaymentDateInvalid()"
+            (input)="onPaymentDayInput($event)"
+            (blur)="onPaymentDatePartsBlur()"
+          />
+          <span class="text-sm text-gray-500">日</span>
+        </div>
       </div>
     </div>
   </header>
@@ -39,6 +74,12 @@
     </div>
   </div>
 
+  @if (paymentDateError() || isPaymentDateInvalid()) {
+    <p class="comp-table__alert" role="alert">
+      {{ paymentDateError() || paymentDateValidationMessage() }}
+    </p>
+  }
+
   @if (isBonusMonthLocked()) {
     <p class="comp-table__alert comp-table__alert--locked" role="status">🔒 対象月は確定済みのため、賞与の編集・保存はできません。</p>
   }
@@ -55,10 +96,6 @@
 
   @if (saveError()) {
     <p class="comp-table__alert app-global-notification" role="alert">{{ saveError() }}</p>
-  }
-
-  @if (paymentDateError()) {
-    <p class="comp-table__alert" role="alert">{{ paymentDateError() }}</p>
   }
 
   @if (loadError()) {

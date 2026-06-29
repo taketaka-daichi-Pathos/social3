@@ -24,6 +24,15 @@ export class WorkflowApprovalService {
   readonly approving = signal(false);
   readonly errorMessage = signal<string | null>(null);
 
+  resetState(): void {
+    this.close();
+    this.approving.set(false);
+  }
+
+  hasCachedState(): boolean {
+    return this.modalOpen() || this.selectedRequest() != null || this.approving();
+  }
+
   open(request: WorkflowRequest): void {
     if (
       request.status !== 'pending' ||

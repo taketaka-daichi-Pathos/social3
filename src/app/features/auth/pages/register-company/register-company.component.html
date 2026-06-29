@@ -153,12 +153,14 @@
           <input
             id="prefectureCode"
             type="text"
-            class="auth-page__input"
+            class="auth-page__input register-page__readonly-input"
             formControlName="prefectureCode"
-            placeholder="例: 13"
+            placeholder="都道府県を選択すると自動入力"
             inputmode="numeric"
             maxlength="2"
+            readonly
           />
+          <p class="register-page__hint">都道府県選択時に自動入力されます（手入力不可）</p>
           @if (showError('prefectureCode')) {
             <p class="auth-page__error">{{ errorMessage('prefectureCode') }}</p>
           }

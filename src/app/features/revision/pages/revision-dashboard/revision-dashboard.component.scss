@@ -222,6 +222,14 @@
     color: $color-text-muted;
   }
 
+  &__row--watching {
+    background: #fffbeb;
+
+    td:first-child {
+      box-shadow: inset 3px 0 0 #f59e0b;
+    }
+  }
+
   &__cell-name {
     font-weight: 600;
     white-space: nowrap;
@@ -345,6 +353,12 @@
       color: #b45309;
     }
 
+    &--watching {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px dashed #f59e0b;
+    }
+
     &--frequent-bonus {
       background: #fef3c7;
       color: #92400e;
@@ -382,6 +396,22 @@
       opacity: 0.55;
       cursor: not-allowed;
     }
+
+    &--watching:disabled {
+      background: #e5e7eb;
+      color: #6b7280;
+      border: 1px dashed #d1d5db;
+      opacity: 1;
+    }
+  }
+
+  &__watching-note {
+    margin: 0;
+    max-width: 10rem;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    color: #b45309;
+    text-align: right;
   }
 
   &__grade-change {

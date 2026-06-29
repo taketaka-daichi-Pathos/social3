@@ -13,6 +13,7 @@ import { employeeFullName } from '@features/payroll/utils/compensation.utils';
 import { WorkflowRequest } from '@features/workflow/models/workflow-request.model';
 import {
   isChangeApplicationWorkflowRequestType,
+  isCommuteChangeWorkflowRequestType,
   workflowRequestTypeLabel,
 } from '@features/workflow/utils/workflow-navigation.utils';
 import { filter, map, switchMap } from 'rxjs';
@@ -147,7 +148,11 @@ export class ApplicationManagementComponent implements OnInit {
 
     try {
       await this.applicationApproval.approveApplication(selected);
-      this.approveSuccess.set('申請を承認し、従業員マスターを更新しました。');
+      this.approveSuccess.set(
+        isCommuteChangeWorkflowRequestType(selected.type)
+          ? '手動更新済みとしてタスクを完了しました。'
+          : '申請を承認し、従業員マスターを更新しました。'
+      );
       this.applicationInbox.clearSelection();
     } catch (error) {
       this.approveError.set(toFirestoreErrorMessage(error, '申請の承認に失敗しました'));

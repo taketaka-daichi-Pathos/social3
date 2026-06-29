@@ -21,6 +21,10 @@ export class AgeEventContextService {
 
     this.targetYearMonth.set(trimmed);
   }
+
+  resetState(): void {
+    this.targetYearMonth.set(getCurrentYearMonthKey());
+  }
 }
 
 @Injectable({ providedIn: 'root' })
@@ -72,6 +76,20 @@ export class AgeEventNotificationService {
       }
       return next;
     });
+  }
+
+  resetState(): void {
+    this.employees.set([]);
+    this.watching.set(false);
+    this.dismissedBellNotificationIds.set(new Set());
+  }
+
+  hasCachedState(): boolean {
+    return (
+      this.watching() ||
+      this.employees().length > 0 ||
+      this.dismissedBellNotificationIds().size > 0
+    );
   }
 
   ensureWatching(): void {

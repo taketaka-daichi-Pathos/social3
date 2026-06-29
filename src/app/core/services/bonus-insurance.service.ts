@@ -9,6 +9,7 @@ import {
   calculateBonusInsurancePremiums,
   calculateStandardBonusAmount,
   getPastFiscalStandardBonusTotal,
+  getSameMonthExistingStandardBonusTotal,
   parseTargetYearMonth,
   resolvePayrollInsuranceRates,
 } from '@features/payroll/utils/bonus-insurance.utils';
@@ -82,12 +83,19 @@ export class BonusInsuranceService {
       bonusRecordsByMonth,
       rateTargetDate
     );
+    const existingSameMonthStandardBonusTotal = getSameMonthExistingStandardBonusTotal(
+      employee.id,
+      rateReferenceMonth,
+      bonusRecordsByMonth,
+      rateTargetDate
+    );
 
     const result = calculateBonusInsurancePremiums(
       bonusAmount,
       pastFiscalStandardBonusTotal,
       includeLongTermCare,
-      rates
+      rates,
+      existingSameMonthStandardBonusTotal
     );
 
     return {

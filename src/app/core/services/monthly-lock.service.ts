@@ -178,6 +178,10 @@ export class MonthlyLockService {
     this.latestLockedMonthCache = undefined;
   }
 
+  resetState(): void {
+    this.clearLockCache();
+  }
+
   async assertMonthEditable(targetMonth: string): Promise<void> {
     if (await this.isMonthLocked(targetMonth)) {
       throw new Error(MONTHLY_LOCK_ERROR_MESSAGE);

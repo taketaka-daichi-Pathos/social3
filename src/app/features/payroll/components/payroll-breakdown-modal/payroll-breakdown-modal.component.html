@@ -22,13 +22,14 @@
           <label class="breakdown-modal__field-label" for="breakdownBaseSalary">基本給</label>
           <input
             id="breakdownBaseSalary"
-            type="number"
+            type="text"
             class="breakdown-modal__input"
             formControlName="baseSalary"
-            min="0"
-            step="1"
             inputmode="numeric"
             autocomplete="off"
+            (input)="onInputNumber($event, 'baseSalary')"
+            (change)="onInputNumber($event, 'baseSalary')"
+            (blur)="onInputNumber($event, 'baseSalary')"
           />
         </div>
 
@@ -40,17 +41,22 @@
               </label>
               <input
                 [id]="'breakdownAllowance' + i"
-                type="number"
+                type="text"
                 class="breakdown-modal__input"
                 formControlName="amount"
-                min="0"
-                step="1"
                 inputmode="numeric"
                 autocomplete="off"
+                (input)="onInputNumber($event, 'amount', i)"
+                (change)="onInputNumber($event, 'amount', i)"
+                (blur)="onInputNumber($event, 'amount', i)"
               />
             </div>
           }
         </div>
+
+        @if (isMonthFinalized()) {
+          <p class="breakdown-modal__error" role="alert">{{ monthFinalizedMessage }}</p>
+        }
 
         @if (error()) {
           <p class="breakdown-modal__error" role="alert">{{ error() }}</p>
@@ -68,7 +74,7 @@
           <button
             type="submit"
             class="breakdown-modal__btn breakdown-modal__btn--primary"
-            [disabled]="saving()"
+            [disabled]="saving() || isMonthFinalized()"
           >
             {{ saving() ? '保存中...' : '確定' }}
           </button>

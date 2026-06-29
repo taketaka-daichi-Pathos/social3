@@ -169,13 +169,20 @@ export function summarizeFiscalYearCumulativeBonus(
   };
 }
 
-export function resolvePensionCapDisplay(standardBonusAmount: number): PensionCapDisplay {
+export function resolvePensionCapDisplay(
+  standardBonusAmount: number,
+  existingSameMonthStandardBonusTotal = 0
+): PensionCapDisplay {
   const normalized = calculateStandardBonusAmount(standardBonusAmount);
-  const capped = normalized > PENSION_BONUS_STANDARD_CAP;
+  const pensionStandardBonus = resolvePensionBonusStandard(
+    normalized,
+    existingSameMonthStandardBonusTotal
+  );
+  const capped = pensionStandardBonus < normalized;
 
   return {
     standardBonusAmount: normalized,
-    pensionStandardBonus: Math.min(normalized, PENSION_BONUS_STANDARD_CAP),
+    pensionStandardBonus,
     capped,
   };
 }
@@ -338,8 +345,14 @@ export function resolveCompanyInsuranceRates(
   return resolvePayrollInsuranceRates(company, targetDate);
 }
 
-export function resolvePensionBonusStandard(standardBonusAmount: number): number {
-  return Math.min(standardBonusAmount, PENSION_BONUS_STANDARD_CAP);
+export function resolvePensionBonusStandard(
+  standardBonusAmount: number,
+  existingSameMonthStandardBonusTotal = 0
+): number {
+  const normalized = Math.max(0, Math.floor(standardBonusAmount));
+  const existingTotal = Math.max(0, Math.floor(existingSameMonthStandardBonusTotal));
+  const remainingCap = Math.max(0, PENSION_BONUS_STANDARD_CAP - existingTotal);
+  return Math.min(normalized, remainingCap);
 }
 
 export function resolveHealthLongTermCareBonusStandard(
@@ -367,6 +380,67 @@ export function resolveEntryStandardBonusAmount(entry: CompensationEntry): numbe
   return calculateStandardBonusAmount(
     entry.bonusAmount ?? calculateBonusEntryAmount(entry.fixedWages ?? 0, entry.nonFixedWages ?? 0)
   );
+}
+
+export function getSameMonthExistingStandardBonusTotal(
+  employeeId: string,
+  targetMonth: string,
+  bonusRecordsByMonth: Map<string, CompensationRecord>,
+  currentPaymentDate?: string
+): number {
+  const normalizedTargetMonth = targetMonth.trim();
+  if (!normalizedTargetMonth) {
+    return 0;
+  }
+
+  const record = bonusRecordsByMonth.get(normalizedTargetMonth);
+  if (!record) {
+    return 0;
+  }
+
+  const normalizedCurrentPaymentDate = normalizeBonusEntryPaymentDate(currentPaymentDate);
+
+  return record.entries.reduce((total, entry) => {
+    if (entry.employeeId !== employeeId || !entry.locked) {
+      return total;
+    }
+
+    const entryPaymentDate = normalizeBonusEntryPaymentDate(entry.paymentDate);
+    if (normalizedCurrentPaymentDate && entryPaymentDate === normalizedCurrentPaymentDate) {
+      return total;
+    }
+
+    const standardAmount = resolveEntryStandardBonusAmount(entry);
+    const nextTotal = total + standardAmount;
+    return Number.isFinite(nextTotal) ? nextTotal : total;
+  }, 0);
+}
+
+export function getSameMonthExistingStandardBonusTotalFromRecord(
+  employeeId: string,
+  record: CompensationRecord | null | undefined,
+  currentPaymentDate?: string
+): number {
+  if (!record) {
+    return 0;
+  }
+
+  const normalizedCurrentPaymentDate = normalizeBonusEntryPaymentDate(currentPaymentDate);
+
+  return record.entries.reduce((total, entry) => {
+    if (entry.employeeId !== employeeId || !entry.locked) {
+      return total;
+    }
+
+    const entryPaymentDate = normalizeBonusEntryPaymentDate(entry.paymentDate);
+    if (normalizedCurrentPaymentDate && entryPaymentDate === normalizedCurrentPaymentDate) {
+      return total;
+    }
+
+    const standardAmount = resolveEntryStandardBonusAmount(entry);
+    const nextTotal = total + standardAmount;
+    return Number.isFinite(nextTotal) ? nextTotal : total;
+  }, 0);
 }
 
 export function getPastFiscalStandardBonusTotal(
@@ -427,14 +501,18 @@ export function calculateBonusInsurancePremiums(
   bonusAmount: number,
   pastFiscalStandardBonusTotal: number,
   includeLongTermCare: boolean,
-  rates: InsuranceRateSettings
+  rates: InsuranceRateSettings,
+  existingSameMonthStandardBonusTotal = 0
 ): BonusInsuranceCalculationResult {
   const normalizedBonusAmount = normalizeNonNegativeAmount(bonusAmount);
   const pastTotal = Number.isFinite(pastFiscalStandardBonusTotal)
     ? Math.max(0, pastFiscalStandardBonusTotal)
     : 0;
   const standardBonusAmount = calculateStandardBonusAmount(normalizedBonusAmount);
-  const pensionStandardBonus = resolvePensionBonusStandard(standardBonusAmount);
+  const pensionStandardBonus = resolvePensionBonusStandard(
+    standardBonusAmount,
+    existingSameMonthStandardBonusTotal
+  );
   const healthStandardBonus = resolveHealthLongTermCareBonusStandard(
     standardBonusAmount,
     pastTotal

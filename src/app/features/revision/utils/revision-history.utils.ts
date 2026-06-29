@@ -426,6 +426,9 @@ export function overlayOccasionalResultWithRevisionHistory(
   return {
     ...row,
     status: 'eligible',
+    isFixedWageChanged: true,
+    isEligible: true,
+    ineligibleReason: null,
     exclusionReasons: [],
     exclusionLabels: [],
     currentHealthStandard: entry.beforeHealthAmount,

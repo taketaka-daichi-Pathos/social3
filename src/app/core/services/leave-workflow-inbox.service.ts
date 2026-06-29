@@ -16,6 +16,15 @@ export class LeaveWorkflowInboxService {
   readonly completing = signal(false);
   readonly errorMessage = signal<string | null>(null);
 
+  resetState(): void {
+    this.close();
+    this.completing.set(false);
+  }
+
+  hasCachedState(): boolean {
+    return this.modalOpen() || this.selectedRequest() != null || this.completing();
+  }
+
   open(request: WorkflowRequest): void {
     if (request.status !== 'pending' || !isLeaveWorkflowRequestType(request.type)) {
       return;

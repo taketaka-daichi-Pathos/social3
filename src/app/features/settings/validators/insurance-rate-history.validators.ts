@@ -3,7 +3,8 @@ import { InsuranceRateHistoryEntry } from '@features/settings/models/insurance-r
 import {
   isInsuranceRateHistoryLocked,
   normalizeYearMonthKey,
-} from '@features/payroll/utils/system-operation-month.utils';import { isWithinStatutoryMasterManualEntryForbiddenPeriod } from '@features/settings/utils/statutory-insurance-rate-period.utils';
+} from '@features/payroll/utils/system-operation-month.utils';
+import { isWithinStatutoryMasterManualEntryForbiddenPeriod } from '@features/settings/utils/statutory-insurance-rate-period.utils';
 
 export interface DuplicateApplicableMonthValidatorContext {
   history: InsuranceRateHistoryEntry[];
@@ -33,10 +34,12 @@ export function duplicateApplicableMonthValidator(
     }
 
     const { history, editingEntryId } = getContext();
-    const isDuplicate = history.some(
-      (entry) =>
-        entry.applicableMonth.trim() === normalizedMonth && entry.id !== editingEntryId
-    );
+    const normalizedInputMonth = normalizeYearMonthKey(normalizedMonth) ?? normalizedMonth;
+    const isDuplicate = history.some((entry) => {
+      const entryMonth =
+        normalizeYearMonthKey(entry.applicableMonth) ?? entry.applicableMonth.trim();
+      return entryMonth === normalizedInputMonth && entry.id !== editingEntryId;
+    });
 
     return isDuplicate ? { duplicateMonth: true } : null;
   };

@@ -51,6 +51,7 @@ import {
   normalizeEmployeeBaseSalary,
   toYearMonthKey,
 } from '@features/payroll/utils/compensation.utils';
+import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
 import { RevisionHistoryEntry } from '@features/revision/models/revision-history.model';
 import {
   hasScheduledAnnualDetermination,
@@ -79,6 +80,10 @@ export class EmployeeService {
   private readonly compensationService = inject(CompensationService);
   private readonly monthlyLockService = inject(MonthlyLockService);
   private readonly standardRemunerationService = inject(StandardRemunerationService);
+
+  resetState(): void {
+    // インメモリキャッシュは未保持。将来追加時のフック。
+  }
 
   watchEmployees(): Observable<Employee[]> {
     return authState(this.auth).pipe(
@@ -238,6 +243,20 @@ export class EmployeeService {
         '')
       : '';
 
+    const employeeName = employeeFullName({
+      lastName: employeeData.lastName,
+      firstName: employeeData.firstName,
+    } as Employee);
+
+    const lockedPayrollEntriesByMonth = isExistingEmployee
+      ? this.buildLockedPayrollEntriesByMonth(
+          employeeRef.id,
+          employeeNumber,
+          employeeName,
+          historyRows
+        )
+      : new Map<string, PayrollEntry>();
+
     const { payrollHistoryRows: _rows, ...employeeFields } = employeeData;
 
     const payload = {
@@ -275,7 +294,24 @@ export class EmployeeService {
     };
 
     try {
-      await setDoc(employeeRef, payload);
+      const batch = writeBatch(this.firestore);
+      batch.set(employeeRef, payload);
+
+      if (lockedPayrollEntriesByMonth.size > 0) {
+        const months = [...lockedPayrollEntriesByMonth.keys()];
+        const existingRecords = await this.compensationService.getPayrollRecordsForMonths(months);
+        const existingByMonth = new Map(
+          existingRecords.map((record) => [record.targetMonth, record])
+        );
+        this.compensationService.appendLockedPayrollImportsToBatch(
+          batch,
+          companyUid,
+          lockedPayrollEntriesByMonth,
+          existingByMonth
+        );
+      }
+
+      await batch.commit();
     } catch (error) {
       throw new Error(toFirestoreErrorMessage(error, '従業員の保存に失敗しました'));
     }
@@ -315,17 +351,37 @@ export class EmployeeService {
       insuranceCardReturnCommitment: null,
     };
 
-    if (isExistingEmployee) {
-      try {
-        await this.importLockedPayrollHistory(employee, historyRows);
-      } catch (error) {
-        throw new Error(
-          toFirestoreErrorMessage(error, '過去給与履歴の保存に失敗しました')
-        );
-      }
+    return employee;
+  }
+
+  private buildLockedPayrollEntriesByMonth(
+    employeeId: string,
+    employeeNumber: string,
+    employeeName: string,
+    rows: PayrollHistoryRow[]
+  ): Map<string, PayrollEntry> {
+    const sortedRows = sortPayrollHistoryRows(rows);
+    const entriesByMonth = new Map<string, PayrollEntry>();
+
+    for (const row of sortedRows) {
+      entriesByMonth.set(row.targetMonth, {
+        employeeId,
+        employeeNumber,
+        employeeName,
+        baseSalary: row.fixedWages,
+        allowances: [],
+        nonFixedWages: row.nonFixedWages,
+        baseDays: row.baseDays,
+        adjustmentAmount: 0,
+        adjustmentType: null,
+        adjustmentTargetMonth: '',
+        totalPayment: calculatePayrollEntryTotalPayment(row.fixedWages, [], row.nonFixedWages),
+        locked: true,
+        registrationLocked: true,
+      });
     }
 
-    return employee;
+    return entriesByMonth;
   }
 
   private applyExistingEmployeeHistoryToMaster(
@@ -360,35 +416,6 @@ export class EmployeeService {
     };
   }
 
-  private async importLockedPayrollHistory(
-    employee: Employee,
-    rows: PayrollHistoryRow[]
-  ): Promise<void> {
-    const sortedRows = sortPayrollHistoryRows(rows);
-    const employeeName = employeeFullName(employee);
-    const entriesByMonth = new Map<string, PayrollEntry>();
-
-    for (const row of sortedRows) {
-      entriesByMonth.set(row.targetMonth, {
-        employeeId: employee.id,
-        employeeNumber: employee.employeeNumber,
-        employeeName,
-        baseSalary: row.fixedWages,
-        allowances: [],
-        nonFixedWages: row.nonFixedWages,
-        baseDays: row.baseDays,
-        adjustmentAmount: 0,
-        adjustmentType: null,
-        adjustmentTargetMonth: '',
-        totalPayment: calculatePayrollEntryTotalPayment(row.fixedWages, [], row.nonFixedWages),
-        locked: true,
-        registrationLocked: true,
-      });
-    }
-
-    await this.compensationService.importLockedPayrollEntries(entriesByMonth);
-  }
-
   async appendBonusHistory(employeeId: string, historyEntry: BonusHistoryEntry): Promise<void> {
     const user = await requireAuthenticatedUser(this.auth);
 
@@ -412,10 +439,13 @@ export class EmployeeService {
 
   async updateEmployeePayrollData(
     employeeId: string,
-    data: { baseSalary: number; allowances: EmployeeAllowance[] }
+    data: { baseSalary: number; allowances: EmployeeAllowance[] },
+    targetMonth: string
   ): Promise<void> {
     const user = await requireAuthenticatedUser(this.auth);
-    await this.monthlyLockService.assertMonthEditable(getCurrentYearMonthKey());
+    const normalizedTargetMonth =
+      normalizeYearMonthKey(targetMonth) ?? targetMonth.trim();
+    await this.monthlyLockService.assertMonthEditable(normalizedTargetMonth);
 
     try {
       await updateDoc(

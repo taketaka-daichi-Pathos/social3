@@ -41,6 +41,10 @@ export function isChangeApplicationWorkflowRequestType(type: WorkflowRequestType
   );
 }
 
+export function isCommuteChangeWorkflowRequestType(type: WorkflowRequestType): boolean {
+  return type === 'commute_change';
+}
+
 const ADMIN_TODO_TAB_ROUTES: Record<AdminTodoTargetTab, string> = {
   'legal-forms': '/statutory-reports',
   employees: '/employees',

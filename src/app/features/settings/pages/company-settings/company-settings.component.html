@@ -235,7 +235,7 @@
                 type="text"
                 class="company-settings__input"
                 formControlName="prefectureCode"
-                placeholder="例: 13"
+                placeholder="例: 21"
                 inputmode="numeric"
                 maxlength="2"
                 autocomplete="off"
@@ -320,6 +320,23 @@
               }
             </div>
 
+            @if (isEditingInsuranceRateHistory()) {
+              <div class="company-settings__field company-settings__field--full">
+                <p class="company-settings__hint company-settings__hint--edit-mode">
+                  <span>
+                    履歴「{{ formatApplicableMonth(editingInsuranceRateEntry()!.applicableMonth) }}」を編集中です。
+                  </span>
+                  <button
+                    type="button"
+                    class="company-settings__edit-cancel"
+                    (click)="cancelInsuranceRateEditMode()"
+                  >
+                    新規追加に切り替え
+                  </button>
+                </p>
+              </div>
+            }
+
             <div class="company-settings__field">
               <label class="company-settings__label" for="applicableMonth">適用開始月</label>
               <input
@@ -397,7 +414,13 @@
                     </thead>
                     <tbody>
                       @for (entry of insuranceRateHistory(); track entry.id) {
-                        <tr>
+                        <tr
+                          class="company-settings__history-row"
+                          [class.company-settings__history-row--editing]="
+                            isEditingInsuranceRateHistoryEntry(entry.id)
+                          "
+                          (click)="selectInsuranceRateHistoryEntry(entry)"
+                        >
                           <td>{{ formatApplicableMonth(entry.applicableMonth) }}</td>
                           <td>{{ entry.healthInsuranceRate | number: '1.2-2' }}%</td>
                           <td>{{ entry.careInsuranceRate | number: '1.2-2' }}%</td>
@@ -417,76 +440,147 @@
             }
           </div>
         } @else {
-          <div class="company-settings__allowances" formArrayName="allowances">
+          <div class="company-settings__allowances">
             <p class="company-settings__hint company-settings__hint--section">
               会社独自の手当を登録します。給与計算や従業員台帳で利用できます。
             </p>
 
-            <div class="company-settings__allowance-header" aria-hidden="true">
-              <span>手当名</span>
-              <span>金額（円）</span>
-              <span></span>
-            </div>
-
             <div class="company-settings__allowance-list">
-              @for (allowance of allowances.controls; track $index) {
-                <div class="company-settings__allowance-row" [formGroupName]="$index">
-                  <div class="company-settings__field">
-                    <label class="company-settings__sr-only" [for]="'allowanceName' + $index">
-                      手当名
-                    </label>
+              <div class="company-settings__allowance-row">
+                <label class="company-settings__allowance-label" for="familyAllowance">
+                  家族手当
+                </label>
+                <div class="company-settings__field company-settings__field--amount">
+                  <div class="company-settings__amount-field">
                     <input
-                      [id]="'allowanceName' + $index"
-                      type="text"
-                      class="company-settings__input"
-                      formControlName="name"
-                      placeholder="手当名を入力"
-                      autocomplete="off"
-                    />
-                    @if (showAllowanceError($index, 'name')) {
-                      <p class="company-settings__error">
-                        {{ allowanceErrorMessage($index, 'name') }}
-                      </p>
-                    }
-                  </div>
-
-                  <div class="company-settings__field">
-                    <label class="company-settings__sr-only" [for]="'allowanceAmount' + $index">
-                      金額
-                    </label>
-                    <input
-                      [id]="'allowanceAmount' + $index"
+                      id="familyAllowance"
                       type="number"
                       class="company-settings__input company-settings__input--amount"
-                      formControlName="amount"
+                      formControlName="familyAllowance"
                       placeholder="0"
                       min="0"
                       step="1"
                       inputmode="numeric"
                       autocomplete="off"
                     />
-                    @if (showAllowanceError($index, 'amount')) {
-                      <p class="company-settings__error">
-                        {{ allowanceErrorMessage($index, 'amount') }}
-                      </p>
-                    }
+                    <span class="company-settings__amount-unit">円</span>
                   </div>
-
-                  <button
-                    type="button"
-                    class="company-settings__remove-btn"
-                    aria-label="手当を削除"
-                    (click)="removeAllowance($index)"
-                  >
-                    <span class="company-settings__remove-icon" aria-hidden="true">🗑</span>
-                  </button>
+                  @if (showAllowanceFieldError('familyAllowance')) {
+                    <p class="company-settings__error">
+                      {{ allowanceFieldErrorMessage('familyAllowance') }}
+                    </p>
+                  }
                 </div>
-              }
-            </div>
+              </div>
 
-            <button type="button" class="company-settings__add-btn" (click)="addAllowance()">
-              ＋ 手当を追加
-            </button>
+              <div class="company-settings__allowance-row">
+                <label class="company-settings__allowance-label" for="rentAllowance">
+                  家賃手当
+                </label>
+                <div class="company-settings__field company-settings__field--amount">
+                  <div class="company-settings__amount-field">
+                    <input
+                      id="rentAllowance"
+                      type="number"
+                      class="company-settings__input company-settings__input--amount"
+                      formControlName="rentAllowance"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                      inputmode="numeric"
+                      autocomplete="off"
+                    />
+                    <span class="company-settings__amount-unit">円</span>
+                  </div>
+                  @if (showAllowanceFieldError('rentAllowance')) {
+                    <p class="company-settings__error">
+                      {{ allowanceFieldErrorMessage('rentAllowance') }}
+                    </p>
+                  }
+                </div>
+              </div>
+
+              <div class="company-settings__allowance-row">
+                <label class="company-settings__allowance-label" for="fixedOvertimeAllowance">
+                  固定残業代
+                </label>
+                <div class="company-settings__field company-settings__field--amount">
+                  <div class="company-settings__amount-field">
+                    <input
+                      id="fixedOvertimeAllowance"
+                      type="number"
+                      class="company-settings__input company-settings__input--amount"
+                      formControlName="fixedOvertimeAllowance"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                      inputmode="numeric"
+                      autocomplete="off"
+                    />
+                    <span class="company-settings__amount-unit">円</span>
+                  </div>
+                  @if (showAllowanceFieldError('fixedOvertimeAllowance')) {
+                    <p class="company-settings__error">
+                      {{ allowanceFieldErrorMessage('fixedOvertimeAllowance') }}
+                    </p>
+                  }
+                </div>
+              </div>
+
+              <div class="company-settings__allowance-row">
+                <label class="company-settings__allowance-label" for="commutingAllowance">
+                  交通費（定期代）
+                </label>
+                <div class="company-settings__field company-settings__field--amount">
+                  <div class="company-settings__amount-field">
+                    <input
+                      id="commutingAllowance"
+                      type="number"
+                      class="company-settings__input company-settings__input--amount"
+                      formControlName="commutingAllowance"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                      inputmode="numeric"
+                      autocomplete="off"
+                    />
+                    <span class="company-settings__amount-unit">円</span>
+                  </div>
+                  @if (showAllowanceFieldError('commutingAllowance')) {
+                    <p class="company-settings__error">
+                      {{ allowanceFieldErrorMessage('commutingAllowance') }}
+                    </p>
+                  }
+                </div>
+              </div>
+
+              <div class="company-settings__allowance-row">
+                <label class="company-settings__allowance-label" for="otherAllowance">
+                  その他の手当
+                </label>
+                <div class="company-settings__field company-settings__field--amount">
+                  <div class="company-settings__amount-field">
+                    <input
+                      id="otherAllowance"
+                      type="number"
+                      class="company-settings__input company-settings__input--amount"
+                      formControlName="otherAllowance"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                      inputmode="numeric"
+                      autocomplete="off"
+                    />
+                    <span class="company-settings__amount-unit">円</span>
+                  </div>
+                  @if (showAllowanceFieldError('otherAllowance')) {
+                    <p class="company-settings__error">
+                      {{ allowanceFieldErrorMessage('otherAllowance') }}
+                    </p>
+                  }
+                </div>
+              </div>
+            </div>
           </div>
         }
 
@@ -504,7 +598,7 @@
             class="company-settings__submit"
             [disabled]="isSubmitDisabled()"
           >
-            {{ saving() ? '保存中...' : '設定を保存' }}
+            {{ saving() ? (activeTab() === 'rates' && isEditingInsuranceRateHistory() ? '更新中...' : '保存中...') : submitButtonLabel() }}
           </button>
         </div>
       }

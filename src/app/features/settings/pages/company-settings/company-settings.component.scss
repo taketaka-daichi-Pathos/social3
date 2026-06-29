@@ -307,20 +307,6 @@
     gap: 0.75rem;
   }
 
-  &__allowance-header {
-    display: grid;
-    grid-template-columns: 1fr 9rem 2.5rem;
-    gap: 0.75rem;
-    padding: 0 0.15rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: $color-text-muted;
-
-    @media (max-width: 640px) {
-      display: none;
-    }
-  }
-
   &__allowance-list {
     display: flex;
     flex-direction: column;
@@ -329,60 +315,42 @@
 
   &__allowance-row {
     display: grid;
-    grid-template-columns: 1fr 9rem 2.5rem;
+    grid-template-columns: minmax(140px, 1fr) 11rem;
     gap: 0.75rem;
     align-items: start;
 
     @media (max-width: 640px) {
-      grid-template-columns: 1fr auto;
-      grid-template-areas:
-        'name remove'
-        'amount amount';
-
-      .company-settings__field:first-child {
-        grid-area: name;
-      }
-
-      .company-settings__field:nth-child(2) {
-        grid-area: amount;
-      }
-
-      .company-settings__remove-btn {
-        grid-area: remove;
-      }
+      grid-template-columns: 1fr;
     }
+  }
+
+  &__allowance-label {
+    margin: 0;
+    padding-top: 0.55rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: $color-text;
+  }
+
+  &__field--amount {
+    min-width: 0;
+  }
+
+  &__amount-field {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  &__amount-unit {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    color: $color-text-muted;
   }
 
   &__input--amount {
     text-align: right;
     font-variant-numeric: tabular-nums;
-  }
-
-  &__remove-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    margin-top: 0;
-    padding: 0;
-    border: 1px solid $color-border;
-    border-radius: $radius-sm;
-    background: $color-bg-surface;
-    color: $color-text-muted;
-    cursor: pointer;
-    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
-
-    &:hover {
-      border-color: $color-danger;
-      background: #fef2f2;
-      color: $color-danger;
-    }
-  }
-
-  &__remove-icon {
-    font-size: 1rem;
-    line-height: 1;
   }
 
   &__history-title {
@@ -419,6 +387,14 @@
 
     tbody tr:last-child td {
       border-bottom: none;
+    }
+  }
+
+  &__history-row {
+    cursor: pointer;
+
+    &:hover td {
+      background: rgba($color-primary, 0.03);
     }
   }
 
@@ -479,24 +455,5 @@
     font-weight: 600;
     text-decoration: underline;
     cursor: pointer;
-  }
-
-  &__add-btn {
-    align-self: flex-start;
-    margin-top: 0.5rem;
-    padding: 0.55rem 1rem;
-    border: 1px dashed $color-border;
-    border-radius: $radius-sm;
-    background: transparent;
-    color: $color-primary-dark;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
-
-    &:hover {
-      border-color: $color-primary;
-      background: rgba($color-primary, 0.06);
-    }
   }
 }

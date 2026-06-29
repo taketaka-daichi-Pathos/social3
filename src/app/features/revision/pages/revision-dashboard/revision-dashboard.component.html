@@ -318,7 +318,10 @@
             </thead>
             <tbody>
               @for (row of occasionalResultsForSelectedMonth(); track row.employeeId + row.changeMonth) {
-                <tr [class.revision__row--muted]="isOccasionalRowMuted(row)">
+                <tr
+                  [class.revision__row--muted]="isOccasionalRowMuted(row)"
+                  [class.revision__row--watching]="isOccasionalRowWatching(row)"
+                >
                   <td>{{ row.employeeNumber }}</td>
                   <td class="revision__cell-name">
                     <div class="revision__name-cell">
@@ -463,7 +466,7 @@
                     @if (occasionalExclusionLabels(row).length > 0) {
                       <div class="revision__badges">
                         @for (label of occasionalExclusionLabels(row); track label) {
-                          <span class="revision__badge revision__badge--excluded">{{ label }}</span>
+                          <span [class]="occasionalExclusionBadgeClass(row)">{{ label }}</span>
                         }
                       </div>
                     } @else {
@@ -478,17 +481,16 @@
                         <button
                           type="button"
                           class="revision__apply-btn"
+                          [class.revision__apply-btn--watching]="isOccasionalRowWatching(row)"
                           [disabled]="!canApplyOccasional(row) || isApplying(occasionalApplyKey(row))"
-                          [attr.title]="
-                            isOccasionalApplyDisabledByMissingPayroll(row)
-                              ? revisionMissingPayrollApplyTooltip
-                              : null
-                          "
+                          [attr.title]="occasionalApplyButtonTitle(row)"
                           (click)="applyOccasional(row)"
                         >
                           {{ isApplying(occasionalApplyKey(row)) ? '適用中...' : '適用' }}
                         </button>
-                        @if (isOccasionalApplyDisabledByMissingPayroll(row)) {
+                        @if (isOccasionalRowWatching(row) && row.ineligibleReason) {
+                          <p class="revision__watching-note">{{ row.ineligibleReason }}</p>
+                        } @else if (isOccasionalApplyDisabledByMissingPayroll(row)) {
                           <p class="m-0 text-[0.6875rem] leading-snug text-amber-700 text-right max-w-40">
                             {{ revisionMissingPayrollApplyTooltip }}
                           </p>

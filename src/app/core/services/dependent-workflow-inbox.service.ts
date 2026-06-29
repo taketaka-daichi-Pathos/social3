@@ -5,6 +5,14 @@ import { WorkflowRequest } from '@features/workflow/models/workflow-request.mode
 export class DependentWorkflowInboxService {
   readonly selectedRequest = signal<WorkflowRequest | null>(null);
 
+  resetState(): void {
+    this.clearSelection();
+  }
+
+  hasCachedState(): boolean {
+    return this.selectedRequest() != null;
+  }
+
   select(request: WorkflowRequest): void {
     if (request.status !== 'pending' || request.type !== 'add_dependent') {
       return;

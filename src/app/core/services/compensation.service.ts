@@ -1,6 +1,14 @@
 import { inject, Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
-import { doc, Firestore, getDoc, serverTimestamp, setDoc, writeBatch } from '@angular/fire/firestore';
+import {
+  doc,
+  Firestore,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+  WriteBatch,
+} from '@angular/fire/firestore';
 import { FirestoreCollections } from '@core/models/firestore-collections';
 import { requireAuthenticatedUser } from '@core/utils/auth.utils';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
@@ -21,6 +29,7 @@ import {
   calculateStandardBonusAmount,
   findBonusEntryIndex,
 } from '@features/payroll/utils/bonus-insurance.utils';
+import { mergePayrollEntriesForImport } from '@features/payroll/utils/payroll-engine-sync.utils';
 import {
   isMonthlyLockDocumentLocked,
   MONTHLY_LOCK_ERROR_MESSAGE,
@@ -43,6 +52,10 @@ interface CompensationDocument {
 export class CompensationService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
+
+  resetState(): void {
+    // インメモリキャッシュは未保持。将来追加時のフック。
+  }
 
   async getPayrollRecordsForMonths(targetMonths: string[]): Promise<PayrollRecord[]> {
     const uniqueMonths = [...new Set(targetMonths)];
@@ -99,7 +112,10 @@ export class CompensationService {
     }
   }
 
-  /** 複数月の給与エントリを locked で一括保存（Batch Write） */
+  /**
+   * 複数月の給与エントリを locked で一括保存（Batch Write）。
+   * 単独呼び出し時は payrolls のみを書き込む。
+   */
   async importLockedPayrollEntries(entriesByMonth: ReadonlyMap<string, PayrollEntry>): Promise<void> {
     if (entriesByMonth.size === 0) {
       return;
@@ -111,50 +127,95 @@ export class CompensationService {
     try {
       const existingRecords = await this.getPayrollRecordsForMonths(months);
       const existingByMonth = new Map(existingRecords.map((record) => [record.targetMonth, record]));
-
-      const batches: ReturnType<typeof writeBatch>[] = [];
-      let batch = writeBatch(this.firestore);
-      let operationCount = 0;
-
-      for (const month of months) {
-        const entry = entriesByMonth.get(month);
-        if (!entry) {
-          continue;
-        }
-
-        const savedEntry = this.normalizePayrollEntry({ ...entry, locked: true });
-        const existing = existingByMonth.get(month);
-        const entries = [...(existing?.entries ?? [])];
-        const index = entries.findIndex((row) => row.employeeId === savedEntry.employeeId);
-
-        if (index >= 0) {
-          entries[index] = savedEntry;
-        } else {
-          entries.push(savedEntry);
-        }
-
-        batch.set(this.payrollRef(user.uid, month), {
-          targetMonth: month,
-          entries,
-          updatedAt: serverTimestamp(),
-        });
-        operationCount += 1;
-
-        if (operationCount >= 500) {
-          batches.push(batch);
-          batch = writeBatch(this.firestore);
-          operationCount = 0;
-        }
-      }
-
-      if (operationCount > 0) {
-        batches.push(batch);
-      }
+      const batches = this.buildLockedPayrollImportBatches(
+        user.uid,
+        entriesByMonth,
+        existingByMonth
+      );
 
       await Promise.all(batches.map((currentBatch) => currentBatch.commit()));
     } catch (error) {
       throw new Error(toFirestoreErrorMessage(error, '給与履歴の一括保存に失敗しました'));
     }
+  }
+
+  /**
+   * 既存バッチへ payrolls の locked インポートを追記する（従業員登録との同一トランザクション用）。
+   */
+  appendLockedPayrollImportsToBatch(
+    batch: WriteBatch,
+    ownerUid: string,
+    entriesByMonth: ReadonlyMap<string, PayrollEntry>,
+    existingByMonth: ReadonlyMap<string, PayrollRecord | null | undefined>
+  ): void {
+    const months = [...entriesByMonth.keys()].sort((left, right) => left.localeCompare(right));
+
+    for (const month of months) {
+      const entry = entriesByMonth.get(month);
+      if (!entry) {
+        continue;
+      }
+
+      this.enqueueLockedPayrollImport(batch, ownerUid, month, entry, existingByMonth.get(month));
+    }
+  }
+
+  /**
+   * 従業員登録と同時に payrolls を書き込むためのバッチを生成する。
+   * 呼び出し側で employee ドキュメントの set と合わせて commit すること。
+   */
+  buildLockedPayrollImportBatches(
+    ownerUid: string,
+    entriesByMonth: ReadonlyMap<string, PayrollEntry>,
+    existingByMonth: ReadonlyMap<string, PayrollRecord | null | undefined>
+  ): WriteBatch[] {
+    if (entriesByMonth.size === 0) {
+      return [];
+    }
+
+    const months = [...entriesByMonth.keys()].sort((left, right) => left.localeCompare(right));
+    const batches: WriteBatch[] = [];
+    let batch = writeBatch(this.firestore);
+    let operationCount = 0;
+
+    for (const month of months) {
+      const entry = entriesByMonth.get(month);
+      if (!entry) {
+        continue;
+      }
+
+      this.enqueueLockedPayrollImport(batch, ownerUid, month, entry, existingByMonth.get(month));
+      operationCount += 1;
+
+      if (operationCount >= 500) {
+        batches.push(batch);
+        batch = writeBatch(this.firestore);
+        operationCount = 0;
+      }
+    }
+
+    if (operationCount > 0) {
+      batches.push(batch);
+    }
+
+    return batches;
+  }
+
+  private enqueueLockedPayrollImport(
+    batch: WriteBatch,
+    ownerUid: string,
+    month: string,
+    entry: PayrollEntry,
+    existing: PayrollRecord | null | undefined
+  ): void {
+    const savedEntry = this.normalizePayrollEntry({ ...entry, locked: true });
+    const entries = mergePayrollEntriesForImport(existing, savedEntry);
+
+    batch.set(this.payrollRef(ownerUid, month), {
+      targetMonth: month,
+      entries,
+      updatedAt: serverTimestamp(),
+    });
   }
 
   async getBonusRecordsForMonths(targetMonths: string[]): Promise<CompensationRecord[]> {

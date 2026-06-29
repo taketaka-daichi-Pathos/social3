@@ -1,5 +1,5 @@
 @if (open() && employee(); as emp) {
-  @let ins = summary();
+  @let ins = insuranceDisplaySummary();
 
   <div
     class="detail-modal"
@@ -49,6 +49,32 @@
             <dt>メールアドレス</dt>
             <dd>{{ emp.email || '—' }}</dd>
           </dl>
+
+          <div class="mt-5 border-t border-gray-200 pt-5">
+            <h4 class="mb-3 text-sm font-semibold text-gray-900">住所情報</h4>
+            <dl class="grid grid-cols-[11rem_1fr] gap-x-4 gap-y-2 text-[0.8125rem]">
+              <dt class="font-medium text-gray-500">郵便番号</dt>
+              <dd class="text-gray-900">{{ displayPostalCode(emp.postalCode) }}</dd>
+              <dt class="font-medium text-gray-500">住所</dt>
+              <dd class="break-words leading-relaxed text-gray-900">
+                {{ displayRegistrationField(emp.address) }}
+              </dd>
+            </dl>
+          </div>
+
+          <div class="mt-5 border-t border-gray-200 pt-5">
+            <h4 class="mb-3 text-sm font-semibold text-gray-900">給与振込口座情報</h4>
+            <dl class="grid grid-cols-[11rem_1fr] gap-x-4 gap-y-2 text-[0.8125rem]">
+              <dt class="font-medium text-gray-500">金融機関名</dt>
+              <dd class="text-gray-900">{{ displayRegistrationField(emp.bankName) }}</dd>
+              <dt class="font-medium text-gray-500">支店名</dt>
+              <dd class="text-gray-900">{{ displayRegistrationField(emp.bankBranchName) }}</dd>
+              <dt class="font-medium text-gray-500">口座種別</dt>
+              <dd class="text-gray-900">{{ displayAccountType(emp.bankAccountType) }}</dd>
+              <dt class="font-medium text-gray-500">口座番号</dt>
+              <dd class="text-gray-900">{{ displayRegistrationField(emp.bankAccountNumber) }}</dd>
+            </dl>
+          </div>
         </section>
 
         <section class="detail-modal__section">
@@ -137,9 +163,21 @@
           @if (revisionHistoryEntries(emp).length === 0) {
             <p class="detail-modal__empty">等級変更履歴はありません</p>
           } @else {
+            <p class="detail-modal__hint">
+              履歴をクリックすると、適用月時点の社会保険料内訳をプレビューできます。もう一度クリックで処理月に戻ります。
+            </p>
             <ol class="detail-modal__timeline">
               @for (entry of revisionHistoryEntries(emp); track entry.id) {
-                <li class="detail-modal__timeline-item">
+                <li
+                  class="detail-modal__timeline-item"
+                  [class.detail-modal__timeline-item--selected]="isRevisionEntrySelected(entry.id)"
+                >
+                  <button
+                    type="button"
+                    class="detail-modal__timeline-select"
+                    [attr.aria-pressed]="isRevisionEntrySelected(entry.id)"
+                    (click)="selectRevisionEntry(entry)"
+                  >
                   <div class="detail-modal__timeline-head">
                     <span class="detail-modal__timeline-type">{{ entry.type }}</span>
                     <span class="detail-modal__timeline-month"
@@ -168,6 +206,7 @@
                       更新: {{ formatRevisionUpdatedAt(entry.updatedAt) }}
                     </p>
                   </div>
+                  </button>
                 </li>
               }
             </ol>
@@ -175,7 +214,7 @@
         </section>
 
         <section class="detail-modal__section">
-          <h3 class="detail-modal__section-title">標準報酬月額（現在）</h3>
+          <h3 class="detail-modal__section-title">標準報酬月額（{{ displayMonthLabel() }}）</h3>
           <dl class="detail-modal__grid">
             <dt>等級</dt>
             <dd>@if (ins) { {{ gradeLabel(ins) }} } @else { — }</dd>
@@ -186,10 +225,15 @@
           </dl>
         </section>
 
-        @if (displayPremiums(emp); as premiums) {
+        @if (displayPremiums(); as premiums) {
           <section class="detail-modal__section">
-            <h3 class="detail-modal__section-title">社会保険料内訳（{{ currentTargetMonthLabel() }}）</h3>
-            @if (isCurrentMonthExempt(emp)) {
+            <h3 class="detail-modal__section-title">社会保険料内訳（{{ displayMonthLabel() }}）</h3>
+            @if (isPreviewingRevisionMonth()) {
+              <p class="detail-modal__preview-note" role="status">
+                等級変更履歴の適用月をプレビュー表示中です。
+              </p>
+            }
+            @if (isDisplayMonthExempt()) {
               <p class="detail-modal__exempt-note">
                 育休・産休の免除期間中のため、健康保険・介護保険・厚生年金保険料は ¥0 です。
               </p>

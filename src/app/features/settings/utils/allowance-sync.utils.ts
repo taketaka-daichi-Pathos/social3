@@ -1,6 +1,15 @@
 import { EmployeeAllowance } from '@features/employees/models/employee.model';
-import { CompanyAllowance } from '@features/settings/models/company-settings.model';
+import {
+  CompanyAllowance,
+  CompanyAllowanceFormField,
+  FIXED_COMPANY_ALLOWANCES,
+} from '@features/settings/models/company-settings.model';
 import { getAllowanceTemplate } from '@features/payroll/utils/compensation.utils';
+
+export type CompanyAllowanceFormValues = Record<CompanyAllowanceFormField, number | null>;
+
+export const COMPANY_ALLOWANCE_FORM_FIELDS: readonly CompanyAllowanceFormField[] =
+  FIXED_COMPANY_ALLOWANCES.map(({ key }) => key);
 
 /** 会社手当マスターの金額を従業員マスターへ反映（手当名は会社テンプレートに合わせる） */
 export function syncEmployeeAllowancesFromCompany(
@@ -26,16 +35,31 @@ export function initialEmployeeAllowancesFromCompany(
   return syncEmployeeAllowancesFromCompany([], companyAllowances);
 }
 
-/** Firestore 保存用に会社手当配列を正規化（空の手当名は除外） */
+/** Firestore 保存用に会社手当を固定5項目へ正規化 */
 export function normalizeCompanyAllowancesForSave(
   rows: ReadonlyArray<{ name: string; amount: number | null }>
 ): CompanyAllowance[] {
-  return rows
-    .map((row) => ({
-      name: String(row.name ?? '').trim(),
-      amount: normalizeAllowanceAmount(row.amount),
-    }))
-    .filter((row) => row.name.length > 0);
+  return companyAllowancesFromFormValues(formValuesFromCompanyAllowances([...rows]));
+}
+
+export function formValuesFromCompanyAllowances(
+  allowances: CompanyAllowance[]
+): CompanyAllowanceFormValues {
+  const template = getAllowanceTemplate(allowances);
+  const byName = new Map(template.map((row) => [row.name, row.amount ?? null]));
+
+  return Object.fromEntries(
+    FIXED_COMPANY_ALLOWANCES.map(({ key, name }) => [key, byName.get(name) ?? null])
+  ) as CompanyAllowanceFormValues;
+}
+
+export function companyAllowancesFromFormValues(
+  values: CompanyAllowanceFormValues
+): CompanyAllowance[] {
+  return FIXED_COMPANY_ALLOWANCES.map(({ key, name }) => ({
+    name,
+    amount: normalizeAllowanceAmount(values[key]),
+  }));
 }
 
 function normalizeAllowanceAmount(value: number | null | undefined): number | null {

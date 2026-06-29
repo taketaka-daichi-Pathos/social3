@@ -1,9 +1,12 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
+import { AuthService } from '@core/services/auth.service';
 import { CompanyService } from '@core/services/company.service';
 import { PostalCodeInputComponent } from '@shared/components/postal-code-input/postal-code-input.component';
 import { REIWA_8_PREFECTURE_NAMES } from '@features/settings/models/reiwa-8-health-insurance-rates.constants';
+import { resolveSocialInsurancePrefectureCode } from '@features/settings/models/social-insurance-prefecture-codes.constants';
 import {
   COMPANY_ID_PATTERN,
   DISTRICT_CODE_PATTERN,
@@ -27,7 +30,8 @@ import { passwordMatchValidator } from '../../validators/auth.validators';
 })
 export class RegisterCompanyComponent implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
-  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly authService = inject(AuthService);
   private readonly companyService = inject(CompanyService);
 
   /** 47都道府県（北海道〜沖縄） */
@@ -85,7 +89,15 @@ export class RegisterCompanyComponent implements OnInit {
   submitted = false;
 
   ngOnInit(): void {
+    this.authService.ensureCleanStateForRegistration();
     this.generateCompanyId();
+
+    this.form.controls.prefecture.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((prefectureName) => {
+        const code = resolveSocialInsurancePrefectureCode(prefectureName);
+        this.form.patchValue({ prefectureCode: code }, { emitEvent: false });
+      });
   }
 
   generateCompanyId(): void {
@@ -116,7 +128,7 @@ export class RegisterCompanyComponent implements OnInit {
     this.saving.set(true);
     try {
       await this.companyService.registerCompany(payload);
-      await this.router.navigate(['/settings/company']);
+      window.location.href = '/settings/company';
     } catch (error) {
       this.submitError.set(this.toErrorMessage(error));
     } finally {

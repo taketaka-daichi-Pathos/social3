@@ -15,6 +15,7 @@ import { CompensationService } from '@core/services/compensation.service';
 import { CompanyService } from '@core/services/company.service';
 import { EmployeeService } from '@core/services/employee.service';
 import { MonthlyLockService } from '@core/services/monthly-lock.service';
+import { isValidIsoDate } from '@core/utils/text-normalize.utils';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import { Employee } from '@features/employees/models/employee.model';
 import { isRetiredEmployee, isAfterRetirementDate } from '@features/employees/utils/retirement.utils';
@@ -22,9 +23,19 @@ import { BonusHistoryDisplayRow } from '@features/payroll/models/bonus-history.m
 import { CompensationEntry, CompensationRecord, CompensationType } from '@features/payroll/models/compensation.model';
 import {
   calculateStandardBonusAmount,
+  getSameMonthExistingStandardBonusTotalFromRecord,
   resolvePensionCapDisplay,
   summarizeFiscalYearCumulativeBonus,
 } from '@features/payroll/utils/bonus-insurance.utils';
+import {
+  bonusPaymentDatePartsValidator,
+  composeBonusPaymentDate,
+  createBonusPaymentYearValidators,
+  getBonusPaymentYearMax,
+  normalizeBonusPaymentDayInput,
+  normalizeBonusPaymentYearInput,
+  parseBonusPaymentDateParts,
+} from '@features/payroll/utils/bonus-payment-date.validators';
 import {
   createBonusHistoryEntry,
   findBonusHistoryForPaymentDate,
@@ -113,6 +124,8 @@ export class CompensationEntryTableComponent implements OnInit {
   readonly expandedPaymentDates = signal<Set<string>>(new Set());
   readonly socialInsuranceFilter = signal<SocialInsuranceCategoryFilter>('all');
   readonly socialInsuranceFilterOptions = SOCIAL_INSURANCE_CATEGORY_FILTER_OPTIONS;
+  readonly paymentMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
+  readonly bonusPaymentYearMax = getBonusPaymentYearMax();
 
   private readonly employees = signal<Employee[]>([]);
   private readonly employeeById = signal<Record<string, Employee>>({});
@@ -124,9 +137,20 @@ export class CompensationEntryTableComponent implements OnInit {
   readonly formatPaymentDateLabel = formatPaymentDateLabel;
 
   readonly form = this.fb.group({
-    paymentDate: this.fb.control('', {
-      validators: [CompensationEntryTableComponent.paymentDateValidator],
-    }),
+    paymentDateParts: this.fb.group(
+      {
+        year: this.fb.control('', {
+          validators: createBonusPaymentYearValidators(),
+        }),
+        month: this.fb.control('', {
+          validators: [Validators.required, Validators.min(1), Validators.max(12)],
+        }),
+        day: this.fb.control('', {
+          validators: [Validators.required, Validators.min(1), Validators.max(31)],
+        }),
+      },
+      { validators: [bonusPaymentDatePartsValidator] }
+    ),
     entries: this.fb.array<EntryFormGroup>([]),
   });
 
@@ -206,11 +230,7 @@ export class CompensationEntryTableComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const stored = loadStoredBonusPaymentDate('');
-    this.form.controls.paymentDate.setValue(stored);
-    this.lastAppliedPaymentDate = normalizeBonusPaymentDate(stored);
-    this.syncBonusTargetMonthSignal();
-    void this.loadCompanySettings();
+    void this.bootstrapBonusScreen();
 
     this.employeeService
       .watchEmployees()
@@ -253,17 +273,63 @@ export class CompensationEntryTableComponent implements OnInit {
     return this.form.controls.entries;
   }
 
-  private static paymentDateValidator(control: AbstractControl): ValidationErrors | null {
-    return normalizeBonusPaymentDate(control.value).length > 0 ? null : { paymentDate: true };
+  private normalizedPaymentDateFromParts(): string {
+    return composeBonusPaymentDate(this.form.controls.paymentDateParts.getRawValue());
   }
 
   normalizedPaymentDate(): string {
-    return normalizeBonusPaymentDate(this.form.controls.paymentDate.value);
+    return normalizeBonusPaymentDate(this.normalizedPaymentDateFromParts());
   }
 
   isPaymentDateInvalid(): boolean {
-    const control = this.form.controls.paymentDate;
-    return control.invalid && (control.touched || control.dirty || Boolean(this.paymentDateError()));
+    const group = this.form.controls.paymentDateParts;
+    return group.invalid && (group.touched || group.dirty || Boolean(this.paymentDateError()));
+  }
+
+  paymentDateValidationMessage(): string {
+    const yearControl = this.form.controls.paymentDateParts.controls.year;
+    if (yearControl.hasError('required')) {
+      return '年を4桁で入力してください';
+    }
+
+    if (yearControl.hasError('pattern')) {
+      return '年は4桁の数字で入力してください';
+    }
+
+    if (yearControl.hasError('min') || yearControl.hasError('max')) {
+      return `年は1900年〜${this.bonusPaymentYearMax}年の範囲で入力してください`;
+    }
+
+    if (this.form.controls.paymentDateParts.hasError('paymentDate')) {
+      return '支払い日を正しく入力してください';
+    }
+
+    return '支払い日を正しく入力してください';
+  }
+
+  onPaymentYearInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const normalized = normalizeBonusPaymentYearInput(input.value);
+    input.value = normalized;
+    this.form.controls.paymentDateParts.controls.year.setValue(normalized, { emitEvent: false });
+    this.form.controls.paymentDateParts.updateValueAndValidity({ emitEvent: false });
+  }
+
+  onPaymentDayInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const normalized = normalizeBonusPaymentDayInput(input.value);
+    input.value = normalized;
+    this.form.controls.paymentDateParts.controls.day.setValue(normalized, { emitEvent: false });
+    this.form.controls.paymentDateParts.updateValueAndValidity({ emitEvent: false });
+  }
+
+  onPaymentMonthChange(): void {
+    this.form.controls.paymentDateParts.updateValueAndValidity();
+    this.onPaymentDatePartsChange();
+  }
+
+  onPaymentDatePartsBlur(): void {
+    this.onPaymentDatePartsChange();
   }
 
   isRowBonusAmountInvalid(index: number): boolean {
@@ -341,9 +407,7 @@ export class CompensationEntryTableComponent implements OnInit {
     return isAfterRetirementDate(employee, paymentDate);
   }
 
-  onPaymentDateChange(): void {
-    this.syncPaymentDateControlFromDom();
-
+  onPaymentDatePartsChange(): void {
     const nextPaymentDate = this.normalizedPaymentDate();
     const previousPaymentDate = this.lastAppliedPaymentDate;
     const previousTargetMonth = resolveTargetMonthFromPaymentDate(previousPaymentDate) ??
@@ -360,7 +424,7 @@ export class CompensationEntryTableComponent implements OnInit {
     this.rowErrors.set({});
     this.syncBonusTargetMonthSignal();
     saveStoredBonusPaymentDate(nextPaymentDate);
-    this.form.controls.paymentDate.updateValueAndValidity({ emitEvent: false });
+    this.form.controls.paymentDateParts.updateValueAndValidity({ emitEvent: false });
 
     const nextTargetMonth =
       resolveTargetMonthFromPaymentDate(nextPaymentDate) ?? getCurrentYearMonthKey();
@@ -370,11 +434,6 @@ export class CompensationEntryTableComponent implements OnInit {
     }
 
     void this.applyPaymentDateContext(preserveUnlockedInput);
-  }
-
-  onPaymentDateInput(): void {
-    this.syncPaymentDateControlFromDom();
-    this.form.controls.paymentDate.updateValueAndValidity({ emitEvent: false });
   }
 
   onBonusAmountInput(index: number, event: Event): void {
@@ -645,7 +704,35 @@ export class CompensationEntryTableComponent implements OnInit {
   }
 
   pensionCapSummary(index: number) {
-    return resolvePensionCapDisplay(this.rowStandardBonusAmount(index));
+    const employeeId = this.entries.at(index).controls.employeeId.value;
+    const paymentDate = this.normalizedPaymentDate();
+    const existingSameMonthTotal = getSameMonthExistingStandardBonusTotalFromRecord(
+      employeeId,
+      this.savedBonusRecord(),
+      paymentDate || undefined
+    );
+
+    return resolvePensionCapDisplay(this.rowStandardBonusAmount(index), existingSameMonthTotal);
+  }
+
+  private async bootstrapBonusScreen(): Promise<void> {
+    const stored = loadStoredBonusPaymentDate('');
+    await this.loadCompanySettings();
+
+    const paymentDate =
+      stored ||
+      `${await this.monthlyLockService.resolveSystemOperationMonth({
+        systemStartDate: this.systemStartDate(),
+        calendarMonth: getCurrentYearMonthKey(),
+      })}-01`;
+
+    this.form.controls.paymentDateParts.setValue(parseBonusPaymentDateParts(paymentDate), {
+      emitEvent: false,
+    });
+    this.lastAppliedPaymentDate = normalizeBonusPaymentDate(paymentDate);
+    this.syncBonusTargetMonthSignal();
+    await this.applyPaymentDateContext();
+    this.cdr.markForCheck();
   }
 
   isRowLocked(index: number): boolean {
@@ -654,7 +741,8 @@ export class CompensationEntryTableComponent implements OnInit {
   }
 
   hasPaymentDate(): boolean {
-    return this.normalizedPaymentDate().length > 0;
+    const paymentDate = this.normalizedPaymentDate();
+    return paymentDate.length > 0 && isValidIsoDate(paymentDate);
   }
 
   isRowSaving(employeeId: string): boolean {
@@ -672,6 +760,7 @@ export class CompensationEntryTableComponent implements OnInit {
   canSaveRow(index: number): boolean {
     return (
       this.canSaveCompensationForTargetMonth() &&
+      this.form.controls.paymentDateParts.valid &&
       this.isRowInputEnabled(index) &&
       this.hasPaymentDate() &&
       !this.isRowLocked(index) &&
@@ -708,9 +797,9 @@ export class CompensationEntryTableComponent implements OnInit {
     }
 
     try {
-      this.syncPaymentDateControlFromDom();
+      this.syncPaymentDatePartsFromDom();
       this.syncRowBonusAmountFromDom(index);
-      this.form.controls.paymentDate.updateValueAndValidity();
+      this.form.controls.paymentDateParts.updateValueAndValidity();
       this.entries.at(index).controls.fixedWages.updateValueAndValidity();
       this.form.markAllAsTouched();
       this.entries.at(index).markAllAsTouched();
@@ -842,8 +931,8 @@ export class CompensationEntryTableComponent implements OnInit {
       console.error('[CompensationEntryTable] 保存不可: invalid な FormControl', invalidControls);
       const message = '入力内容にエラーがあります（支払い日などを確認してください）';
       this.saveError.set(message);
-      if (this.form.controls.paymentDate.invalid) {
-        this.paymentDateError.set('支払い日を正しく入力してください');
+      if (this.form.controls.paymentDateParts.invalid) {
+        this.paymentDateError.set(this.paymentDateValidationMessage());
       }
       return false;
     }
@@ -887,21 +976,33 @@ export class CompensationEntryTableComponent implements OnInit {
     return control.invalid ? [{ path, errors: control.errors }] : [];
   }
 
-  private syncPaymentDateControlFromDom(): void {
-    const input = document.getElementById('bonusPaymentDate') as HTMLInputElement | null;
-    if (!input) {
-      return;
+  private syncPaymentDatePartsFromDom(): void {
+    const yearInput = document.getElementById('bonusPaymentYear') as HTMLInputElement | null;
+    const dayInput = document.getElementById('bonusPaymentDay') as HTMLInputElement | null;
+    const monthSelect = document.getElementById('bonusPaymentMonth') as HTMLSelectElement | null;
+    const group = this.form.controls.paymentDateParts;
+
+    if (yearInput) {
+      const year = normalizeBonusPaymentYearInput(yearInput.value);
+      yearInput.value = year;
+      group.controls.year.setValue(year, { emitEvent: false });
     }
 
-    const normalized = normalizeBonusPaymentDate(input.value);
-    const control = this.form.controls.paymentDate;
-    if (control.value !== normalized) {
-      control.setValue(normalized, { emitEvent: false });
+    if (monthSelect) {
+      group.controls.month.setValue(monthSelect.value, { emitEvent: false });
     }
+
+    if (dayInput) {
+      const day = normalizeBonusPaymentDayInput(dayInput.value);
+      dayInput.value = day;
+      group.controls.day.setValue(day, { emitEvent: false });
+    }
+
+    group.updateValueAndValidity({ emitEvent: false });
   }
 
   onSaveRowPrepare(index: number): void {
-    this.syncPaymentDateControlFromDom();
+    this.syncPaymentDatePartsFromDom();
     this.syncRowBonusAmountFromDom(index);
   }
 

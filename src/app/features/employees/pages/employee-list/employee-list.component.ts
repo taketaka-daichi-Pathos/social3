@@ -102,11 +102,6 @@ export class EmployeeListComponent implements OnInit {
     return filterEmployeesBySocialInsuranceCategory(employees, filter);
   });
 
-  readonly detailSummary = computed(() => {
-    const employee = this.detailEmployee();
-    return employee ? this.getInsuranceSummary(employee) : null;
-  });
-
   readonly tabCounts = computed(() => {
     const grouped = this.groups();
 

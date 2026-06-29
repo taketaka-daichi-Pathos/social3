@@ -109,6 +109,12 @@ export interface OccasionalRevisionResult {
   employeeNumber: string;
   changeMonth: string;
   status: RevisionStatus;
+  /** 起算月に固定的賃金の変動があったか */
+  isFixedWageChanged: boolean;
+  /** 随時改定を適用可能か */
+  isEligible: boolean;
+  /** 適用不可の場合のユーザー向け理由 */
+  ineligibleReason: string | null;
   exclusionReasons: OccasionalExclusionReason[];
   exclusionLabels: string[];
   targetMonths: string[];
