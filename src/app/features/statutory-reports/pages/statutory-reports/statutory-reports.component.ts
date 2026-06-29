@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Auth } from '@angular/fire/auth';
 import { CompanyService } from '@core/services/company.service';
@@ -22,9 +22,14 @@ import { EgovExportService } from '@features/statutory-reports/services/egov-exp
 import { validateCompanyForEgovExport } from '@features/statutory-reports/utils/egov-company-validation.utils';
 import {
   getStatutoryReportDefinition,
+  hasStatutoryReportExportTargets,
   mapMissingFieldsToTaskRequestedFields,
   evaluateEmployeeReportReadiness,
 } from '@features/statutory-reports/utils/statutory-report-validation.utils';
+import {
+  hasGetsugakuHenkoReportBadge,
+  hasSanteiKisoReportBadge,
+} from '@features/statutory-reports/utils/statutory-report-revision-badge.utils';
 import { resolveDefaultSanteiTargetYear } from '@features/statutory-reports/utils/santei-data.utils';
 import { resolveDefaultGeppenRevisionYearMonth } from '@features/statutory-reports/utils/geppen-data.utils';
 import { resolveDefaultSyouyoPaymentDate } from '@features/statutory-reports/utils/syouyo-data.utils';
@@ -58,6 +63,33 @@ export class StatutoryReportsComponent implements OnInit {
   readonly employees = signal<Employee[]>([]);
   readonly companyTasks = signal<EmployeeTask[]>([]);
   readonly companySettings = signal<CompanySettings | null>(null);
+
+  readonly reportBadgeById = computed(() => {
+    const employees = this.employees();
+    const tasks = this.companyTasks();
+    const badges = new Map<string, boolean>();
+    const santeiTargetYear = resolveDefaultSanteiTargetYear();
+    const geppenRevisionYearMonth = resolveDefaultGeppenRevisionYearMonth();
+
+    for (const item of this.menuItems) {
+      if (item.id === 'santei-kiso') {
+        badges.set(item.id, hasSanteiKisoReportBadge(employees, santeiTargetYear));
+        continue;
+      }
+
+      if (item.id === 'getsugaku-henko') {
+        badges.set(item.id, hasGetsugakuHenkoReportBadge(employees, geppenRevisionYearMonth));
+        continue;
+      }
+
+      badges.set(
+        item.id,
+        hasStatutoryReportExportTargets(employees, tasks, item.id as StatutoryReportId)
+      );
+    }
+
+    return badges;
+  });
 
   private companyOwnerUid: string | null = null;
 
@@ -101,6 +133,23 @@ export class StatutoryReportsComponent implements OnInit {
     this.exportError.set(validateCompanyForEgovExport(this.companySettings()));
     this.requestNotice.set(null);
     this.targetModalOpen.set(true);
+  }
+
+  hasReportBadge(reportId: string): boolean {
+    return this.reportBadgeById().get(reportId) ?? false;
+  }
+
+  /** ③ 算定基礎届：適用済みの算定基礎データが存在する場合のみ true */
+  hasSanteiBadge(): boolean {
+    return hasSanteiKisoReportBadge(this.employees(), resolveDefaultSanteiTargetYear());
+  }
+
+  /** ④ 月額変更届：適用済みの随時改定データが存在する場合のみ true */
+  hasZuihenBadge(): boolean {
+    return hasGetsugakuHenkoReportBadge(
+      this.employees(),
+      resolveDefaultGeppenRevisionYearMonth()
+    );
   }
 
   closeTargetModal(): void {

@@ -1,0 +1,120 @@
+@if (open() && request(); as currentRequest) {
+  <div
+    class="leave-request-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="leave-workflow-request-detail-title"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="leave-request-modal__panel">
+      <header class="leave-request-modal__header">
+        <div>
+          <p class="leave-request-modal__label">申請参照</p>
+          <h2 id="leave-workflow-request-detail-title" class="leave-request-modal__title">
+            {{ requestTypeLabel() }}
+          </h2>
+          <p class="leave-request-modal__meta">
+            対象従業員: {{ employeeLabel() }} /
+            申請日: {{ currentRequest.createdAt | date: 'yyyy/MM/dd HH:mm' }}
+          </p>
+          <p class="leave-request-modal__meta">
+            ステータス: {{ requestStatusLabel() }}
+          </p>
+        </div>
+        <button type="button" class="leave-request-modal__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <div class="leave-request-modal__body">
+        <p class="leave-request-modal__notice">
+          左側の「育休・産休の登録（マスター）」フォームで休業期間を手動登録してから、本画面下部のボタンで申請を完了にしてください。
+        </p>
+
+        <h3 class="leave-request-modal__section-title">申請内容</h3>
+        <dl class="leave-request-modal__details">
+          @for (row of payloadRows(); track row.label) {
+            <div class="leave-request-modal__detail-row">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </div>
+          }
+        </dl>
+
+        <section class="leave-request-modal__documents">
+          <h3 class="leave-request-modal__section-title">添付書類（母子手帳等）</h3>
+          @if (documentUrls().length === 0) {
+            <p class="leave-request-modal__documents-empty">添付された書類はありません。</p>
+          } @else {
+            <ul class="leave-request-modal__documents-list">
+              @for (url of documentUrls(); track url; let index = $index) {
+                <li class="leave-request-modal__document-item">
+                  <p class="leave-request-modal__document-label">書類 {{ index + 1 }}</p>
+                  @if (isPdfDocument(url)) {
+                    <div class="leave-request-modal__document-preview leave-request-modal__document-preview--pdf">
+                      <p class="leave-request-modal__pdf-note">PDFファイル</p>
+                      <button
+                        type="button"
+                        class="leave-request-modal__document-open"
+                        (click)="openDocumentInNewTab(url)"
+                      >
+                        拡大して確認
+                      </button>
+                    </div>
+                  } @else if (isImageDocument(url)) {
+                    <button
+                      type="button"
+                      class="leave-request-modal__document-image-btn"
+                      (click)="openDocumentInNewTab(url)"
+                    >
+                      <img
+                        [src]="url"
+                        alt="添付書類 {{ index + 1 }}"
+                        class="max-w-full h-auto max-h-48 object-contain mt-2 border rounded"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      class="leave-request-modal__document-open"
+                      (click)="openDocumentInNewTab(url)"
+                    >
+                      拡大して確認
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="leave-request-modal__document-open"
+                      (click)="openDocumentInNewTab(url)"
+                    >
+                      ファイルを開く
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        @if (errorMessage()) {
+          <p class="leave-request-modal__error" role="alert">{{ errorMessage() }}</p>
+        }
+      </div>
+
+      <footer class="leave-request-modal__footer">
+        <button type="button" class="leave-request-modal__cancel" (click)="close()">閉じる</button>
+        <button
+          type="button"
+          class="leave-request-modal__complete"
+          [disabled]="completing()"
+          (click)="complete()"
+        >
+          {{
+            completing()
+              ? '処理中...'
+              : 'マスターに登録後、この申請を完了にする'
+          }}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

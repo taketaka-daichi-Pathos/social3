@@ -1,18 +1,30 @@
-import { Component, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   NonNullableFormBuilder,
   ReactiveFormsModule,
 } from '@angular/forms';
+import { DependentDocumentUploadService } from '@core/services/dependent-document-upload.service';
+import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import {
   EmployeeTask,
   EmployeeTaskFieldValues,
 } from '@features/employee-portal/models/employee-task.model';
-import { DEPENDENT_RELATIONSHIP_OPTIONS } from '@features/dependents/models/dependent.model';
+import {
+  DEPENDENT_OCCUPATION_OPTIONS,
+  DEPENDENT_RELATIONSHIP_OPTIONS,
+  DEPENDENT_SITUATION_OPTIONS,
+  DependentCurrentSituation,
+  DependentLivingArrangement,
+  DependentOccupation,
+} from '@features/dependents/models/dependent.model';
+import { resolveRequiredDependentDocuments } from '@features/dependents/utils/dependent-required-documents.utils';
 import {
   EMPLOYEE_TASK_FIELD_LABELS,
   getEmployeeTaskDescription,
   getEmployeeTaskTitle,
 } from '@features/employee-portal/utils/employee-task.utils';
+import { merge } from 'rxjs';
 
 @Component({
   selector: 'app-employee-task-response-modal',
@@ -23,9 +35,13 @@ import {
 })
 export class EmployeeTaskResponseModalComponent {
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly uploadService = inject(DependentDocumentUploadService);
 
   readonly open = input(false);
   readonly task = input<EmployeeTask | null>(null);
+  readonly companyOwnerUid = input('');
+  readonly employeeId = input('');
   readonly submitting = input(false);
   readonly errorMessage = input<string | null>(null);
 
@@ -33,8 +49,13 @@ export class EmployeeTaskResponseModalComponent {
   readonly closed = output<void>();
 
   readonly validationError = signal('');
+  readonly uploading = signal(false);
+  readonly requiredDocuments = signal<string[]>([]);
+  readonly selectedFiles = signal<File[]>([]);
 
   readonly relationshipOptions = DEPENDENT_RELATIONSHIP_OPTIONS;
+  readonly occupationOptions = DEPENDENT_OCCUPATION_OPTIONS;
+  readonly situationOptions = DEPENDENT_SITUATION_OPTIONS;
 
   readonly form = this.fb.group({
     myNumber: this.fb.control(''),
@@ -58,11 +79,22 @@ export class EmployeeTaskResponseModalComponent {
     dependentFirstNameKana: this.fb.control(''),
     dependentBirthDate: this.fb.control(''),
     dependentRelationship: this.fb.control(''),
+    dependentLivingArrangement: this.fb.control(''),
     dependentDependencyStartDate: this.fb.control(''),
-    dependentDocumentSubmission: this.fb.control(false),
+    dependentHasDisability: this.fb.control(false),
+    dependentOccupation: this.fb.control(''),
+    dependentCurrentSituation: this.fb.control(''),
   });
 
   constructor() {
+    merge(this.form.valueChanges, this.form.statusChanges)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.isDependentInfoTask()) {
+          this.updateRequiredDocuments();
+        }
+      });
+
     effect(() => {
       if (!this.open()) {
         this.form.reset({
@@ -87,10 +119,15 @@ export class EmployeeTaskResponseModalComponent {
           dependentFirstNameKana: '',
           dependentBirthDate: '',
           dependentRelationship: '',
+          dependentLivingArrangement: '',
           dependentDependencyStartDate: '',
-          dependentDocumentSubmission: false,
+          dependentHasDisability: false,
+          dependentOccupation: '',
+          dependentCurrentSituation: '',
         });
         this.validationError.set('');
+        this.selectedFiles.set([]);
+        this.requiredDocuments.set([]);
       }
     });
   }
@@ -154,13 +191,32 @@ export class EmployeeTaskResponseModalComponent {
     this.closed.emit();
   }
 
+  onFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    this.selectedFiles.set(files);
+  }
+
+  selectedFileNames(): string {
+    const files = this.selectedFiles();
+    if (files.length === 0) {
+      return '';
+    }
+
+    return files.map((file) => file.name).join('、');
+  }
+
+  isBusy(): boolean {
+    return this.submitting() || this.uploading();
+  }
+
   onBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) {
       this.close();
     }
   }
 
-  onSubmit(): void {
+  async onSubmit(): Promise<void> {
     const task = this.task();
     if (!task) {
       return;
@@ -357,6 +413,15 @@ export class EmployeeTaskResponseModalComponent {
       }
     }
 
+    if (this.includesField('dependentLivingArrangement')) {
+      const livingArrangement = this.form.controls.dependentLivingArrangement.value.trim();
+      if (!livingArrangement) {
+        errors.push('同居・別居を選択してください');
+      } else {
+        values.dependentLivingArrangement = livingArrangement;
+      }
+    }
+
     if (this.includesField('dependentDependencyStartDate')) {
       const dependencyStartDate = this.form.controls.dependentDependencyStartDate.value.trim();
       if (!dependencyStartDate) {
@@ -366,11 +431,31 @@ export class EmployeeTaskResponseModalComponent {
       }
     }
 
-    if (this.includesField('dependentDocumentSubmission')) {
-      if (!this.form.controls.dependentDocumentSubmission.value) {
-        errors.push('証明書類の提出確認にチェックを入れてください');
+    if (this.includesField('dependentHasDisability')) {
+      values.dependentHasDisability = this.form.controls.dependentHasDisability.value;
+    }
+
+    if (this.includesField('dependentOccupation')) {
+      const occupation = this.form.controls.dependentOccupation.value.trim();
+      if (!occupation) {
+        errors.push('職業を選択してください');
       } else {
-        values.dependentDocumentSubmission = true;
+        values.dependentOccupation = occupation;
+      }
+    }
+
+    if (this.includesField('dependentCurrentSituation')) {
+      const currentSituation = this.form.controls.dependentCurrentSituation.value.trim();
+      if (!currentSituation) {
+        errors.push('現在の状況を選択してください');
+      } else {
+        values.dependentCurrentSituation = currentSituation;
+      }
+    }
+
+    if (this.includesField('dependentDocumentUpload')) {
+      if (this.selectedFiles().length === 0) {
+        errors.push('証明書類の画像を1件以上アップロードしてください');
       }
     }
 
@@ -379,7 +464,47 @@ export class EmployeeTaskResponseModalComponent {
       return;
     }
 
+    if (this.includesField('dependentDocumentUpload')) {
+      const companyOwnerUid = this.companyOwnerUid();
+      const employeeId = this.employeeId();
+      if (!companyOwnerUid || !employeeId) {
+        this.validationError.set('アップロードに必要な情報が不足しています');
+        return;
+      }
+
+      this.uploading.set(true);
+      try {
+        values.dependentDocumentUrls = await this.uploadService.uploadDependentDocuments(
+          companyOwnerUid,
+          employeeId,
+          this.selectedFiles()
+        );
+      } catch (error) {
+        this.validationError.set(
+          toFirestoreErrorMessage(error, '証明書類のアップロードに失敗しました')
+        );
+        return;
+      } finally {
+        this.uploading.set(false);
+      }
+    }
+
     this.validationError.set('');
     this.submitted.emit(values);
+  }
+
+  private updateRequiredDocuments(): void {
+    this.requiredDocuments.set(
+      resolveRequiredDependentDocuments({
+        birthDate: this.form.controls.dependentBirthDate.value,
+        occupation: this.form.controls.dependentOccupation.value as DependentOccupation | '',
+        currentSituation: this.form.controls.dependentCurrentSituation.value as
+          | DependentCurrentSituation
+          | '',
+        livingArrangement: this.form.controls.dependentLivingArrangement.value as
+          | DependentLivingArrangement
+          | '',
+      })
+    );
   }
 }

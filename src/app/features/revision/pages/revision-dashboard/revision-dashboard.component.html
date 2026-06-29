@@ -56,28 +56,8 @@
         </p>
       </div>
 
-      <nav class="revision__filter-tabs" aria-label="算定基礎のステータス絞り込み">
-        @for (tab of statusFilterTabs; track tab.id) {
-          <button
-            type="button"
-            class="revision__filter-tab"
-            [class.revision__filter-tab--active]="annualStatusFilter() === tab.id"
-            (click)="selectAnnualStatusFilter(tab.id)"
-          >
-            <span>{{ tab.label }}</span>
-            @if (tab.id === 'action_required' && annualPendingCount() > 0) {
-              <span
-                class="w-2 h-2 bg-red-500 rounded-full inline-block shrink-0"
-                [attr.aria-label]="'未処理 ' + annualPendingCount() + '件'"
-              ></span>
-              <span class="revision__filter-tab-count">{{ annualPendingCount() }}</span>
-            }
-          </button>
-        }
-      </nav>
-
-      @if (filteredAnnualResults().length === 0) {
-        <p class="revision__status">{{ annualStatusFilterEmptyMessage() }}</p>
+      @if (annualResults().length === 0) {
+        <p class="revision__status">表示する従業員がいません</p>
       } @else {
         <div class="revision__table-wrap">
           <table class="revision__table">
@@ -95,7 +75,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (row of filteredAnnualResults(); track row.employeeId) {
+              @for (row of annualResults(); track row.employeeId) {
                 <tr [class.revision__row--muted]="isAnnualRowMuted(row)">
                   <td>{{ row.employeeNumber }}</td>
                   <td class="revision__cell-name">
@@ -316,30 +296,8 @@
         <p class="revision__panel-note">{{ occasionalPanelNote() }}</p>
       </div>
 
-      <nav class="revision__filter-tabs" aria-label="随時改定のステータス絞り込み">
-        @for (tab of statusFilterTabs; track tab.id) {
-          <button
-            type="button"
-            class="revision__filter-tab"
-            [class.revision__filter-tab--active]="occasionalStatusFilter() === tab.id"
-            (click)="selectOccasionalStatusFilter(tab.id)"
-          >
-            <span>{{ tab.label }}</span>
-            @if (tab.id === 'action_required' && occasionalPendingCountForSelectedMonth() > 0) {
-              <span
-                class="w-2 h-2 bg-red-500 rounded-full inline-block shrink-0"
-                [attr.aria-label]="'未処理 ' + occasionalPendingCountForSelectedMonth() + '件'"
-              ></span>
-              <span class="revision__filter-tab-count">{{
-                occasionalPendingCountForSelectedMonth()
-              }}</span>
-            }
-          </button>
-        }
-      </nav>
-
-      @if (filteredOccasionalResults().length === 0) {
-        <p class="revision__status">{{ occasionalStatusFilterEmptyMessage() }}</p>
+      @if (occasionalResultsForSelectedMonth().length === 0) {
+        <p class="revision__status">固定的賃金の変動は検出されませんでした</p>
       } @else {
         <div class="revision__table-wrap">
           <table class="revision__table">
@@ -359,7 +317,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (row of filteredOccasionalResults(); track row.employeeId + row.changeMonth) {
+              @for (row of occasionalResultsForSelectedMonth(); track row.employeeId + row.changeMonth) {
                 <tr [class.revision__row--muted]="isOccasionalRowMuted(row)">
                   <td>{{ row.employeeNumber }}</td>
                   <td class="revision__cell-name">

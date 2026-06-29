@@ -33,8 +33,12 @@ export type EmployeeTaskRequestedField =
   | 'dependentFirstNameKana'
   | 'dependentBirthDate'
   | 'dependentRelationship'
+  | 'dependentLivingArrangement'
   | 'dependentDependencyStartDate'
-  | 'dependentDocumentSubmission';
+  | 'dependentHasDisability'
+  | 'dependentOccupation'
+  | 'dependentCurrentSituation'
+  | 'dependentDocumentUpload';
 
 export interface EmployeeTask {
   id: string;
@@ -68,8 +72,12 @@ export interface EmployeeTaskFieldValues {
   dependentFirstNameKana?: string;
   dependentBirthDate?: string;
   dependentRelationship?: string;
+  dependentLivingArrangement?: string;
   dependentDependencyStartDate?: string;
-  dependentDocumentSubmission?: boolean;
+  dependentHasDisability?: boolean;
+  dependentOccupation?: string;
+  dependentCurrentSituation?: string;
+  dependentDocumentUrls?: string[];
 }
 
 export interface CreateEmployeeTaskInput {

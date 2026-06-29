@@ -5,6 +5,7 @@ import { Auth } from '@angular/fire/auth';
 import { EmployeeSession, EmployeeSessionService } from '@core/services/employee-session.service';
 import { EmployeeTaskService } from '@core/services/employee-task.service';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
+import { EmployeeRegistrationInfoModalComponent } from '@features/employee-portal/components/employee-registration-info-modal/employee-registration-info-modal.component';
 import { EmployeeTaskResponseModalComponent } from '@features/employee-portal/components/employee-task-response-modal/employee-task-response-modal.component';
 import { EmployeeWorkflowRequestFormsComponent } from '@features/employee-portal/components/employee-workflow-request-forms/employee-workflow-request-forms.component';
 import {
@@ -17,7 +18,12 @@ import { employeeFullName } from '@features/payroll/utils/compensation.utils';
 @Component({
   selector: 'app-employee-dashboard',
   standalone: true,
-  imports: [DatePipe, EmployeeTaskResponseModalComponent, EmployeeWorkflowRequestFormsComponent],
+  imports: [
+    DatePipe,
+    EmployeeRegistrationInfoModalComponent,
+    EmployeeTaskResponseModalComponent,
+    EmployeeWorkflowRequestFormsComponent,
+  ],
   templateUrl: './employee-dashboard.component.html',
   styleUrl: './employee-dashboard.component.scss',
 })
@@ -33,6 +39,7 @@ export class EmployeeDashboardComponent implements OnInit {
   readonly tasks = signal<EmployeeTask[]>([]);
   readonly selectedTask = signal<EmployeeTask | null>(null);
   readonly taskModalOpen = signal(false);
+  readonly registrationInfoModalOpen = signal(false);
   readonly submitting = signal(false);
   readonly submitError = signal<string | null>(null);
 
@@ -78,6 +85,14 @@ export class EmployeeDashboardComponent implements OnInit {
     this.taskModalOpen.set(false);
     this.selectedTask.set(null);
     this.submitError.set(null);
+  }
+
+  openRegistrationInfoModal(): void {
+    this.registrationInfoModalOpen.set(true);
+  }
+
+  closeRegistrationInfoModal(): void {
+    this.registrationInfoModalOpen.set(false);
   }
 
   async onTaskSubmitted(values: EmployeeTaskFieldValues): Promise<void> {

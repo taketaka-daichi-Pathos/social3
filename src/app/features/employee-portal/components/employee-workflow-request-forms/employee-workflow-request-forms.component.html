@@ -1,137 +1,115 @@
-<section class="workflow-forms">
-  <header class="workflow-forms__header">
-    <h3 class="workflow-forms__title">各種申請</h3>
-    <p class="workflow-forms__description">
-      産休・育休、扶養追加、基本情報の申請をこちらから送信できます。
+<section class="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+  <header class="mb-6">
+    <h3 class="m-0 mb-1 text-lg font-bold text-gray-900">各種申請</h3>
+    <p class="m-0 text-sm text-gray-500">
+      休業・扶養・住所・通勤交通費・口座などの変更申請をこちらから送信できます。
     </p>
   </header>
 
-  @if (formError()) {
-    <p class="workflow-forms__error" role="alert">{{ formError() }}</p>
-  }
-
-  <div class="workflow-forms__list">
-    <article class="workflow-forms__panel">
-      <button type="button" class="workflow-forms__panel-toggle" (click)="toggleLeave()">
-        <span>産休・育休申請</span>
-        <span class="workflow-forms__chevron" [class.workflow-forms__chevron--open]="leaveOpen()">
-          ▼
-        </span>
-      </button>
-
-      @if (leaveOpen()) {
-        <form class="workflow-forms__body" [formGroup]="leaveForm" (ngSubmit)="submitLeave()">
-          <div class="workflow-forms__field">
-            <span class="workflow-forms__label">休業の種類</span>
-            @if (showLeaveKindSelector()) {
-              <div class="workflow-forms__radio-group" role="radiogroup" aria-label="休業の種類">
-                <label class="workflow-forms__radio">
-                  <input type="radio" formControlName="leaveKind" value="maternity" />
-                  <span>産休</span>
-                </label>
-                <label class="workflow-forms__radio">
-                  <input type="radio" formControlName="leaveKind" value="childcare" />
-                  <span>育休</span>
-                </label>
-              </div>
-            } @else {
-              <p class="workflow-forms__fixed-value">{{ fixedLeaveKindLabel() }}</p>
-            }
-          </div>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">開始予定日</span>
-            <input type="date" class="workflow-forms__input" formControlName="plannedStartDate" />
-          </label>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">終了予定日</span>
-            <input type="date" class="workflow-forms__input" formControlName="plannedEndDate" />
-          </label>
-          <button
-            type="submit"
-            class="workflow-forms__submit"
-            [disabled]="submittingType() === 'leave'"
-          >
-            {{ submittingType() === 'leave' ? '送信中...' : '申請する' }}
-          </button>
-        </form>
-      }
-    </article>
-
-    <article class="workflow-forms__panel">
-      <button type="button" class="workflow-forms__panel-toggle" (click)="toggleDependent()">
-        <span>扶養追加申請</span>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    @for (item of menuItems; track item.id) {
+      <button
+        type="button"
+        class="flex flex-row items-center p-5 text-left bg-white rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 w-full cursor-pointer"
+        (click)="openDialog(item.id)"
+      >
         <span
-          class="workflow-forms__chevron"
-          [class.workflow-forms__chevron--open]="dependentOpen()"
+          class="mr-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600"
+          aria-hidden="true"
         >
-          ▼
+          @switch (item.icon) {
+            @case ('leave') {
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            }
+            @case ('dependent') {
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            }
+            @case ('address') {
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            }
+            @case ('commute') {
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                />
+              </svg>
+            }
+            @case ('bank') {
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                />
+              </svg>
+            }
+          }
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold leading-snug text-gray-900">{{ item.title }}</span>
+          <span class="mt-1 block text-sm text-gray-500">{{ item.description }}</span>
         </span>
       </button>
-
-      @if (dependentOpen()) {
-        <form class="workflow-forms__body" [formGroup]="dependentForm" (ngSubmit)="submitDependent()">
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">家族氏名</span>
-            <input type="text" class="workflow-forms__input" formControlName="familyMemberName" />
-          </label>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">生年月日</span>
-            <input type="date" class="workflow-forms__input" formControlName="birthDate" />
-          </label>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">続柄</span>
-            <input type="text" class="workflow-forms__input" formControlName="relationship" />
-          </label>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">追加理由</span>
-            <textarea class="workflow-forms__textarea" rows="3" formControlName="reason"></textarea>
-          </label>
-          <button
-            type="submit"
-            class="workflow-forms__submit"
-            [disabled]="submittingType() === 'dependent'"
-          >
-            {{ submittingType() === 'dependent' ? '送信中...' : '申請する' }}
-          </button>
-        </form>
-      }
-    </article>
-
-    <article class="workflow-forms__panel">
-      <button type="button" class="workflow-forms__panel-toggle" (click)="toggleBasicInfo()">
-        <span>基本情報登録</span>
-        <span class="workflow-forms__chevron" [class.workflow-forms__chevron--open]="basicInfoOpen()">
-          ▼
-        </span>
-      </button>
-
-      @if (basicInfoOpen()) {
-        <form class="workflow-forms__body" [formGroup]="basicInfoForm" (ngSubmit)="submitBasicInfo()">
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">現住所</span>
-            <textarea
-              class="workflow-forms__textarea"
-              rows="2"
-              formControlName="currentAddress"
-            ></textarea>
-          </label>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">給与振込先金融機関</span>
-            <input type="text" class="workflow-forms__input" formControlName="bankName" />
-          </label>
-          <label class="workflow-forms__field">
-            <span class="workflow-forms__label">口座番号</span>
-            <input type="text" class="workflow-forms__input" formControlName="accountNumber" />
-          </label>
-          <button
-            type="submit"
-            class="workflow-forms__submit"
-            [disabled]="submittingType() === 'basic_info'"
-          >
-            {{ submittingType() === 'basic_info' ? '送信中...' : '申請する' }}
-          </button>
-        </form>
-      }
-    </article>
+    }
   </div>
 </section>
+
+<app-leave-application-dialog
+  [open]="activeDialog() === 'leave'"
+  [session]="session()"
+  (closed)="closeDialog()"
+  (submitted)="onApplicationSubmitted()"
+/>
+
+<app-dependent-application-dialog
+  [open]="activeDialog() === 'dependent'"
+  [session]="session()"
+  (closed)="closeDialog()"
+  (submitted)="onApplicationSubmitted()"
+/>
+
+<app-address-change-application-dialog
+  [open]="activeDialog() === 'address_change'"
+  [session]="session()"
+  (closed)="closeDialog()"
+  (submitted)="onApplicationSubmitted()"
+/>
+
+<app-commute-change-application-dialog
+  [open]="activeDialog() === 'commute_change'"
+  [session]="session()"
+  (closed)="closeDialog()"
+  (submitted)="onApplicationSubmitted()"
+/>
+
+<app-bank-account-application-dialog
+  [open]="activeDialog() === 'bank_account'"
+  [session]="session()"
+  (closed)="closeDialog()"
+  (submitted)="onApplicationSubmitted()"
+/>

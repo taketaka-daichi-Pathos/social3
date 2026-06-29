@@ -1,0 +1,57 @@
+<section class="application-detail">
+  <header class="application-detail__header">
+    <div>
+      <p class="application-detail__label">申請詳細</p>
+      <h3 class="application-detail__title">{{ requestTypeLabel() }}</h3>
+      <p class="application-detail__meta">
+        申請者: {{ employeeLabel() }} /
+        申請日: {{ request().createdAt | date: 'yyyy/MM/dd HH:mm' }}
+      </p>
+    </div>
+    <button type="button" class="application-detail__close" aria-label="閉じる" (click)="onClose()">
+      ×
+    </button>
+  </header>
+
+  <div class="application-detail__body">
+    <p class="application-detail__hint">
+      変更前（現在のマスター）と変更後（申請内容）を並べて確認してください。変更箇所はハイライト表示されます。
+    </p>
+
+    <div class="application-detail__comparison" role="table" aria-label="変更内容の比較">
+      <div class="application-detail__comparison-head" role="row">
+        <span role="columnheader">項目</span>
+        <span role="columnheader">現在の登録情報</span>
+        <span role="columnheader">申請内容</span>
+      </div>
+
+      @for (row of comparisonRows(); track row.label) {
+        <div
+          class="application-detail__comparison-row"
+          [class.application-detail__comparison-row--changed]="row.changed"
+          role="row"
+        >
+          <span class="application-detail__comparison-label" role="cell">{{ row.label }}</span>
+          <span class="application-detail__comparison-before" role="cell">{{ row.beforeValue }}</span>
+          <span class="application-detail__comparison-after" role="cell">{{ row.afterValue }}</span>
+        </div>
+      }
+    </div>
+
+    @if (errorMessage()) {
+      <p class="application-detail__error" role="alert">{{ errorMessage() }}</p>
+    }
+  </div>
+
+  <footer class="application-detail__footer">
+    <button type="button" class="application-detail__cancel" (click)="onClose()">閉じる</button>
+    <button
+      type="button"
+      class="application-detail__approve"
+      [disabled]="approving()"
+      (click)="onApprove()"
+    >
+      {{ approving() ? '承認中...' : '承認してマスターを更新する' }}
+    </button>
+  </footer>
+</section>

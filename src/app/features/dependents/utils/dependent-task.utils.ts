@@ -8,6 +8,10 @@ export const DEPENDENT_INFO_REQUEST_FIELDS: readonly EmployeeTaskRequestedField[
   'dependentFirstNameKana',
   'dependentBirthDate',
   'dependentRelationship',
+  'dependentLivingArrangement',
   'dependentDependencyStartDate',
-  'dependentDocumentSubmission',
+  'dependentHasDisability',
+  'dependentOccupation',
+  'dependentCurrentSituation',
+  'dependentDocumentUpload',
 ];

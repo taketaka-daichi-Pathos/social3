@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -5,8 +6,11 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { Auth, authState } from '@angular/fire/auth';
 import { EmployeeService } from '@core/services/employee.service';
+import { LeaveWorkflowInboxService } from '@core/services/leave-workflow-inbox.service';
 import { MonthlyLockService } from '@core/services/monthly-lock.service';
+import { WorkflowRequestService } from '@core/services/workflow-request.service';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import { Employee } from '@features/employees/models/employee.model';
 import { LeaveRecord, LeaveType, LeaveTableRow } from '@features/employees/models/leave-record.model';
@@ -16,6 +20,7 @@ import {
   leaveTypeLabel,
   listActiveOrScheduledLeaveRows,
 } from '@features/employees/utils/leave-record.utils';
+import { LeaveWorkflowRequestDetailModalComponent } from '@features/leave/components/leave-workflow-request-detail-modal/leave-workflow-request-detail-modal.component';
 import {
   CHILDCARE_BIRTH_AFTER_START_ERROR,
   EXCEEDS_PATERNITY_LEAVE_LIMIT_ERROR,
@@ -33,19 +38,28 @@ import {
   LEAVE_PERIOD_HAS_LOCKED_MONTH_ERROR,
   LEAVE_PERIOD_LOCKED_MONTH_MESSAGE,
 } from '@features/payroll/utils/monthly-lock.utils';
-import { debounceTime, merge } from 'rxjs';
+import { WorkflowRequest } from '@features/workflow/models/workflow-request.model';
+import { parseLeaveWorkflowPayload } from '@features/workflow/utils/workflow-payload.utils';
+import {
+  isLeaveWorkflowRequestType,
+  workflowRequestTypeLabel,
+} from '@features/workflow/utils/workflow-navigation.utils';
+import { debounceTime, filter, map, merge, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-leave-management',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [DatePipe, ReactiveFormsModule, LeaveWorkflowRequestDetailModalComponent],
   templateUrl: './leave-management.component.html',
   styleUrl: './leave-management.component.scss',
 })
 export class LeaveManagementComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(Auth);
   private readonly employeeService = inject(EmployeeService);
   private readonly monthlyLockService = inject(MonthlyLockService);
+  private readonly requestService = inject(WorkflowRequestService);
+  private readonly leaveInbox = inject(LeaveWorkflowInboxService);
   private readonly fb = inject(NonNullableFormBuilder);
 
   readonly loading = signal(true);
@@ -55,6 +69,9 @@ export class LeaveManagementComponent implements OnInit {
   readonly saving = signal(false);
   readonly employees = signal<Employee[]>([]);
   readonly immutableLeaveRowKeys = signal(new Set<string>());
+  readonly pendingLeaveRequests = signal<WorkflowRequest[]>([]);
+  readonly requestsLoading = signal(true);
+  readonly requestsError = signal<string | null>(null);
   submitted = false;
 
   readonly form = this.fb.group({
@@ -88,6 +105,24 @@ export class LeaveManagementComponent implements OnInit {
   );
 
   readonly leaveRows = computed(() => listActiveOrScheduledLeaveRows(this.employees()));
+
+  readonly leaveTrayItems = computed(() => {
+    const employees = this.employees();
+
+    return this.pendingLeaveRequests().map((request) => {
+      const employee = employees.find((row) => row.id === request.targetEmployeeId);
+      const parsed = parseLeaveWorkflowPayload(request.payload);
+
+      return {
+        request,
+        employeeNumber: employee?.employeeNumber ?? '—',
+        employeeName: employee ? `${employee.lastName} ${employee.firstName}` : '—',
+        requestTypeLabel: workflowRequestTypeLabel(request.type),
+        plannedStartDate: parsed.plannedStartDate || '—',
+        plannedEndDate: parsed.plannedEndDate || '—',
+      };
+    });
+  });
 
   readonly leavePeriodLockedMonthMessage = LEAVE_PERIOD_LOCKED_MONTH_MESSAGE;
 
@@ -164,6 +199,30 @@ export class LeaveManagementComponent implements OnInit {
       .subscribe(() => {
         this.form.updateValueAndValidity({ emitEvent: false });
       });
+
+    authState(this.auth)
+      .pipe(
+        filter((user) => user != null),
+        switchMap((user) => this.requestService.watchPendingRequestsForAdmin(user!.uid)),
+        map((requests) => requests.filter((request) => isLeaveWorkflowRequestType(request.type))),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: (requests) => {
+          this.pendingLeaveRequests.set(requests);
+          this.requestsError.set(null);
+          this.requestsLoading.set(false);
+        },
+        error: (error) => {
+          this.requestsError.set(toFirestoreErrorMessage(error, '申請トレイの取得に失敗しました'));
+          this.pendingLeaveRequests.set([]);
+          this.requestsLoading.set(false);
+        },
+      });
+  }
+
+  openLeaveRequest(request: WorkflowRequest): void {
+    this.leaveInbox.open(request);
   }
 
   leaveRowKey(row: LeaveTableRow): string {

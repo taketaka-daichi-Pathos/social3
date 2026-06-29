@@ -1,0 +1,14 @@
+@use '../../styles/application-form';
+@use '../../../../../styles/variables' as *;
+
+.placeholder-dialog__message {
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed $color-border;
+  border-radius: $radius-sm;
+  background: #f8fafc;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: $color-text-muted;
+  text-align: center;
+}

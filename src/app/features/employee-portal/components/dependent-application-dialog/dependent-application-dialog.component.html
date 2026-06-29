@@ -1,0 +1,247 @@
+<app-employee-application-dialog-shell
+  [open]="open()"
+  [wide]="true"
+  dialogId="dependent-application-dialog"
+  title="扶養追加申請"
+  description="扶養家族の情報と証明書類を入力して申請してください。"
+  (closed)="close()"
+>
+  <form class="application-form" [formGroup]="dependentForm" (ngSubmit)="submit()" novalidate autocomplete="off">
+    @if (formError()) {
+      <p class="application-form__error" role="alert">{{ formError() }}</p>
+    }
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppLastName">姓</label>
+      <input
+        id="dependentAppLastName"
+        type="text"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('lastName')"
+        formControlName="lastName"
+        autocomplete="off"
+      />
+      @if (showError('lastName')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('lastName') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppFirstName">名</label>
+      <input
+        id="dependentAppFirstName"
+        type="text"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('firstName')"
+        formControlName="firstName"
+        autocomplete="off"
+      />
+      @if (showError('firstName')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('firstName') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppLastNameKana">セイ</label>
+      <input
+        id="dependentAppLastNameKana"
+        type="text"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('lastNameKana')"
+        formControlName="lastNameKana"
+        autocomplete="off"
+      />
+      @if (showError('lastNameKana')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('lastNameKana') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppFirstNameKana">メイ</label>
+      <input
+        id="dependentAppFirstNameKana"
+        type="text"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('firstNameKana')"
+        formControlName="firstNameKana"
+        autocomplete="off"
+      />
+      @if (showError('firstNameKana')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('firstNameKana') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppBirthDate">生年月日</label>
+      <input
+        id="dependentAppBirthDate"
+        type="date"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('birthDate')"
+        formControlName="birthDate"
+        [attr.max]="birthDateMax() || null"
+      />
+      @if (showError('birthDate')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('birthDate') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppRelationship">続柄</label>
+      <select
+        id="dependentAppRelationship"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('relationship')"
+        formControlName="relationship"
+      >
+        <option value="">選択してください</option>
+        @for (option of relationshipOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+      @if (showError('relationship')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('relationship') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppLivingArrangement">同居・別居</label>
+      <select
+        id="dependentAppLivingArrangement"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('livingArrangement')"
+        formControlName="livingArrangement"
+      >
+        <option value="">選択してください</option>
+        <option value="cohabiting">同居</option>
+        <option value="separate">別居</option>
+      </select>
+      @if (showError('livingArrangement')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('livingArrangement') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppDependencyStartDate">扶養開始日（事由発生日）</label>
+      <input
+        id="dependentAppDependencyStartDate"
+        type="date"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('dependencyStartDate')"
+        formControlName="dependencyStartDate"
+        [attr.min]="dependencyStartDateMin() || null"
+      />
+      @if (showError('dependencyStartDate')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('dependencyStartDate') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <span class="application-form__label">障害の有無</span>
+      <div class="application-form__radio-group" role="radiogroup" aria-label="障害の有無">
+        <label class="application-form__radio">
+          <input type="radio" [value]="true" formControlName="hasDisability" />
+          <span>あり</span>
+        </label>
+        <label class="application-form__radio">
+          <input type="radio" [value]="false" formControlName="hasDisability" />
+          <span>なし</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppOccupation">職業</label>
+      <select
+        id="dependentAppOccupation"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('occupation')"
+        formControlName="occupation"
+      >
+        <option value="">選択してください</option>
+        @for (option of occupationOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+      @if (showError('occupation')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('occupation') }}</p>
+      }
+    </div>
+
+    <div class="application-form__field">
+      <label class="application-form__label" for="dependentAppCurrentSituation">現在の状況</label>
+      <select
+        id="dependentAppCurrentSituation"
+        class="application-form__input"
+        [class.application-form__input--invalid]="showError('currentSituation')"
+        formControlName="currentSituation"
+      >
+        <option value="">選択してください</option>
+        @for (option of situationOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+      @if (showError('currentSituation')) {
+        <p class="application-form__field-error" role="alert">{{ errorMessage('currentSituation') }}</p>
+      }
+    </div>
+
+    <section class="application-form__upload-section">
+      <h4 class="application-form__upload-title">提出が必要な書類</h4>
+      @if (requiredDocuments().length > 0) {
+        <p class="application-form__upload-lead">入力内容に基づき、以下の証明書類が必要です。</p>
+        <ul class="application-form__doc-list">
+          @for (document of requiredDocuments(); track document) {
+            <li>{{ document }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="application-form__upload-lead application-form__upload-lead--muted">
+          生年月日・職業・現在の状況・同居/別居を入力すると、必要な証明書類が表示されます。
+        </p>
+      }
+
+      <h4 class="application-form__upload-title application-form__upload-title--secondary">
+        証明書類のアップロード（必須）
+      </h4>
+      <div class="application-form__file-field">
+        <label class="application-form__file-label" for="dependentApplicationDocuments">
+          画像ファイルを選択
+        </label>
+        <input
+          id="dependentApplicationDocuments"
+          type="file"
+          class="application-form__file-input"
+          accept="image/*,.pdf"
+          multiple
+          (change)="onFilesSelected($event)"
+        />
+        @if (selectedFileNames()) {
+          <p class="application-form__file-names">選択中: {{ selectedFileNames() }}</p>
+        }
+      </div>
+      @if (formSubmitAttempted && selectedFiles().length === 0) {
+        <p class="application-form__field-error" role="alert">証明書類の画像を1件以上アップロードしてください</p>
+      }
+    </section>
+  </form>
+
+  <div dialogActions>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--ghost"
+      [disabled]="submitting()"
+      (click)="close()"
+    >
+      キャンセル
+    </button>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--primary"
+      [disabled]="submitting()"
+      (click)="submit()"
+    >
+      {{ submitting() ? '送信中...' : '申請する' }}
+    </button>
+  </div>
+</app-employee-application-dialog-shell>

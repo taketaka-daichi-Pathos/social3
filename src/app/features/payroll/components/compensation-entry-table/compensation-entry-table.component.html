@@ -43,6 +43,12 @@
     <p class="comp-table__alert comp-table__alert--locked" role="status">🔒 対象月は確定済みのため、賞与の編集・保存はできません。</p>
   }
 
+  @if (showPreviousMonthNotLockedCompensationSaveWarning()) {
+    <p class="comp-table__alert" role="alert">
+      {{ previousMonthNotLockedCompensationSaveMessage }}
+    </p>
+  }
+
   @if (saveSuccess()) {
     <p class="comp-table__success app-global-notification" role="status">{{ saveSuccess() }}</p>
   }

@@ -54,6 +54,8 @@ export interface Dependent {
   postalCode?: string;
   /** 住所 */
   address?: string;
+  /** 従業員がアップロードした証明書類の URL */
+  documentUrls?: string[];
 }
 
 export type DependentFormField = keyof Dependent;

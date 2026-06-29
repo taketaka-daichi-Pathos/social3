@@ -55,6 +55,18 @@ export interface Employee extends Omit<EmployeeRegistrationFormData, 'healthGrad
   postalCode?: string;
   /** 住所（法定帳票出力用） */
   address?: string;
+  /** 給与振込先金融機関名 */
+  bankName?: string;
+  /** 給与振込先支店名 */
+  bankBranchName?: string;
+  /** 口座種別（ordinary: 普通, checking: 当座 等） */
+  bankAccountType?: string;
+  /** 口座番号 */
+  bankAccountNumber?: string;
+  /** 通勤経路 */
+  commuteRoute?: string;
+  /** 定期代（円） */
+  commutePassAmount?: number | null;
   /** 登録時に確定した月次給与実績（証憑） */
   salaryHistory?: EmployeeSalaryHistoryEntry[];
   /** 登録時に確定した等級履歴 */

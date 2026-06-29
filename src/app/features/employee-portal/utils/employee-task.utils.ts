@@ -40,7 +40,7 @@ export const EMPLOYEE_TASK_TYPE_DEFINITIONS: Record<EmployeeTaskType, EmployeeTa
     taskType: 'DEPENDENT_INFO_REQUEST',
     title: '扶養家族情報・証明書類の提出',
     description:
-      '扶養家族の基本情報を入力し、必要な証明書類を担当者へ提出してください。入力後、担当者が内容を確認して登録します。',
+      '扶養家族の基本情報を入力し、必要な証明書類の画像をアップロードしてください。担当者が内容を確認して登録します。',
   },
 };
 
@@ -66,8 +66,12 @@ export const EMPLOYEE_TASK_FIELD_LABELS: Record<EmployeeTaskRequestedField, stri
   dependentFirstNameKana: '扶養家族の名（カナ）',
   dependentBirthDate: '扶養家族の生年月日',
   dependentRelationship: '続柄',
+  dependentLivingArrangement: '同居・別居',
   dependentDependencyStartDate: '扶養開始日（事由発生日）',
-  dependentDocumentSubmission: '証明書類の提出',
+  dependentHasDisability: '障害の有無',
+  dependentOccupation: '職業',
+  dependentCurrentSituation: '現在の状況',
+  dependentDocumentUpload: '証明書類のアップロード',
 };
 
 export function getEmployeeTaskTitle(taskType: EmployeeTaskType): string {

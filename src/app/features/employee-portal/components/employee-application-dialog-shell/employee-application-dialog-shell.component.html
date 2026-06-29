@@ -1,0 +1,31 @@
+@if (open()) {
+  <div
+    class="application-dialog"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-labelledby]="dialogId() + '-title'"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="application-dialog__panel" [class.application-dialog__panel--wide]="wide()">
+      <header class="application-dialog__header">
+        <div>
+          <h2 [id]="dialogId() + '-title'" class="application-dialog__title">{{ title() }}</h2>
+          @if (description()) {
+            <p class="application-dialog__description">{{ description() }}</p>
+          }
+        </div>
+        <button type="button" class="application-dialog__close" aria-label="閉じる" (click)="close()">
+          ×
+        </button>
+      </header>
+
+      <div class="application-dialog__content">
+        <ng-content />
+      </div>
+
+      <footer class="application-dialog__actions">
+        <ng-content select="[dialogActions]" />
+      </footer>
+    </div>
+  </div>
+}

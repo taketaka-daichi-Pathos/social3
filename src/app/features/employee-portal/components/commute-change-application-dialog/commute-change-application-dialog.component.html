@@ -1,0 +1,63 @@
+<app-employee-application-dialog-shell
+  [open]="open()"
+  dialogId="commute-change-application-dialog"
+  title="通勤交通費（定期代）変更申請"
+  description="通勤経路や定期代が変わった際は、新しい内容を入力して申請してください。"
+  (closed)="close()"
+>
+  <form class="application-form" [formGroup]="commuteForm" (ngSubmit)="submit()" novalidate autocomplete="off">
+    @if (formError()) {
+      <p class="application-form__error" role="alert">{{ formError() }}</p>
+    }
+
+    <label class="application-form__field">
+      <span class="application-form__label">通勤経路</span>
+      <textarea
+        class="application-form__textarea"
+        rows="3"
+        formControlName="commuteRoute"
+        placeholder="例: 自宅最寄駅 → 会社最寄駅（○○線・△△線）"
+      ></textarea>
+      @if (commuteForm.controls.commuteRoute.touched && commuteForm.controls.commuteRoute.invalid) {
+        <p class="application-form__field-error">通勤経路を入力してください</p>
+      }
+    </label>
+
+    <label class="application-form__field">
+      <span class="application-form__label">定期代（円）</span>
+      <input
+        type="number"
+        class="application-form__input"
+        formControlName="commutePassAmount"
+        inputmode="numeric"
+        min="0"
+        step="1"
+        autocomplete="off"
+      />
+      @if (
+        commuteForm.controls.commutePassAmount.touched && commuteForm.controls.commutePassAmount.invalid
+      ) {
+        <p class="application-form__field-error">定期代を入力してください</p>
+      }
+    </label>
+  </form>
+
+  <div dialogActions>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--ghost"
+      [disabled]="submitting()"
+      (click)="close()"
+    >
+      キャンセル
+    </button>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--primary"
+      [disabled]="submitting()"
+      (click)="submit()"
+    >
+      {{ submitting() ? '送信中...' : '申請する' }}
+    </button>
+  </div>
+</app-employee-application-dialog-shell>

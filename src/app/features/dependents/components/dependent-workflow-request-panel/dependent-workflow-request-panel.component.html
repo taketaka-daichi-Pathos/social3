@@ -1,0 +1,97 @@
+<section class="dependent-request-panel">
+  <header class="dependent-request-panel__header">
+    <div>
+      <p class="dependent-request-panel__label">申請詳細</p>
+      <h3 class="dependent-request-panel__title">{{ requestTypeLabel() }}</h3>
+      <p class="dependent-request-panel__meta">
+        対象従業員: {{ employeeLabel() }} /
+        申請日: {{ request().createdAt | date: 'yyyy/MM/dd HH:mm' }}
+      </p>
+    </div>
+    <button type="button" class="dependent-request-panel__close" aria-label="閉じる" (click)="onClose()">
+      ×
+    </button>
+  </header>
+
+  <div class="dependent-request-panel__body">
+    <h4 class="dependent-request-panel__section-title">申請内容</h4>
+    <dl class="dependent-request-panel__details">
+      @for (row of payloadRows(); track row.label) {
+        <div class="dependent-request-panel__detail-row">
+          <dt>{{ row.label }}</dt>
+          <dd>{{ row.value }}</dd>
+        </div>
+      }
+    </dl>
+
+    <section class="dependent-request-panel__documents">
+      <h4 class="dependent-request-panel__section-title">証明書類</h4>
+      @if (documentUrls().length === 0) {
+        <p class="dependent-request-panel__documents-empty">アップロードされた証明書類はありません。</p>
+      } @else {
+        <ul class="dependent-request-panel__documents-list">
+          @for (url of documentUrls(); track url; let index = $index) {
+            <li class="dependent-request-panel__document-item">
+              <p class="dependent-request-panel__document-label">証明書類 {{ index + 1 }}</p>
+              @if (isPdfDocument(url)) {
+                <div class="dependent-request-panel__document-preview dependent-request-panel__document-preview--pdf">
+                  <p class="dependent-request-panel__pdf-note">PDFファイル</p>
+                  <button
+                    type="button"
+                    class="dependent-request-panel__document-open"
+                    (click)="openDocumentInNewTab(url)"
+                  >
+                    拡大して確認
+                  </button>
+                </div>
+              } @else if (isImageDocument(url)) {
+                <button
+                  type="button"
+                  class="dependent-request-panel__document-image-btn"
+                  (click)="openDocumentInNewTab(url)"
+                >
+                  <img
+                    [src]="url"
+                    alt="証明書類 {{ index + 1 }}"
+                    class="max-w-full h-auto max-h-48 object-contain mt-2 border rounded"
+                  />
+                </button>
+                <button
+                  type="button"
+                  class="dependent-request-panel__document-open"
+                  (click)="openDocumentInNewTab(url)"
+                >
+                  拡大して確認
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  class="dependent-request-panel__document-open"
+                  (click)="openDocumentInNewTab(url)"
+                >
+                  ファイルを開く
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (errorMessage()) {
+      <p class="dependent-request-panel__error" role="alert">{{ errorMessage() }}</p>
+    }
+  </div>
+
+  <footer class="dependent-request-panel__footer">
+    <button type="button" class="dependent-request-panel__cancel" (click)="onClose()">閉じる</button>
+    <button
+      type="button"
+      class="dependent-request-panel__approve"
+      [disabled]="approving()"
+      (click)="onApprove()"
+    >
+      {{ approving() ? '承認中...' : '承認する（扶養家族を自動登録）' }}
+    </button>
+  </footer>
+</section>

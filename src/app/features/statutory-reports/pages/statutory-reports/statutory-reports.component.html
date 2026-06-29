@@ -15,8 +15,14 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     @for (item of menuItems; track item.id) {
       <article
-        class="group flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300"
+        class="group relative flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300"
       >
+        @if (hasReportBadge(item.id)) {
+          <span
+            class="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white"
+            aria-label="出力対象者あり"
+          ></span>
+        }
         <div class="flex items-start gap-3 mb-4">
           <span
             class="inline-flex shrink-0 items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-sm font-bold"

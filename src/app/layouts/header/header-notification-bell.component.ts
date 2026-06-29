@@ -1,8 +1,17 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AgeEventNotificationService } from '@core/services/age-event-notification.service';
+import { ApplicationWorkflowInboxService } from '@core/services/application-workflow-inbox.service';
+import { DependentWorkflowInboxService } from '@core/services/dependent-workflow-inbox.service';
+import { LeaveWorkflowInboxService } from '@core/services/leave-workflow-inbox.service';
 import { WorkflowApprovalService } from '@core/services/workflow-approval.service';
 import { WorkflowNotificationService } from '@core/services/workflow-notification.service';
 import { WorkflowBellNotification } from '@features/workflow/models/workflow-notification.model';
+import {
+  isAddDependentWorkflowRequestType,
+  isChangeApplicationWorkflowRequestType,
+  isLeaveWorkflowRequestType,
+} from '@features/workflow/utils/workflow-navigation.utils';
 
 export interface HeaderBellItem {
   id: string;
@@ -19,9 +28,13 @@ export interface HeaderBellItem {
   styleUrl: './header-notification-bell.component.scss',
 })
 export class HeaderNotificationBellComponent {
+  private readonly router = inject(Router);
   private readonly ageEventNotifications = inject(AgeEventNotificationService);
   private readonly workflowNotifications = inject(WorkflowNotificationService);
   private readonly workflowApproval = inject(WorkflowApprovalService);
+  private readonly leaveWorkflowInbox = inject(LeaveWorkflowInboxService);
+  private readonly dependentWorkflowInbox = inject(DependentWorkflowInboxService);
+  private readonly applicationWorkflowInbox = inject(ApplicationWorkflowInboxService);
 
   readonly panelOpen = signal(false);
   private readonly dismissedWorkflowIds = signal<Set<string>>(new Set());
@@ -75,7 +88,33 @@ export class HeaderNotificationBellComponent {
         notification.source === 'request' &&
         notification.request?.status === 'pending'
       ) {
-        this.workflowApproval.open(notification.request);
+        const request = notification.request;
+
+        if (isLeaveWorkflowRequestType(request.type)) {
+          void this.router.navigateByUrl('/leave').then(() => {
+            this.leaveWorkflowInbox.open(request);
+          });
+          this.closePanel();
+          return;
+        }
+
+        if (isAddDependentWorkflowRequestType(request.type)) {
+          void this.router.navigateByUrl('/dependents').then(() => {
+            this.dependentWorkflowInbox.select(request);
+          });
+          this.closePanel();
+          return;
+        }
+
+        if (isChangeApplicationWorkflowRequestType(request.type)) {
+          void this.router.navigateByUrl('/applications').then(() => {
+            this.applicationWorkflowInbox.open(request);
+          });
+          this.closePanel();
+          return;
+        }
+
+        this.workflowApproval.open(request);
         this.closePanel();
         return;
       }

@@ -1,7 +1,9 @@
 import {
   canLockPayrollMonthSequentially,
+  canSaveCompensationForTargetMonth,
   isExemptFromPreviousMonthLockRequirement,
   isMonthlyLockDocumentLocked,
+  shouldShowPreviousMonthNotLockedCompensationSaveWarning,
 } from './monthly-lock.utils';
 
 describe('monthly-lock sequential validation', () => {
@@ -88,5 +90,60 @@ describe('isMonthlyLockDocumentLocked', () => {
     expect(isMonthlyLockDocumentLocked({ allowances: [] })).toBe(false);
     expect(isMonthlyLockDocumentLocked({ isLocked: false })).toBe(false);
     expect(isMonthlyLockDocumentLocked({ isLocked: 'true' })).toBe(false);
+  });
+});
+
+describe('canSaveCompensationForTargetMonth', () => {
+  it('allows saving on the system start month without a locked previous month', () => {
+    expect(
+      canSaveCompensationForTargetMonth({
+        targetMonth: '2026-04',
+        previousMonthLocked: false,
+        systemStartDate: '2026-04',
+        companySettingsLoaded: true,
+      })
+    ).toBe(true);
+  });
+
+  it('blocks saving when the previous month is not locked', () => {
+    expect(
+      canSaveCompensationForTargetMonth({
+        targetMonth: '2026-05',
+        previousMonthLocked: false,
+        systemStartDate: '2026-04',
+        companySettingsLoaded: true,
+      })
+    ).toBe(false);
+  });
+
+  it('allows saving when the previous month is locked', () => {
+    expect(
+      canSaveCompensationForTargetMonth({
+        targetMonth: '2026-05',
+        previousMonthLocked: true,
+        systemStartDate: '2026-04',
+        companySettingsLoaded: true,
+      })
+    ).toBe(true);
+  });
+
+  it('shows warning only when save is blocked by previous month lock', () => {
+    expect(
+      shouldShowPreviousMonthNotLockedCompensationSaveWarning({
+        targetMonth: '2026-05',
+        previousMonthLocked: false,
+        systemStartDate: '2026-04',
+        companySettingsLoaded: true,
+      })
+    ).toBe(true);
+
+    expect(
+      shouldShowPreviousMonthNotLockedCompensationSaveWarning({
+        targetMonth: '2026-04',
+        previousMonthLocked: false,
+        systemStartDate: '2026-04',
+        companySettingsLoaded: true,
+      })
+    ).toBe(false);
   });
 });

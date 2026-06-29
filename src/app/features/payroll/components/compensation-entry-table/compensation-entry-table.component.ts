@@ -1,6 +1,6 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectorRef, Component, DestroyRef, computed, inject, input, OnInit, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ChangeDetectorRef, Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormArray,
@@ -12,6 +12,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { CompensationService } from '@core/services/compensation.service';
+import { CompanyService } from '@core/services/company.service';
 import { EmployeeService } from '@core/services/employee.service';
 import { MonthlyLockService } from '@core/services/monthly-lock.service';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
@@ -40,9 +41,19 @@ import {
   employeeFullName,
   filterEmployeesForTargetMonth,
   getCurrentYearMonthKey,
+  getPreviousYearMonthKey,
   resolvePayrollAllowances,
   resolvePayrollBaseSalary,
 } from '@features/payroll/utils/compensation.utils';
+import {
+  canSaveCompensationForTargetMonth,
+  PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_GUARD_MESSAGE,
+  PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE,
+  shouldShowPreviousMonthNotLockedCompensationSaveWarning,
+} from '@features/payroll/utils/monthly-lock.utils';
+import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
+import { ToastService } from '@shared/services/toast.service';
+import { combineLatest, EMPTY, switchMap } from 'rxjs';
 import {
   loadStoredBonusPaymentDate,
   saveStoredBonusPaymentDate,
@@ -78,12 +89,20 @@ export class CompensationEntryTableComponent implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly employeeService = inject(EmployeeService);
+  private readonly companyService = inject(CompanyService);
   private readonly compensationService = inject(CompensationService);
   private readonly monthlyLockService = inject(MonthlyLockService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly toast = inject(ToastService);
 
   readonly paymentDateError = signal('');
   readonly isBonusMonthLocked = signal(false);
+  readonly bonusTargetMonth = signal('');
+  readonly systemStartDate = signal('');
+  readonly companySettingsLoaded = signal(false);
+  readonly previousMonthLocked = signal<boolean | null>(null);
+  readonly previousMonthNotLockedCompensationSaveMessage =
+    PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE;
   readonly saveSuccess = signal('');
   readonly saveError = signal('');
   readonly loading = signal(true);
@@ -135,10 +154,63 @@ export class CompensationEntryTableComponent implements OnInit {
     groupBonusHistoryByPaymentDate(this.allBonusHistoryRows())
   );
 
+  readonly canSaveCompensationForTargetMonth = computed(() =>
+    canSaveCompensationForTargetMonth({
+      targetMonth: this.bonusTargetMonth(),
+      previousMonthLocked: this.previousMonthLocked(),
+      systemStartDate: this.systemStartDate(),
+      companySettingsLoaded: this.companySettingsLoaded(),
+    })
+  );
+
+  readonly showPreviousMonthNotLockedCompensationSaveWarning = computed(() =>
+    shouldShowPreviousMonthNotLockedCompensationSaveWarning({
+      targetMonth: this.bonusTargetMonth(),
+      previousMonthLocked: this.previousMonthLocked(),
+      systemStartDate: this.systemStartDate(),
+      companySettingsLoaded: this.companySettingsLoaded(),
+    })
+  );
+
+  private readonly bonusTargetMonth$ = toObservable(this.bonusTargetMonth);
+  private readonly companySettingsLoaded$ = toObservable(this.companySettingsLoaded);
+
+  constructor() {
+    combineLatest([this.bonusTargetMonth$, this.companySettingsLoaded$])
+      .pipe(
+        switchMap(([targetMonth, companyLoaded]) => {
+          if (!companyLoaded || !targetMonth.trim()) {
+            this.previousMonthLocked.set(null);
+            return EMPTY;
+          }
+
+          const normalizedTarget = normalizeYearMonthKey(targetMonth) ?? targetMonth.trim();
+          const previousMonth = getPreviousYearMonthKey(normalizedTarget);
+          this.previousMonthLocked.set(null);
+          this.monthlyLockService.invalidateMonthLockCache(previousMonth);
+
+          return this.monthlyLockService.watchMonthLocked(previousMonth);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: (locked) => {
+          this.previousMonthLocked.set(locked);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.previousMonthLocked.set(false);
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
   ngOnInit(): void {
     const stored = loadStoredBonusPaymentDate('');
     this.form.controls.paymentDate.setValue(stored);
     this.lastAppliedPaymentDate = normalizeBonusPaymentDate(stored);
+    this.syncBonusTargetMonthSignal();
+    void this.loadCompanySettings();
 
     this.employeeService
       .watchEmployees()
@@ -240,8 +312,12 @@ export class CompensationEntryTableComponent implements OnInit {
     return this.entries.at(index)?.controls.blockedByRetirement.value === true;
   }
 
-  /** 賞与額入力・保存が不可な行か（確定済み月・保存済み・退職後支払日） */
+  /** 賞与額入力・保存が不可な行か（確定済み月・保存済み・退職後支払日・前月未確定） */
   isRowInputDisabled(index: number): boolean {
+    if (!this.canSaveCompensationForTargetMonth()) {
+      return true;
+    }
+
     if (this.isBonusMonthLocked()) {
       return true;
     }
@@ -282,6 +358,7 @@ export class CompensationEntryTableComponent implements OnInit {
     this.lastAppliedPaymentDate = nextPaymentDate;
     this.paymentDateError.set('');
     this.rowErrors.set({});
+    this.syncBonusTargetMonthSignal();
     saveStoredBonusPaymentDate(nextPaymentDate);
     this.form.controls.paymentDate.updateValueAndValidity({ emitEvent: false });
 
@@ -330,7 +407,36 @@ export class CompensationEntryTableComponent implements OnInit {
   }
 
   private derivedTargetMonth(): string {
-    return resolveTargetMonthFromPaymentDate(this.normalizedPaymentDate()) ?? getCurrentYearMonthKey();
+    return (
+      resolveTargetMonthFromPaymentDate(this.normalizedPaymentDate()) ?? getCurrentYearMonthKey()
+    );
+  }
+
+  private syncBonusTargetMonthSignal(): void {
+    this.bonusTargetMonth.set(this.derivedTargetMonth());
+  }
+
+  private async loadCompanySettings(): Promise<void> {
+    this.companySettingsLoaded.set(false);
+
+    try {
+      const company = await this.companyService.getCompanyForCurrentUser();
+      this.systemStartDate.set(normalizeYearMonthKey(company?.systemStartDate) ?? '');
+    } catch {
+      this.systemStartDate.set('');
+    } finally {
+      this.companySettingsLoaded.set(true);
+      this.syncBonusTargetMonthSignal();
+    }
+  }
+
+  private assertCompensationSaveAllowed(): boolean {
+    if (this.canSaveCompensationForTargetMonth()) {
+      return true;
+    }
+
+    this.toast.show(PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_GUARD_MESSAGE);
+    return false;
   }
 
   private savedKey(employeeId: string, paymentDate: string): string {
@@ -565,6 +671,7 @@ export class CompensationEntryTableComponent implements OnInit {
 
   canSaveRow(index: number): boolean {
     return (
+      this.canSaveCompensationForTargetMonth() &&
       this.isRowInputEnabled(index) &&
       this.hasPaymentDate() &&
       !this.isRowLocked(index) &&
@@ -595,6 +702,10 @@ export class CompensationEntryTableComponent implements OnInit {
   async onSaveRow(index: number): Promise<void> {
     this.saveSuccess.set('');
     this.saveError.set('');
+
+    if (!this.assertCompensationSaveAllowed()) {
+      return;
+    }
 
     try {
       this.syncPaymentDateControlFromDom();
@@ -945,6 +1056,7 @@ export class CompensationEntryTableComponent implements OnInit {
 
     this.ensureLatestPaymentDateExpanded();
     this.lastAppliedPaymentDate = paymentDate;
+    this.syncBonusTargetMonthSignal();
     await this.refreshBonusMonthLock();
     this.entries.controls.forEach((group) => {
       const locked = group.controls.locked.value;

@@ -94,6 +94,12 @@
     <p class="payroll-table__alert" role="alert">{{ lockActionError() }}</p>
   }
 
+  @if (showPreviousMonthNotLockedCompensationSaveWarning()) {
+    <p class="payroll-table__alert" role="alert">
+      {{ previousMonthNotLockedCompensationSaveMessage }}
+    </p>
+  }
+
   @if (loadError()) {
     <p class="payroll-table__alert" role="alert">{{ loadError() }}</p>
   }

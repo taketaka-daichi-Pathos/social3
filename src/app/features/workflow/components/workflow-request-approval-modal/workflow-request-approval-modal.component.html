@@ -6,7 +6,7 @@
     aria-labelledby="workflow-request-approval-title"
     (click)="onBackdropClick($event)"
   >
-    <div class="approval-modal__panel">
+    <div class="approval-modal__panel" [class.approval-modal__panel--wide]="isAddDependentRequest()">
       <header class="approval-modal__header">
         <div>
           <p class="approval-modal__label">申請承認</p>
@@ -33,6 +33,62 @@
             </div>
           }
         </dl>
+
+        @if (isAddDependentRequest()) {
+          <section class="approval-modal__documents">
+            <h3 class="approval-modal__section-title">証明書類</h3>
+            @if (documentUrls().length === 0) {
+              <p class="approval-modal__documents-empty">アップロードされた証明書類はありません。</p>
+            } @else {
+              <ul class="approval-modal__documents-list">
+                @for (url of documentUrls(); track url; let index = $index) {
+                  <li class="approval-modal__document-item">
+                    <p class="approval-modal__document-label">証明書類 {{ index + 1 }}</p>
+                    @if (isPdfDocument(url)) {
+                      <div class="approval-modal__document-preview approval-modal__document-preview--pdf">
+                        <p class="approval-modal__pdf-note">PDFファイル</p>
+                        <button
+                          type="button"
+                          class="approval-modal__document-open"
+                          (click)="openDocumentInNewTab(url)"
+                        >
+                          拡大して確認
+                        </button>
+                      </div>
+                    } @else if (isImageDocument(url)) {
+                      <button
+                        type="button"
+                        class="approval-modal__document-image-btn"
+                        (click)="openDocumentInNewTab(url)"
+                      >
+                        <img
+                          [src]="url"
+                          alt="証明書類 {{ index + 1 }}"
+                          class="max-w-full h-auto max-h-48 object-contain mt-2 border rounded"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        class="approval-modal__document-open"
+                        (click)="openDocumentInNewTab(url)"
+                      >
+                        拡大して確認
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="approval-modal__document-open"
+                        (click)="openDocumentInNewTab(url)"
+                      >
+                        ファイルを開く
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
 
         @if (errorMessage()) {
           <p class="approval-modal__error" role="alert">{{ errorMessage() }}</p>

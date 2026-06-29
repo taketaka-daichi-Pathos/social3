@@ -1,116 +1,157 @@
-<section class="employee-dashboard">
-  @if (dependentInfoRequestTask(); as dependentTask) {
-    <div class="employee-dashboard__banner employee-dashboard__banner--dependent" role="alert">
-      <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(dependentTask)">
-        <span class="employee-dashboard__banner-label">入力依頼</span>
-        <span class="employee-dashboard__banner-text">
-          扶養家族情報と証明書類の提出が必要です。こちらをクリックして入力してください。
-        </span>
-      </button>
-    </div>
-  }
+@if (dependentInfoRequestTask(); as dependentTask) {
+  <div class="employee-dashboard__banner employee-dashboard__banner--dependent mx-auto mb-4 max-w-7xl px-4" role="alert">
+    <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(dependentTask)">
+      <span class="employee-dashboard__banner-label">入力依頼</span>
+      <span class="employee-dashboard__banner-text">
+        扶養家族情報と証明書類の提出が必要です。こちらをクリックして入力してください。
+      </span>
+    </button>
+  </div>
+}
 
-  @if (childcareLeaveInfoRequestTask(); as childcareTask) {
-    <div class="employee-dashboard__banner employee-dashboard__banner--childcare" role="alert">
-      <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(childcareTask)">
-        <span class="employee-dashboard__banner-label">入力依頼</span>
-        <span class="employee-dashboard__banner-text">
-          育児休業の詳細（養育する子の氏名・生年月日）の入力が必要です。こちらをクリックして入力してください。
-        </span>
-      </button>
-    </div>
-  }
+@if (childcareLeaveInfoRequestTask(); as childcareTask) {
+  <div class="employee-dashboard__banner employee-dashboard__banner--childcare mx-auto mb-4 max-w-7xl px-4" role="alert">
+    <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(childcareTask)">
+      <span class="employee-dashboard__banner-label">入力依頼</span>
+      <span class="employee-dashboard__banner-text">
+        育児休業の詳細（養育する子の氏名・生年月日）の入力が必要です。こちらをクリックして入力してください。
+      </span>
+    </button>
+  </div>
+}
 
-  @if (maternityLeaveInfoRequestTask(); as maternityTask) {
-    <div class="employee-dashboard__banner employee-dashboard__banner--maternity" role="alert">
-      <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(maternityTask)">
-        <span class="employee-dashboard__banner-label">入力依頼</span>
-        <span class="employee-dashboard__banner-text">
-          産前産後休業の詳細（出産予定日・出産種別）の入力が必要です。こちらをクリックして入力してください。
-        </span>
-      </button>
-    </div>
-  }
+@if (maternityLeaveInfoRequestTask(); as maternityTask) {
+  <div class="employee-dashboard__banner employee-dashboard__banner--maternity mx-auto mb-4 max-w-7xl px-4" role="alert">
+    <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(maternityTask)">
+      <span class="employee-dashboard__banner-label">入力依頼</span>
+      <span class="employee-dashboard__banner-text">
+        産前産後休業の詳細（出産予定日・出産種別）の入力が必要です。こちらをクリックして入力してください。
+      </span>
+    </button>
+  </div>
+}
 
-  @if (basicInfoRequestTask(); as basicInfoTask) {
-    <div class="employee-dashboard__banner" role="alert">
-      <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(basicInfoTask)">
-        <span class="employee-dashboard__banner-label">入力依頼</span>
-        <span class="employee-dashboard__banner-text">
-          基本情報（郵便番号・住所）の入力が必要です。こちらをクリックして入力してください。
-        </span>
-      </button>
-    </div>
-  }
+@if (basicInfoRequestTask(); as basicInfoTask) {
+  <div class="employee-dashboard__banner mx-auto mb-4 max-w-7xl px-4" role="alert">
+    <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(basicInfoTask)">
+      <span class="employee-dashboard__banner-label">入力依頼</span>
+      <span class="employee-dashboard__banner-text">
+        基本情報（郵便番号・住所）の入力が必要です。こちらをクリックして入力してください。
+      </span>
+    </button>
+  </div>
+}
 
-  <header class="employee-dashboard__welcome">
-    <h2 class="employee-dashboard__title">{{ employeeName() }} さん</h2>
-    <p class="employee-dashboard__description">
-      労務担当者から依頼された入力タスクの確認や、各種申請の送信ができます。
-    </p>
-  </header>
+@if (loading()) {
+  <p class="mx-auto max-w-7xl p-4 text-center text-sm text-gray-500">読み込み中…</p>
+} @else if (loadError()) {
+  <p class="mx-auto max-w-7xl rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+    {{ loadError() }}
+  </p>
+} @else {
+  <div class="flex flex-col gap-8 max-w-7xl mx-auto w-full p-4">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
+      <header
+        class="col-span-1 flex h-full flex-col gap-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+      >
+        <p class="m-0 text-xs font-semibold uppercase tracking-wide text-gray-500">ようこそ</p>
+        <h2 class="m-0 text-2xl font-bold text-gray-900">{{ employeeName() }} さん</h2>
+        <p class="m-0 text-sm leading-relaxed text-gray-500">
+          労務担当者から依頼された入力タスクの確認や、各種申請の送信ができます。
+        </p>
+        <button
+          type="button"
+          class="mt-auto w-full rounded-lg border border-blue-600 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100 hover:shadow"
+          (click)="openRegistrationInfoModal()"
+        >
+          現在の登録情報を確認する
+        </button>
+      </header>
 
-  @if (loading()) {
-    <p class="employee-dashboard__status">読み込み中…</p>
-  } @else if (loadError()) {
-    <p class="employee-dashboard__alert" role="alert">{{ loadError() }}</p>
-  } @else {
-    <section class="employee-dashboard__section employee-dashboard__section--alert">
-      <div class="employee-dashboard__section-head">
-        <h3 class="employee-dashboard__section-title">未対応のタスク</h3>
-        @if (pendingTasks().length > 0) {
-          <span class="employee-dashboard__badge">{{ pendingTasks().length }}</span>
-        }
-      </div>
-
-      @if (pendingTasks().length === 0) {
-        <p class="employee-dashboard__empty">現在、未対応のタスクはありません。</p>
-      } @else {
-        <ul class="employee-dashboard__task-list">
-          @for (task of pendingTasks(); track task.id) {
-            <li>
-              <button type="button" class="employee-dashboard__task-card" (click)="openTask(task)">
-                <span class="employee-dashboard__task-status">要対応</span>
-                <span class="employee-dashboard__task-title">{{ taskTitle(task) }}</span>
-                <span class="employee-dashboard__task-meta">
-                  依頼日: {{ task.createdAt | date: 'yyyy/MM/dd HH:mm' }}
-                </span>
-              </button>
-            </li>
-          }
-        </ul>
-      }
-    </section>
-
-    <section class="employee-dashboard__section">
-      <h3 class="employee-dashboard__section-title">完了したタスク</h3>
-      @if (completedTasks().length === 0) {
-        <p class="employee-dashboard__empty">完了したタスクはまだありません。</p>
-      } @else {
-        <ul class="employee-dashboard__completed-list">
-          @for (task of completedTasks(); track task.id) {
-            <li class="employee-dashboard__completed-item">
-              <span>{{ taskTitle(task) }}</span>
-              <span class="employee-dashboard__task-meta">
-                完了: {{ task.updatedAt | date: 'yyyy/MM/dd HH:mm' }}
+      <div class="col-span-1 lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section class="rounded-lg border border-red-200 bg-gradient-to-b from-red-50 to-white p-6 shadow-sm">
+          <div class="mb-4 flex items-center gap-2">
+            <h3 class="m-0 text-base font-bold text-gray-900">未対応のタスク</h3>
+            @if (pendingTasks().length > 0) {
+              <span
+                class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-2 text-xs font-bold text-white"
+              >
+                {{ pendingTasks().length }}
               </span>
-            </li>
-          }
-        </ul>
-      }
-    </section>
+            }
+          </div>
 
-    @if (session(); as currentSession) {
-      <app-employee-workflow-request-forms [session]="currentSession" />
-    }
-  }
-</section>
+          @if (pendingTasks().length === 0) {
+            <p class="m-0 rounded-lg border border-dashed border-gray-200 bg-white p-4 text-center text-sm text-gray-500">
+              現在、未対応のタスクはありません。
+            </p>
+          } @else {
+            <ul class="m-0 flex list-none flex-col gap-3 p-0">
+              @for (task of pendingTasks(); track task.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="flex w-full flex-col items-start gap-1 rounded-lg border border-red-200 bg-white p-4 text-left transition hover:shadow"
+                    (click)="openTask(task)"
+                  >
+                    <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">要対応</span>
+                    <span class="text-sm font-bold text-gray-900">{{ taskTitle(task) }}</span>
+                    <span class="text-xs text-gray-500">
+                      依頼日: {{ task.createdAt | date: 'yyyy/MM/dd HH:mm' }}
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <h3 class="m-0 mb-4 text-base font-bold text-gray-900">完了したタスク</h3>
+
+          @if (completedTasks().length === 0) {
+            <p class="m-0 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500">
+              完了したタスクはまだありません。
+            </p>
+          } @else {
+            <ul class="m-0 flex list-none flex-col gap-2 p-0">
+              @for (task of completedTasks(); track task.id) {
+                <li class="border-b border-gray-100 py-3 last:border-b-0 last:pb-0">
+                  <span class="block text-sm text-gray-900">{{ taskTitle(task) }}</span>
+                  <span class="mt-1 block text-xs text-gray-500">
+                    完了: {{ task.updatedAt | date: 'yyyy/MM/dd HH:mm' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      </div>
+    </div>
+
+    <div class="w-full">
+      @if (session(); as currentSession) {
+        <app-employee-workflow-request-forms [session]="currentSession" />
+      }
+    </div>
+  </div>
+}
 
 <app-employee-task-response-modal
   [open]="taskModalOpen()"
   [task]="selectedTask()"
+  [companyOwnerUid]="session()?.companyOwnerUid ?? ''"
+  [employeeId]="session()?.employee?.id ?? ''"
   [submitting]="submitting()"
   [errorMessage]="submitError()"
   (submitted)="onTaskSubmitted($event)"
   (closed)="closeTaskModal()"
 />
+
+@if (session(); as currentSession) {
+  <app-employee-registration-info-modal
+    [open]="registrationInfoModalOpen()"
+    [session]="currentSession"
+    (closed)="closeRegistrationInfoModal()"
+  />
+}

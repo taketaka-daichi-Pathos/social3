@@ -12,7 +12,7 @@ export interface DependentDocumentCriteria {
   livingArrangement: DependentLivingArrangement | '';
 }
 
-export const REMITTANCE_BANKBOOK_DOC = '仕送りしている通帳のコピー等';
+export const REMITTANCE_BANKBOOK_DOC = '仕送りしている通帳のコピー';
 
 function formatTodayIso(referenceDate: Date = new Date()): string {
   const year = referenceDate.getFullYear();
@@ -41,6 +41,13 @@ function isUnemployedOrPartTime(occupation: DependentOccupation | ''): boolean {
   return occupation === 'unemployed' || occupation === 'part_time';
 }
 
+function matchesRule1(
+  occupation: DependentOccupation | '',
+  currentSituation: DependentCurrentSituation | ''
+): boolean {
+  return occupation === 'unemployed' && currentSituation === 'recently_unemployed';
+}
+
 /** 入力内容から必要な証明書類リストを算出 */
 export function resolveRequiredDependentDocuments(
   criteria: DependentDocumentCriteria,
@@ -56,54 +63,52 @@ export function resolveRequiredDependentDocuments(
     }
   };
 
-  if (age == null || !occupation || !currentSituation || !livingArrangement) {
-    return documents;
-  }
-
-  // ① 職業=無職 ＆ 状況=直近で退職（同居）
-  if (
-    occupation === 'unemployed' &&
-    currentSituation === 'recently_unemployed' &&
-    isCohabiting(livingArrangement)
-  ) {
+  // ① 職業=無職 かつ 現在の状況=直近で退職
+  if (matchesRule1(occupation, currentSituation)) {
     pushUnique('退職証明書または離職票（１・２）のコピー');
   }
 
-  // ② 年齢=16歳以上 ＆ 職業=学生（同居）
-  if (age >= 16 && occupation === 'student' && isCohabiting(livingArrangement)) {
-    pushUnique('学生証のコピーまたは在学証明書');
+  // ② 年齢=16歳以上 かつ 職業=学生 かつ 同居
+  if (age != null && age >= 16 && occupation === 'student' && isCohabiting(livingArrangement)) {
+    pushUnique('学生証のコピーまたは、在学証明書');
   }
 
-  // ③ 職業=無職またはパート ＆ 状況=継続して無職/パート（同居）
+  // ③ 職業=無職またはパート かつ 同居（①を除く）
   if (
     isUnemployedOrPartTime(occupation) &&
-    currentSituation === 'ongoing_unemployed_or_part_time' &&
-    isCohabiting(livingArrangement)
+    isCohabiting(livingArrangement) &&
+    !matchesRule1(occupation, currentSituation)
   ) {
-    pushUnique('最新の非課税証明書または課税証明書');
+    pushUnique('最新の非課税証明書（または課税証明書）');
   }
 
-  // ④ 職業=学生 ＆ 別居
+  // ④ 職業=学生 かつ 別居
   if (occupation === 'student' && isSeparate(livingArrangement)) {
     pushUnique('学生証のコピー');
     pushUnique(REMITTANCE_BANKBOOK_DOC);
   }
 
-  // ⑤ 職業=無職またはパート ＆ 年齢=60歳未満 ＆ 別居
-  if (isUnemployedOrPartTime(occupation) && age < 60 && isSeparate(livingArrangement)) {
-    pushUnique('最新の非課税証明書');
+  // ⑤ 年齢=60歳未満 かつ 職業=無職またはパート かつ 別居
+  if (
+    age != null &&
+    age < 60 &&
+    isUnemployedOrPartTime(occupation) &&
+    isSeparate(livingArrangement)
+  ) {
+    pushUnique('最新の非課税証明書（6月に毎年更新）');
     pushUnique(REMITTANCE_BANKBOOK_DOC);
   }
 
-  // ⑥ 状況=直近で退職 ＆ 別居
+  // ⑥ 現在の状況=直近で退職 かつ 別居
   if (currentSituation === 'recently_unemployed' && isSeparate(livingArrangement)) {
     pushUnique('退職証明書または離職票');
     pushUnique(REMITTANCE_BANKBOOK_DOC);
   }
 
-  // ⑦ 年齢=60歳以上 ＆ 状況=年金受給者
-  if (age >= 60 && currentSituation === 'pension_recipient') {
-    pushUnique('年金振込通知書 または 年金額改定通知書');
+  // ⑦ 年齢=60歳以上 かつ 現在の状況=年金受給者
+  if (age != null && age >= 60 && currentSituation === 'pension_recipient') {
+    pushUnique('年金振込通知書');
+    pushUnique('年金額改定通知書');
   }
 
   return documents;

@@ -214,6 +214,14 @@ $color-backdrop: rgba(17, 24, 39, 0.45);
     color: $color-text-muted;
   }
 
+  &__submitted-docs {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border: 1px solid #dbeafe;
+    border-radius: 0.375rem;
+    background: #eff6ff;
+  }
+
   &__verify-field {
     margin-top: 1rem;
     padding-top: 1rem;

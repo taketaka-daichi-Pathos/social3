@@ -1,0 +1,60 @@
+<app-employee-application-dialog-shell
+  [open]="open()"
+  dialogId="leave-application-dialog"
+  title="産休・育休申請"
+  description="休業の種類と開始・終了予定日を入力して申請してください。"
+  (closed)="close()"
+>
+  <form class="application-form" [formGroup]="leaveForm" (ngSubmit)="submit()" novalidate autocomplete="off">
+    @if (formError()) {
+      <p class="application-form__error" role="alert">{{ formError() }}</p>
+    }
+
+    <div class="application-form__field">
+      <span class="application-form__label">休業の種類</span>
+      @if (showLeaveKindSelector()) {
+        <div class="application-form__radio-group" role="radiogroup" aria-label="休業の種類">
+          <label class="application-form__radio">
+            <input type="radio" formControlName="leaveKind" value="maternity" />
+            <span>産休</span>
+          </label>
+          <label class="application-form__radio">
+            <input type="radio" formControlName="leaveKind" value="childcare" />
+            <span>育休</span>
+          </label>
+        </div>
+      } @else {
+        <p class="application-form__fixed-value">{{ fixedLeaveKindLabel() }}</p>
+      }
+    </div>
+
+    <label class="application-form__field">
+      <span class="application-form__label">開始予定日</span>
+      <input type="date" class="application-form__input" formControlName="plannedStartDate" />
+    </label>
+
+    <label class="application-form__field">
+      <span class="application-form__label">終了予定日</span>
+      <input type="date" class="application-form__input" formControlName="plannedEndDate" />
+    </label>
+  </form>
+
+  <div dialogActions>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--ghost"
+      [disabled]="submitting()"
+      (click)="close()"
+    >
+      キャンセル
+    </button>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--primary"
+      [disabled]="submitting()"
+      (click)="submit()"
+    >
+      {{ submitting() ? '送信中...' : '申請する' }}
+    </button>
+  </div>
+</app-employee-application-dialog-shell>

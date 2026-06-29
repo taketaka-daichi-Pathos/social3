@@ -70,12 +70,17 @@ import {
 import { buildMonthlyLockConfirmMessage } from '@features/payroll/utils/monthly-lock-confirm.utils';
 import {
   canLockPayrollMonthSequentially,
+  canSaveCompensationForTargetMonth,
   isSystemStartMonth,
   PREVIOUS_MONTH_NOT_LOCKED_MESSAGE,
+  PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_GUARD_MESSAGE,
+  PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE,
+  shouldShowPreviousMonthNotLockedCompensationSaveWarning,
 } from '@features/payroll/utils/monthly-lock.utils';
 import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
 import { CompanyAllowance } from '@features/settings/models/company-settings.model';
 import { YearSelectComponent } from '@shared/components/year-select/year-select.component';
+import { ToastService } from '@shared/services/toast.service';
 import { RetiredEmployeeBadgeComponent } from '@shared/components/retired-employee-badge/retired-employee-badge.component';
 import { SocialInsuranceTypeBadgeComponent } from '@shared/components/social-insurance-type-badge/social-insurance-type-badge.component';
 import {
@@ -128,6 +133,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
   private readonly monthlyLockService = inject(MonthlyLockService);
   private readonly ageEventContext = inject(AgeEventContextService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly toast = inject(ToastService);
 
   readonly targetMonth = signal(getCurrentYearMonthKey());
   readonly isTargetMonthLocked = signal(false);
@@ -224,6 +230,26 @@ export class MonthlyPayrollTableComponent implements OnInit {
   });
 
   readonly previousMonthNotLockedMessage = PREVIOUS_MONTH_NOT_LOCKED_MESSAGE;
+  readonly previousMonthNotLockedCompensationSaveMessage =
+    PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_MESSAGE;
+
+  readonly canSaveCompensationForTargetMonth = computed(() =>
+    canSaveCompensationForTargetMonth({
+      targetMonth: this.targetMonth(),
+      previousMonthLocked: this.previousMonthLocked(),
+      systemStartDate: this.systemStartDate(),
+      companySettingsLoaded: this.companySettingsLoaded(),
+    })
+  );
+
+  readonly showPreviousMonthNotLockedCompensationSaveWarning = computed(() =>
+    shouldShowPreviousMonthNotLockedCompensationSaveWarning({
+      targetMonth: this.targetMonth(),
+      previousMonthLocked: this.previousMonthLocked(),
+      systemStartDate: this.systemStartDate(),
+      companySettingsLoaded: this.companySettingsLoaded(),
+    })
+  );
 
   /** 確定ボタンの disabled 状態（全条件評価後に1箇所で更新） */
   private readonly confirmButtonDisabledSubject = new BehaviorSubject<boolean>(true);
@@ -492,6 +518,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
   isRowDisabled(index: number): boolean {
     const employeeId = this.entries.at(index)?.controls.employeeId.value;
     return (
+      !this.canSaveCompensationForTargetMonth() ||
       this.isTargetMonthLocked() ||
       this.isRowLocked(index) ||
       this.isRowBeforeHire(index) ||
@@ -564,7 +591,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   canSaveRow(index: number): boolean {
-    if (this.isRowDisabled(index)) {
+    if (!this.canSaveCompensationForTargetMonth() || this.isRowDisabled(index)) {
       return false;
     }
 
@@ -625,7 +652,20 @@ export class MonthlyPayrollTableComponent implements OnInit {
   }
 
   needsPreviousMonthSave(index: number): boolean {
+    if (!this.canSaveCompensationForTargetMonth()) {
+      return false;
+    }
+
     return !this.isRowDisabled(index) && !this.canSaveRow(index);
+  }
+
+  private assertCompensationSaveAllowed(): boolean {
+    if (this.canSaveCompensationForTargetMonth()) {
+      return true;
+    }
+
+    this.toast.show(PREVIOUS_MONTH_NOT_LOCKED_COMPENSATION_SAVE_GUARD_MESSAGE);
+    return false;
   }
 
   openAdjustmentModal(index: number): void {
@@ -763,6 +803,10 @@ export class MonthlyPayrollTableComponent implements OnInit {
     const employeeId = group.controls.employeeId.value?.trim();
 
     if (!employeeId || this.isRowSaving(employeeId)) {
+      return;
+    }
+
+    if (!this.assertCompensationSaveAllowed()) {
       return;
     }
 

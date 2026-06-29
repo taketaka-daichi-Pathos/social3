@@ -3,6 +3,11 @@ import { Component, computed, inject } from '@angular/core';
 import { WorkflowApprovalService } from '@core/services/workflow-approval.service';
 import { buildWorkflowPayloadDisplayRows } from '@features/workflow/utils/workflow-payload.utils';
 import {
+  extractAddDependentDocumentUrls,
+  isImageDocumentUrl,
+  isPdfDocumentUrl,
+} from '@features/workflow/utils/workflow-dependent.utils';
+import {
   workflowRequestStatusLabel,
   workflowRequestTypeLabel,
 } from '@features/workflow/utils/workflow-navigation.utils';
@@ -31,6 +36,17 @@ export class WorkflowRequestApprovalModalComponent {
     return buildWorkflowPayloadDisplayRows(current.type, current.payload);
   });
 
+  readonly documentUrls = computed(() => {
+    const current = this.request();
+    if (!current || current.type !== 'add_dependent') {
+      return [];
+    }
+
+    return extractAddDependentDocumentUrls(current.payload);
+  });
+
+  readonly isAddDependentRequest = computed(() => this.request()?.type === 'add_dependent');
+
   requestTypeLabel(): string {
     const current = this.request();
     return current ? workflowRequestTypeLabel(current.type) : '';
@@ -39,6 +55,18 @@ export class WorkflowRequestApprovalModalComponent {
   requestStatusLabel(): string {
     const current = this.request();
     return current ? workflowRequestStatusLabel(current.status) : '';
+  }
+
+  isPdfDocument(url: string): boolean {
+    return isPdfDocumentUrl(url);
+  }
+
+  isImageDocument(url: string): boolean {
+    return isImageDocumentUrl(url);
+  }
+
+  openDocumentInNewTab(url: string): void {
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   close(): void {

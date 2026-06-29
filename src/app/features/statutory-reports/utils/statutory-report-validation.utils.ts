@@ -1,5 +1,5 @@
 import { Employee } from '@features/employees/models/employee.model';
-import { EmployeeTaskRequestedField } from '@features/employee-portal/models/employee-task.model';
+import { EmployeeTask, EmployeeTaskRequestedField } from '@features/employee-portal/models/employee-task.model';
 import {
   EmployeeReportReadiness,
   STATUTORY_REQUIRED_FIELD_LABELS,
@@ -27,6 +27,10 @@ import {
   isAge75HealthLossExportCandidate,
 } from '@features/employees/utils/age-event-notification.utils';
 import { getCurrentYearMonthKey } from '@features/payroll/utils/compensation.utils';
+import {
+  hasEmployeeBonusForPaymentDate,
+  resolveDefaultSyouyoPaymentDate,
+} from '@features/statutory-reports/utils/syouyo-data.utils';
 
 function normalizeDigits(value: string): string {
   return value.replace(/\D/g, '');
@@ -199,4 +203,91 @@ export function mapMissingFieldsToTaskRequestedFields(
       return mapped ? [mapped] : [];
     })
     .filter((field): field is EmployeeTaskRequestedField => Boolean(field));
+}
+
+function hasPendingStatutoryInputTask(
+  employee: Employee,
+  companyTasks: EmployeeTask[],
+  reportId: StatutoryReportId
+): boolean {
+  const taskType = getStatutoryReportDefinition(reportId).taskType;
+  if (!taskType) {
+    return false;
+  }
+
+  return companyTasks.some(
+    (task) =>
+      task.employeeId === employee.id &&
+      task.taskType === taskType &&
+      task.status === 'PENDING'
+  );
+}
+
+function isStatutoryEmployeeExportReady(
+  employee: Employee,
+  reportId: StatutoryReportId,
+  employees: Employee[]
+): boolean {
+  const readiness = evaluateEmployeeReportReadiness(employee, reportId);
+  if (!readiness.ready) {
+    return false;
+  }
+
+  switch (reportId) {
+    case 'shoyo-shiharai':
+      return hasEmployeeBonusForPaymentDate(
+        employee,
+        resolveDefaultSyouyoPaymentDate(employees)
+      );
+    case 'fuyo-ido':
+      return employeeHasFuyouIdouDependents(employee);
+    case 'sankyu-shinsei':
+      return employeeHasMaternityLeaveRecord(employee);
+    case 'ikuji-shinsei':
+      return employeeHasChildcareLeaveRecord(employee);
+    default:
+      return true;
+  }
+}
+
+function needsStatutoryLaborAction(
+  employee: Employee,
+  companyTasks: EmployeeTask[],
+  reportId: StatutoryReportId
+): boolean {
+  if (hasPendingStatutoryInputTask(employee, companyTasks, reportId)) {
+    return true;
+  }
+
+  const readiness = evaluateEmployeeReportReadiness(employee, reportId);
+  if (readiness.ready) {
+    return false;
+  }
+
+  const definition = getStatutoryReportDefinition(reportId);
+  if (!definition.taskType || !employee.authUid) {
+    return readiness.missingFields.length > 0;
+  }
+
+  const requestedFields = mapMissingFieldsToTaskRequestedFields(
+    reportId,
+    readiness.missingFields
+  );
+
+  return requestedFields.length > 0;
+}
+
+/** 帳票カードの通知バッジ表示判定（出力可能な対象者または未処理の入力依頼あり） */
+export function hasStatutoryReportExportTargets(
+  employees: Employee[],
+  companyTasks: EmployeeTask[],
+  reportId: StatutoryReportId
+): boolean {
+  const candidates = filterReportCandidates(employees, reportId);
+
+  return candidates.some(
+    (employee) =>
+      isStatutoryEmployeeExportReady(employee, reportId, employees) ||
+      needsStatutoryLaborAction(employee, companyTasks, reportId)
+  );
 }

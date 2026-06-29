@@ -31,6 +31,7 @@ export class MainLayoutComponent {
     { label: '法定帳票出力', route: '/statutory-reports', adminTodoTargetTab: 'legal-forms' },
     { label: '育休・産休', route: '/leave' },
     { label: '扶養', route: '/dependents' },
+    { label: '申請管理', route: '/applications' },
     { label: '退職', route: '/retirement' },
     { label: '会社設定', route: '/settings/company' },
   ];

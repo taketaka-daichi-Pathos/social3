@@ -12,7 +12,9 @@
 
   &__panel {
     width: 100%;
-    max-width: 28rem;
+    max-width: 32rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
     background: #fff;
     border: 1px solid $color-border;
     border-radius: $radius-md;
@@ -102,6 +104,89 @@
     font-size: 0.875rem;
     color: $color-text;
     cursor: pointer;
+  }
+
+  &__radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  &__helper {
+    margin: 0 0 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: $color-text-muted;
+  }
+
+  &__upload-section {
+    margin-bottom: 1rem;
+    padding: 0.85rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #f8fafc;
+  }
+
+  &__upload-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__upload-lead {
+    margin: 0 0 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: $color-text-muted;
+
+    &--muted {
+      font-style: italic;
+    }
+  }
+
+  &__doc-list {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: $color-text;
+  }
+
+  &__file-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  &__file-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+    background: #fff;
+    cursor: pointer;
+
+    &:hover {
+      background: #f3f4f6;
+    }
+  }
+
+  &__file-input {
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+  }
+
+  &__file-names {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
   }
 
   &__error {

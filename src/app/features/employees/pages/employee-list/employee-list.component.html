@@ -21,6 +21,16 @@
     </button>
   </header>
 
+  <div
+    class="mb-4 flex items-start gap-2.5 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-relaxed text-gray-600"
+    role="note"
+  >
+    <span class="shrink-0 text-base leading-none" aria-hidden="true">ℹ️</span>
+    <p class="m-0">
+      入社・退社、育休・産休などの処理がすべて終わったら、【月次給与】画面へ移動し、「この月の作業を確定する」ボタンを押して翌月へ進んでください。
+    </p>
+  </div>
+
   @if (saveError()) {
     <p class="employee-list__alert app-global-notification" role="alert">{{ saveError() }}</p>
   }

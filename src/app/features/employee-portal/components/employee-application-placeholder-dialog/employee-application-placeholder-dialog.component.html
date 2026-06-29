@@ -1,0 +1,21 @@
+<app-employee-application-dialog-shell
+  [open]="open()"
+  [dialogId]="dialogId()"
+  [title]="title()"
+  [description]="description()"
+  (closed)="close()"
+>
+  <p class="placeholder-dialog__message">
+    この申請機能は現在準備中です。近日中にご利用いただけます。
+  </p>
+
+  <div dialogActions>
+    <button
+      type="button"
+      class="application-dialog-btn application-dialog-btn--primary"
+      (click)="close()"
+    >
+      閉じる
+    </button>
+  </div>
+</app-employee-application-dialog-shell>

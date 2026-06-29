@@ -66,7 +66,7 @@ export class AddDependentModalComponent implements OnInit {
   readonly relationshipOptions = DEPENDENT_RELATIONSHIP_OPTIONS;
 
   readonly requiredDocuments = signal<string[]>([]);
-  readonly selectedFiles = signal<File[]>([]);
+  readonly submittedDocumentUrls = signal<string[]>([]);
 
   submitted = false;
 
@@ -144,21 +144,6 @@ export class AddDependentModalComponent implements OnInit {
     });
   }
 
-  onFilesSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const files = input.files ? Array.from(input.files) : [];
-    this.selectedFiles.set(files);
-  }
-
-  selectedFileNames(): string {
-    const files = this.selectedFiles();
-    if (files.length === 0) {
-      return '';
-    }
-
-    return files.map((file) => file.name).join('、');
-  }
-
   showError(field: DependentFormField): boolean {
     const control = this.form.get(field);
     return Boolean(control && control.invalid && (control.touched || this.submitted));
@@ -199,7 +184,7 @@ export class AddDependentModalComponent implements OnInit {
 
   private resetForm(draft: Dependent | null = null): void {
     this.submitted = false;
-    this.selectedFiles.set([]);
+    this.submittedDocumentUrls.set(draft?.documentUrls ?? []);
     this.form.reset(AddDependentModalComponent.INITIAL_VALUE);
 
     if (draft) {

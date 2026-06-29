@@ -1,0 +1,195 @@
+@use '../../../../../styles/variables' as *;
+
+.dependent-request-panel {
+  margin-top: 1rem;
+  border: 1px solid $color-border;
+  border-radius: $radius-sm;
+  background: #fff;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid $color-border;
+    background: #f8fafc;
+  }
+
+  &__label {
+    margin: 0 0 0.15rem;
+    font-size: 0.6875rem;
+    color: $color-text-muted;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__meta {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: $color-text-muted;
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    color: $color-text-muted;
+    font-size: 1.125rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  &__body {
+    padding: 0.85rem 1rem;
+  }
+
+  &__section-title {
+    margin: 0 0 0.65rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  &__details {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  &__detail-row {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr;
+    gap: 0.65rem;
+    font-size: 0.8125rem;
+
+    dt {
+      margin: 0;
+      color: $color-text-muted;
+      font-weight: 600;
+    }
+
+    dd {
+      margin: 0;
+      color: $color-text;
+      word-break: break-word;
+    }
+  }
+
+  &__documents {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid $color-border;
+  }
+
+  &__documents-empty {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+  }
+
+  &__documents-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__document-item {
+    padding: 0.65rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #f8fafc;
+  }
+
+  &__document-label {
+    margin: 0 0 0.3rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: $color-text-muted;
+  }
+
+  &__document-image-btn {
+    display: block;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  &__document-preview--pdf {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  &__pdf-note {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: $color-text;
+  }
+
+  &__document-open {
+    margin-top: 0.35rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  &__error {
+    margin: 0.85rem 0 0;
+    padding: 0.65rem;
+    border-radius: $radius-sm;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.8125rem;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid $color-border;
+  }
+
+  &__cancel,
+  &__approve {
+    padding: 0.5rem 0.85rem;
+    border-radius: $radius-sm;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  &__cancel {
+    border: 1px solid $color-border;
+    background: #fff;
+    color: $color-text;
+  }
+
+  &__approve {
+    border: none;
+    background: $color-primary;
+    color: #fff;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}

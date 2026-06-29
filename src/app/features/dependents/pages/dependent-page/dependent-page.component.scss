@@ -2,8 +2,24 @@
 
 .dependent-page {
   padding: 1.5rem;
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
+
+  &__columns {
+    align-items: start;
+  }
+
+  &__column-title {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__column--tray {
+    position: sticky;
+    top: 1rem;
+  }
 
   &__header {
     margin-bottom: 1.5rem;
@@ -51,6 +67,11 @@
 
     &--table {
       margin-bottom: 0;
+    }
+
+    &--tray {
+      margin-bottom: 0;
+      min-height: 12rem;
     }
   }
 
@@ -209,5 +230,60 @@
     td {
       color: $color-text;
     }
+  }
+
+  &__tray-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__tray-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover,
+    &--selected {
+      border-color: rgba($color-primary, 0.45);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    &--selected {
+      background: rgba($color-primary, 0.04);
+    }
+  }
+
+  &__tray-badge {
+    display: inline-flex;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(#f59e0b, 0.15);
+    color: #b45309;
+    font-size: 0.6875rem;
+    font-weight: 700;
+  }
+
+  &__tray-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__tray-meta {
+    font-size: 0.8125rem;
+    color: $color-text-muted;
   }
 }

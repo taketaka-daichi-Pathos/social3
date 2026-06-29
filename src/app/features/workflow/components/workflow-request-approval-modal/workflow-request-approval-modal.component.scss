@@ -13,10 +13,16 @@
   &__panel {
     width: 100%;
     max-width: 32rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
     background: #fff;
     border: 1px solid $color-border;
     border-radius: $radius-md;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+    &--wide {
+      max-width: 40rem;
+    }
   }
 
   &__header {
@@ -102,6 +108,74 @@
     background: #fef2f2;
     color: #b91c1c;
     font-size: 0.8125rem;
+  }
+
+  &__documents {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid $color-border;
+  }
+
+  &__documents-empty {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: $color-text-muted;
+  }
+
+  &__documents-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  &__document-item {
+    padding: 0.75rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #f8fafc;
+  }
+
+  &__document-label {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $color-text-muted;
+  }
+
+  &__document-image-btn {
+    display: block;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  &__document-preview--pdf {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  &__pdf-note {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: $color-text;
+  }
+
+  &__document-open {
+    margin-top: 0.5rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
   }
 
   &__footer {

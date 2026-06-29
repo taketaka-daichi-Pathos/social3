@@ -201,10 +201,10 @@
           </div>
 
           <section class="dependent-modal__upload-section">
-            <h3 class="dependent-modal__section-title">必要書類のアップロード</h3>
+            <h3 class="dependent-modal__section-title">必要書類の確認</h3>
 
             @if (requiredDocuments().length > 0) {
-              <p class="dependent-modal__upload-lead">以下の証明書類が必要です。</p>
+              <p class="dependent-modal__upload-lead">従業員から提出された以下の証明書類を確認してください。</p>
               <ul class="dependent-modal__doc-list">
                 @for (document of requiredDocuments(); track document) {
                   <li>{{ document }}</li>
@@ -212,30 +212,29 @@
               </ul>
             } @else {
               <p class="dependent-modal__upload-lead dependent-modal__upload-lead--muted">
-                職業・現在の状況・同居/別居・生年月日を入力すると、必要な証明書類が表示されます。
+                職業・現在の状況・同居/別居・生年月日を入力すると、確認すべき証明書類が表示されます。
               </p>
             }
 
-            <div class="dependent-modal__file-field">
-              <label class="dependent-modal__file-label" for="dependentDocuments">
-                ファイルを選択
-              </label>
-              <input
-                id="dependentDocuments"
-                type="file"
-                class="dependent-modal__file-input"
-                multiple
-                (change)="onFilesSelected($event)"
-              />
-              @if (selectedFileNames()) {
-                <p class="dependent-modal__file-names">選択中: {{ selectedFileNames() }}</p>
-              }
-            </div>
+            @if (submittedDocumentUrls().length > 0) {
+              <div class="dependent-modal__submitted-docs">
+                <p class="dependent-modal__upload-lead">従業員がアップロードした証明書類:</p>
+                <ul class="dependent-modal__doc-list">
+                  @for (url of submittedDocumentUrls(); track url; let index = $index) {
+                    <li>
+                      <a [href]="url" target="_blank" rel="noopener noreferrer">
+                        証明書類 {{ index + 1 }} を開く
+                      </a>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
 
             <div class="dependent-modal__verify-field">
               <label class="dependent-modal__verify-label">
                 <input type="checkbox" formControlName="documentsVerified" />
-                <span>✅ 提出画像（または現物）を確認済み</span>
+                <span>✅ 認定画像（または現物）を確認済み</span>
               </label>
               <p class="dependent-modal__helper">
                 従業員から提出された証明書類、または管理者が直接確認した原本・画像であることを確認してから登録してください。

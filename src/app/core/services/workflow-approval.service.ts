@@ -7,6 +7,8 @@ import { requireAuthenticatedUser } from '@core/utils/auth.utils';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import { WorkflowRequest } from '@features/workflow/models/workflow-request.model';
 import { buildAdminTodoTitleForRequest } from '@features/workflow/utils/workflow-payload.utils';
+import { buildDependentFromAddDependentWorkflowPayload } from '@features/workflow/utils/workflow-dependent.utils';
+import { isAddDependentWorkflowRequestType, isChangeApplicationWorkflowRequestType, isLeaveWorkflowRequestType } from '@features/workflow/utils/workflow-navigation.utils';
 import { employeeFullName } from '@features/payroll/utils/compensation.utils';
 import { firstValueFrom, take } from 'rxjs';
 
@@ -23,7 +25,12 @@ export class WorkflowApprovalService {
   readonly errorMessage = signal<string | null>(null);
 
   open(request: WorkflowRequest): void {
-    if (request.status !== 'pending') {
+    if (
+      request.status !== 'pending' ||
+      isLeaveWorkflowRequestType(request.type) ||
+      isAddDependentWorkflowRequestType(request.type) ||
+      isChangeApplicationWorkflowRequestType(request.type)
+    ) {
       return;
     }
 
@@ -38,6 +45,10 @@ export class WorkflowApprovalService {
     this.errorMessage.set(null);
   }
 
+  async approveRequest(request: WorkflowRequest): Promise<void> {
+    await this.executeApproval(request);
+  }
+
   async approveSelectedRequest(): Promise<void> {
     const request = this.selectedRequest();
     if (!request || this.approving()) {
@@ -48,21 +59,7 @@ export class WorkflowApprovalService {
     this.errorMessage.set(null);
 
     try {
-      const user = await requireAuthenticatedUser(this.auth);
-      const employees = await firstValueFrom(this.employeeService.watchEmployees().pipe(take(1)));
-      const employee = employees.find((row) => row.id === request.targetEmployeeId);
-      const employeeName = employee ? employeeFullName(employee) : '従業員';
-      const todoTitle = buildAdminTodoTitleForRequest(employeeName, request.type);
-
-      await Promise.all([
-        this.requestService.updateRequest(user.uid, request.id, { status: 'approved' }),
-        this.adminTodoService.createAdminTodo(user.uid, {
-          relatedRequestId: request.id,
-          title: todoTitle,
-          targetTab: 'legal-forms',
-        }),
-      ]);
-
+      await this.executeApproval(request);
       this.close();
     } catch (error) {
       this.errorMessage.set(
@@ -71,5 +68,37 @@ export class WorkflowApprovalService {
     } finally {
       this.approving.set(false);
     }
+  }
+
+  private async executeApproval(request: WorkflowRequest): Promise<void> {
+    const user = await requireAuthenticatedUser(this.auth);
+    const employees = await firstValueFrom(this.employeeService.watchEmployees().pipe(take(1)));
+    const employee = employees.find((row) => row.id === request.targetEmployeeId);
+
+    if (!employee) {
+      throw new Error('対象従業員が見つかりません');
+    }
+
+    if (request.type === 'add_dependent') {
+      const dependent = buildDependentFromAddDependentWorkflowPayload(request.payload);
+      if (!dependent) {
+        throw new Error('扶養家族の申請内容が不足しているため登録できません');
+      }
+
+      const dependents = [...(employee.dependents ?? []), dependent];
+      await this.employeeService.updateEmployeeDependents(request.targetEmployeeId, dependents);
+    }
+
+    const employeeName = employeeFullName(employee);
+    const todoTitle = buildAdminTodoTitleForRequest(employeeName, request.type);
+
+    await Promise.all([
+      this.requestService.updateRequest(user.uid, request.id, { status: 'approved' }),
+      this.adminTodoService.createAdminTodo(user.uid, {
+        relatedRequestId: request.id,
+        title: todoTitle,
+        targetTab: 'legal-forms',
+      }),
+    ]);
   }
 }

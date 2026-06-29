@@ -80,7 +80,6 @@ export class RevisionDashboardComponent implements OnInit {
   readonly activeSubTab = signal('annual');
   readonly targetYear = signal(new Date().getFullYear());
   readonly occasionalChangeMonth = signal('');
-  readonly annualStatusFilter = signal<RevisionStatusFilter>('action_required');
   readonly occasionalStatusFilter = signal<RevisionStatusFilter>('action_required');
   readonly loading = signal(true);
   readonly loadError = signal('');
@@ -113,12 +112,6 @@ export class RevisionDashboardComponent implements OnInit {
       badgeTooltip: this.occasionalPendingTooltip(),
     },
   ]);
-
-  readonly filteredAnnualResults = computed(() =>
-    this.annualResults().filter((row) =>
-      this.matchesAnnualStatusFilter(row, this.annualStatusFilter())
-    )
-  );
 
   readonly filteredOccasionalResults = computed(() =>
     this.occasionalResultsForSelectedMonth().filter((row) =>
@@ -211,10 +204,6 @@ export class RevisionDashboardComponent implements OnInit {
     this.activeSubTab.set(item.id);
   }
 
-  selectAnnualStatusFilter(filter: RevisionStatusFilter): void {
-    this.annualStatusFilter.set(filter);
-  }
-
   selectOccasionalStatusFilter(filter: RevisionStatusFilter): void {
     this.occasionalStatusFilter.set(filter);
   }
@@ -242,19 +231,6 @@ export class RevisionDashboardComponent implements OnInit {
     }
 
     return formatOccasionalRevisionPeriodLabel(changeMonth);
-  }
-
-  annualStatusFilterEmptyMessage(): string {
-    switch (this.annualStatusFilter()) {
-      case 'action_required':
-        return '提出対象の従業員はいません';
-      case 'applied':
-        return '適用済みの従業員はいません';
-      case 'excluded':
-        return '対象外の従業員はいません';
-      default:
-        return '表示する従業員がいません';
-    }
   }
 
   occasionalStatusFilterEmptyMessage(): string {
@@ -345,24 +321,6 @@ export class RevisionDashboardComponent implements OnInit {
 
   private isOccasionalActionRequired(row: OccasionalRevisionResult): boolean {
     return row.status === 'eligible' && !this.isOccasionalApplied(row);
-  }
-
-  private matchesAnnualStatusFilter(
-    row: AnnualDeterminationResult,
-    filter: RevisionStatusFilter
-  ): boolean {
-    switch (filter) {
-      case 'action_required':
-        return this.isAnnualSubmissionTarget(row);
-      case 'applied':
-        return this.isAnnualApplied(row);
-      case 'excluded':
-        return !this.isAnnualApplied(row) && this.isAnnualTrulyExcluded(row);
-      case 'all':
-        return true;
-      default:
-        return true;
-    }
   }
 
   private matchesOccasionalStatusFilter(

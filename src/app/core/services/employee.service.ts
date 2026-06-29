@@ -5,6 +5,7 @@ import {
   collection,
   collectionData,
   doc,
+  docData,
   Firestore,
   getDoc,
   getDocs,
@@ -733,6 +734,76 @@ export class EmployeeService {
     }
   }
 
+  async updateEmployeeApplicationFields(
+    employeeId: string,
+    updates: {
+      postalCode?: string;
+      address?: string;
+      bankName?: string;
+      bankBranchName?: string;
+      bankAccountType?: string;
+      bankAccountNumber?: string;
+      commuteRoute?: string;
+      commutePassAmount?: number | null;
+    }
+  ): Promise<void> {
+    const user = await requireAuthenticatedUser(this.auth);
+    const payload: {
+      postalCode?: string;
+      address?: string;
+      bankName?: string;
+      bankBranchName?: string;
+      bankAccountType?: string;
+      bankAccountNumber?: string;
+      commuteRoute?: string;
+      commutePassAmount?: number | null;
+    } = {};
+
+    if (updates.postalCode != null) {
+      payload.postalCode = updates.postalCode;
+    }
+    if (updates.address != null) {
+      payload.address = updates.address;
+    }
+    if (updates.bankName != null) {
+      payload.bankName = updates.bankName;
+    }
+    if (updates.bankBranchName != null) {
+      payload.bankBranchName = updates.bankBranchName;
+    }
+    if (updates.bankAccountType != null) {
+      payload.bankAccountType = updates.bankAccountType;
+    }
+    if (updates.bankAccountNumber != null) {
+      payload.bankAccountNumber = updates.bankAccountNumber;
+    }
+    if (updates.commuteRoute != null) {
+      payload.commuteRoute = updates.commuteRoute;
+    }
+    if (updates.commutePassAmount !== undefined) {
+      payload.commutePassAmount = updates.commutePassAmount;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return;
+    }
+
+    try {
+      await updateDoc(
+        doc(
+          this.firestore,
+          FirestoreCollections.companies,
+          user.uid,
+          FirestoreCollections.employees,
+          employeeId
+        ),
+        payload
+      );
+    } catch (error) {
+      throw new Error(toFirestoreErrorMessage(error, '従業員マスターの更新に失敗しました'));
+    }
+  }
+
   async findEmployeeByNumber(
     companyOwnerUid: string,
     employeeNumber: string
@@ -753,6 +824,26 @@ export class EmployeeService {
     }
 
     return this.toEmployee({ id: employeeDoc.id, ...employeeDoc.data() });
+  }
+
+  watchEmployee(companyOwnerUid: string, employeeId: string): Observable<Employee | null> {
+    const employeeRef = doc(
+      this.firestore,
+      FirestoreCollections.companies,
+      companyOwnerUid,
+      FirestoreCollections.employees,
+      employeeId
+    );
+
+    return docData(employeeRef).pipe(
+      map((row) => (row ? this.toEmployee({ id: employeeId, ...row }) : null)),
+      catchError((error) => {
+        console.error('[EmployeeService] 従業員マスタの取得に失敗しました', error);
+        return throwError(
+          () => new Error(toFirestoreErrorMessage(error, '従業員マスタの取得に失敗しました'))
+        );
+      })
+    );
   }
 
   async processRetirement(
@@ -903,8 +994,12 @@ export class EmployeeService {
       requestedFields.includes('dependentFirstNameKana') ||
       requestedFields.includes('dependentBirthDate') ||
       requestedFields.includes('dependentRelationship') ||
+      requestedFields.includes('dependentLivingArrangement') ||
       requestedFields.includes('dependentDependencyStartDate') ||
-      requestedFields.includes('dependentDocumentSubmission');
+      requestedFields.includes('dependentHasDisability') ||
+      requestedFields.includes('dependentOccupation') ||
+      requestedFields.includes('dependentCurrentSituation') ||
+      requestedFields.includes('dependentDocumentUpload');
 
     if (
       Object.keys(updates).length === 0 &&
@@ -1163,6 +1258,15 @@ export class EmployeeService {
           : Boolean(row['insuranceCardReturnCommitment']),
       postalCode: String(row['postalCode'] ?? '').trim(),
       address: String(row['address'] ?? '').trim(),
+      bankName: String(row['bankName'] ?? '').trim(),
+      bankBranchName: String(row['bankBranchName'] ?? '').trim(),
+      bankAccountType: String(row['bankAccountType'] ?? '').trim(),
+      bankAccountNumber: String(row['bankAccountNumber'] ?? '').trim(),
+      commuteRoute: String(row['commuteRoute'] ?? '').trim(),
+      commutePassAmount:
+        row['commutePassAmount'] == null || row['commutePassAmount'] === ''
+          ? null
+          : Number(row['commutePassAmount']),
       salaryHistory,
       gradeHistory: this.parseGradeHistory(row['gradeHistory']),
       registrationPayrollLockedThrough:
@@ -1259,12 +1363,13 @@ export class EmployeeService {
     const firstName = values.dependentFirstName?.trim() ?? '';
     const birthDate = values.dependentBirthDate?.trim() ?? '';
     const dependencyStartDate = values.dependentDependencyStartDate?.trim() ?? '';
+    const documentUrls = values.dependentDocumentUrls ?? [];
 
     if (!lastName || !firstName || !birthDate || !dependencyStartDate) {
       return null;
     }
 
-    if (values.dependentDocumentSubmission !== true) {
+    if (documentUrls.length === 0) {
       return null;
     }
 
@@ -1278,6 +1383,28 @@ export class EmployeeService {
       'other',
     ];
 
+    const livingArrangement = values.dependentLivingArrangement?.trim() ?? '';
+    const validLivingArrangements: Dependent['livingArrangement'][] = ['cohabiting', 'separate'];
+
+    const occupation = values.dependentOccupation?.trim() ?? '';
+    const validOccupations: Dependent['occupation'][] = [
+      'unemployed',
+      'part_time',
+      'student',
+      'employee',
+      'self_employed',
+      'other',
+    ];
+
+    const currentSituation = values.dependentCurrentSituation?.trim() ?? '';
+    const validSituations: Dependent['currentSituation'][] = [
+      'student_over_16',
+      'recently_unemployed',
+      'ongoing_unemployed_or_part_time',
+      'pension_recipient',
+      'other',
+    ];
+
     return {
       lastName,
       firstName,
@@ -1288,11 +1415,20 @@ export class EmployeeService {
       relationship: validRelationships.includes(relationship as Dependent['relationship'])
         ? (relationship as Dependent['relationship'])
         : 'other',
-      livingArrangement: 'cohabiting',
+      livingArrangement: validLivingArrangements.includes(
+        livingArrangement as Dependent['livingArrangement']
+      )
+        ? (livingArrangement as Dependent['livingArrangement'])
+        : 'cohabiting',
       dependencyStartDate,
-      hasDisability: false,
-      occupation: 'other',
-      currentSituation: 'other',
+      hasDisability: values.dependentHasDisability === true,
+      occupation: validOccupations.includes(occupation as Dependent['occupation'])
+        ? (occupation as Dependent['occupation'])
+        : 'other',
+      currentSituation: validSituations.includes(currentSituation as Dependent['currentSituation'])
+        ? (currentSituation as Dependent['currentSituation'])
+        : 'other',
+      documentUrls,
     };
   }
 
@@ -1338,6 +1474,9 @@ export class EmployeeService {
           : Number(item['annualIncome']),
       postalCode: String(item['postalCode'] ?? '').trim(),
       address: String(item['address'] ?? '').trim(),
+      documentUrls: Array.isArray(item['documentUrls'])
+        ? item['documentUrls'].map((url) => String(url ?? '').trim()).filter(Boolean)
+        : [],
     };
   }
 

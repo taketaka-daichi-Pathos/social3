@@ -1,0 +1,163 @@
+@use '../../../../../styles/variables' as *;
+
+.application-management {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  &__header {
+    margin-bottom: 1.5rem;
+  }
+
+  &__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__description {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: $color-text-muted;
+  }
+
+  &__alert {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: $radius-sm;
+    background: rgba($color-danger, 0.08);
+    color: $color-danger;
+    font-size: 0.875rem;
+  }
+
+  &__success {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: $radius-sm;
+    background: rgba($color-success, 0.1);
+    color: $color-success;
+    font-size: 0.875rem;
+  }
+
+  &__layout {
+    align-items: start;
+  }
+
+  &__section-title {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__card {
+    background: $color-bg-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    box-shadow: $shadow-card;
+    padding: 1rem;
+    min-height: 12rem;
+  }
+
+  &__status,
+  &__empty {
+    margin: 0;
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: $color-text-muted;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  &__list-item {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease;
+
+    &:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    }
+
+    &--selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+    }
+  }
+
+  &__badge {
+    display: inline-flex;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 0.6875rem;
+    font-weight: 700;
+  }
+
+  &__list-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__list-meta {
+    font-size: 0.75rem;
+    color: $color-text-muted;
+  }
+
+  &__detail {
+    min-height: 24rem;
+  }
+
+  &__placeholder {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 24rem;
+    padding: 2rem;
+    border: 1px dashed $color-border;
+    border-radius: $radius-md;
+    background: #f8fafc;
+    text-align: center;
+  }
+
+  &__placeholder-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__placeholder-text {
+    margin: 0;
+    max-width: 28rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: $color-text-muted;
+  }
+}

@@ -223,7 +223,7 @@
 
         @if (isDependentInfoTask()) {
           <p class="task-modal__helper">
-            入力後、必要な証明書類を担当者へ提出してください。担当者が内容を確認して扶養登録します。
+            必要な情報を入力し、証明書類の画像をアップロードして送信してください。担当者が内容を確認して扶養登録します。
           </p>
         }
 
@@ -286,6 +286,19 @@
           </div>
         }
 
+        @if (includesField('dependentLivingArrangement')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentLivingArrangement">
+              {{ fieldLabel('dependentLivingArrangement') }}
+            </label>
+            <select id="dependentLivingArrangement" class="task-modal__input" formControlName="dependentLivingArrangement">
+              <option value="">選択してください</option>
+              <option value="cohabiting">同居</option>
+              <option value="separate">別居</option>
+            </select>
+          </div>
+        }
+
         @if (includesField('dependentDependencyStartDate')) {
           <div class="task-modal__field">
             <label class="task-modal__field-label" for="dependentDependencyStartDate">
@@ -300,13 +313,82 @@
           </div>
         }
 
-        @if (includesField('dependentDocumentSubmission')) {
+        @if (includesField('dependentHasDisability')) {
           <div class="task-modal__field">
-            <label class="task-modal__checkbox">
-              <input type="checkbox" formControlName="dependentDocumentSubmission" />
-              <span>必要な証明書類を担当者へ提出しました（または提出予定です）</span>
-            </label>
+            <span class="task-modal__field-label">{{ fieldLabel('dependentHasDisability') }}</span>
+            <div class="task-modal__radio-group" role="radiogroup" aria-label="障害の有無">
+              <label class="task-modal__radio">
+                <input type="radio" [value]="true" formControlName="dependentHasDisability" />
+                <span>あり</span>
+              </label>
+              <label class="task-modal__radio">
+                <input type="radio" [value]="false" formControlName="dependentHasDisability" />
+                <span>なし</span>
+              </label>
+            </div>
           </div>
+        }
+
+        @if (includesField('dependentOccupation')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentOccupation">
+              {{ fieldLabel('dependentOccupation') }}
+            </label>
+            <select id="dependentOccupation" class="task-modal__input" formControlName="dependentOccupation">
+              <option value="">選択してください</option>
+              @for (option of occupationOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        @if (includesField('dependentCurrentSituation')) {
+          <div class="task-modal__field">
+            <label class="task-modal__field-label" for="dependentCurrentSituation">
+              {{ fieldLabel('dependentCurrentSituation') }}
+            </label>
+            <select id="dependentCurrentSituation" class="task-modal__input" formControlName="dependentCurrentSituation">
+              <option value="">選択してください</option>
+              @for (option of situationOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        @if (includesField('dependentDocumentUpload')) {
+          <section class="task-modal__upload-section">
+            <h4 class="task-modal__upload-title">{{ fieldLabel('dependentDocumentUpload') }}（必須）</h4>
+            @if (requiredDocuments().length > 0) {
+              <p class="task-modal__upload-lead">以下の証明書類をアップロードしてください。</p>
+              <ul class="task-modal__doc-list">
+                @for (document of requiredDocuments(); track document) {
+                  <li>{{ document }}</li>
+                }
+              </ul>
+            } @else {
+              <p class="task-modal__upload-lead task-modal__upload-lead--muted">
+                職業・現在の状況・同居/別居・生年月日を入力すると、必要な証明書類が表示されます。
+              </p>
+            }
+            <div class="task-modal__file-field">
+              <label class="task-modal__file-label" for="dependentTaskDocuments">
+                画像ファイルを選択
+              </label>
+              <input
+                id="dependentTaskDocuments"
+                type="file"
+                class="task-modal__file-input"
+                accept="image/*,.pdf"
+                multiple
+                (change)="onFilesSelected($event)"
+              />
+              @if (selectedFileNames()) {
+                <p class="task-modal__file-names">選択中: {{ selectedFileNames() }}</p>
+              }
+            </div>
+          </section>
         }
 
         @if (errorMessage()) {
@@ -321,7 +403,7 @@
           <button
             type="button"
             class="task-modal__btn task-modal__btn--ghost"
-            [disabled]="submitting()"
+            [disabled]="isBusy()"
             (click)="close()"
           >
             キャンセル
@@ -329,9 +411,11 @@
           <button
             type="submit"
             class="task-modal__btn task-modal__btn--primary"
-            [disabled]="submitting()"
+            [disabled]="isBusy()"
           >
-            @if (submitting()) {
+            @if (uploading()) {
+              アップロード中…
+            } @else if (submitting()) {
               送信中…
             } @else {
               {{ submitButtonLabel() }}
