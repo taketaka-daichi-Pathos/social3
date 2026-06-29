@@ -2,7 +2,6 @@
 export type EmployeeTaskType =
   | 'SHIKAKU_SHUTOKU_INFO'
   | 'RETIREMENT_INFO'
-  | 'BASIC_INFO_REQUEST'
   | 'MATERNITY_LEAVE_INFO_REQUEST'
   | 'CHILDCARE_LEAVE_INFO_REQUEST'
   | 'DEPENDENT_INFO_REQUEST';
@@ -20,8 +19,6 @@ export type EmployeeTaskRequestedField =
   | 'postRetirementAddress'
   | 'postRetirementEmail'
   | 'insuranceCardReturnCommitment'
-  | 'postalCode'
-  | 'address'
   | 'expectedDeliveryDate'
   | 'deliveryType'
   | 'childcareChild1NameKana'
@@ -59,8 +56,6 @@ export interface EmployeeTaskFieldValues {
   postRetirementAddress?: string;
   postRetirementEmail?: string;
   insuranceCardReturnCommitment?: boolean;
-  postalCode?: string;
-  address?: string;
   expectedDeliveryDate?: string;
   deliveryType?: '1' | '2';
   childcareChild1NameKana?: string;

@@ -31,16 +31,6 @@
   </div>
 }
 
-@if (basicInfoRequestTask(); as basicInfoTask) {
-  <div class="employee-dashboard__banner mx-auto mb-4 max-w-7xl px-4" role="alert">
-    <button type="button" class="employee-dashboard__banner-btn" (click)="openTask(basicInfoTask)">
-      <span class="employee-dashboard__banner-label">入力依頼</span>
-      <span class="employee-dashboard__banner-text">
-        基本情報（郵便番号・住所）の入力が必要です。こちらをクリックして入力してください。
-      </span>
-    </button>
-  </div>
-}
 
 @if (loading()) {
   <p class="mx-auto max-w-7xl p-4 text-center text-sm text-gray-500">読み込み中…</p>

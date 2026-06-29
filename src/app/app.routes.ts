@@ -146,20 +146,6 @@ export const routes: Routes = [
 
       {
 
-        path: 'applications',
-
-        loadComponent: () =>
-
-          import(
-
-            '@features/applications/pages/application-management/application-management.component'
-
-          ).then((m) => m.ApplicationManagementComponent),
-
-      },
-
-      {
-
         path: 'retirement',
 
         loadComponent: () =>

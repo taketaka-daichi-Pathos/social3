@@ -1,7 +1,10 @@
 import {
+  calculateFixedWagesTotal,
   calculatePayrollDisplayTotal,
   getCurrentYearAprilMonthKey,
   PAYROLL_DISPLAY_TOTAL_FLOOR_ERROR,
+  roundNonNegativePayrollYen,
+  roundPayrollYen,
   validatePayrollAdjustmentTotal,
   wouldPayrollAdjustmentExceedTotal,
 } from '@features/payroll/utils/compensation.utils';
@@ -40,5 +43,24 @@ describe('compensation.utils payroll adjustment guards', () => {
     );
     expect(validatePayrollAdjustmentTotal(260_000, -100_000)).toBeNull();
     expect(validatePayrollAdjustmentTotal(260_000, 0)).toBeNull();
+  });
+});
+
+describe('compensation.utils payroll yen rounding', () => {
+  it('rounds floating point artifacts to the nearest yen', () => {
+    expect(roundNonNegativePayrollYen(299_999.99999999994)).toBe(300_000);
+    expect(roundPayrollYen(-100_000.4)).toBe(-100_000);
+  });
+
+  it('keeps fixed wage totals when summing base salary and allowances', () => {
+    const allowances = [
+      { name: '通勤手当', amount: 100_000.00000000001 },
+      { name: '住宅手当', amount: 50_000 },
+    ];
+
+    expect(calculateFixedWagesTotal(150_000, allowances)).toBe(300_000);
+    expect(
+      calculatePayrollDisplayTotal(150_000, allowances, 0, 0)
+    ).toBe(300_000);
   });
 });

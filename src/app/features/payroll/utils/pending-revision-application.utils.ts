@@ -9,6 +9,7 @@ import {
 } from '@features/revision/utils/revision-history.utils';
 import { getOccasionalRevisionDashboardSearchRange } from '@features/revision/utils/occasional-revision.utils';
 import {
+  formatTargetMonthLabel,
   getAnnualDeterminationMonths,
   getNextYearMonthKey,
   getPreviousYearMonthKey,
@@ -17,6 +18,12 @@ import {
 
 export const PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE =
   '⚠️ この月に適用予定の社会保険改定（随時改定または算定基礎）が未処理です。先に適用処理を完了させてください。';
+
+/** 月次給与確定ブロック用の警告文（対象月ラベルを埋め込む） */
+export function buildUnappliedRevisionBlockMessage(targetMonth: string): string {
+  const label = formatTargetMonthLabel(targetMonth.trim());
+  return `⚠️ 【${label}適用】の随時改定が未処理です。随時改定・算定基礎メニューから先に適用処理を完了させてください。`;
+}
 
 /** @deprecated PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE を使用してください */
 export const PENDING_REVISION_APPLICATION_BLOCK_MESSAGE =
@@ -73,8 +80,19 @@ export function isAnnualDeterminationAwaitingApply(
 }
 
 /**
+ * 月次給与確定ブロック用：随時改定が適用月に未適用（改定対象）か。
+ * applicationMonth が対象月と一致し、適用済み・対象外でないこと。
+ */
+export function isOccasionalRevisionUnappliedForPayrollLock(
+  row: OccasionalRevisionResult,
+  employee: Employee
+): boolean {
+  return isOccasionalRevisionPendingApplication(row, employee);
+}
+
+/**
  * 月次給与確定ブロック用：随時改定が適用月に未処理（処理待ち）か。
- * 対象外・適用済みは含めない。eligible 以外の pending（確認中）もブロック対象。
+ * @deprecated isOccasionalRevisionUnappliedForPayrollLock を使用してください
  */
 export function isOccasionalRevisionAwaitingApply(
   row: OccasionalRevisionResult,
@@ -91,11 +109,10 @@ export function isOccasionalRevisionAwaitingApply(
   return Boolean(row.applicationMonth?.trim());
 }
 
-/** 対象月に未適用の社会保険改定（随時改定・算定基礎）があるか */
-export function hasPendingInsuranceUpdatesForMonth(params: {
+/** 対象月に未適用の随時改定（改定対象）があるか */
+export function hasUnappliedOccasionalRevisionForMonth(params: {
   targetMonth: string;
   employees: Employee[];
-  annualResults: ReadonlyArray<AnnualDeterminationResult>;
   occasionalResults: ReadonlyArray<OccasionalRevisionResult>;
 }): boolean {
   const targetMonth = params.targetMonth.trim();
@@ -103,7 +120,6 @@ export function hasPendingInsuranceUpdatesForMonth(params: {
     return false;
   }
 
-  const { month } = parseYearMonthKey(targetMonth);
   const employeeById = new Map(params.employees.map((employee) => [employee.id, employee]));
 
   for (const row of params.occasionalResults) {
@@ -112,25 +128,62 @@ export function hasPendingInsuranceUpdatesForMonth(params: {
     }
 
     const employee = employeeById.get(row.employeeId);
-    if (employee && isOccasionalRevisionAwaitingApply(row, employee)) {
+    if (employee && isOccasionalRevisionUnappliedForPayrollLock(row, employee)) {
       return true;
     }
   }
 
-  if (month === ANNUAL_DETERMINATION_APPLICATION_MONTH) {
-    for (const row of params.annualResults) {
-      if (row.applicationMonth !== targetMonth) {
-        continue;
-      }
+  return false;
+}
 
-      const employee = employeeById.get(row.employeeId);
-      if (employee && isAnnualDeterminationAwaitingApply(row, employee)) {
-        return true;
-      }
+/** 対象月に未適用の社会保険改定（随時改定・算定基礎）があるか */
+export function hasUnappliedRevisionForMonth(params: {
+  targetMonth: string;
+  employees: Employee[];
+  annualResults: ReadonlyArray<AnnualDeterminationResult>;
+  occasionalResults: ReadonlyArray<OccasionalRevisionResult>;
+}): boolean {
+  if (
+    hasUnappliedOccasionalRevisionForMonth({
+      targetMonth: params.targetMonth,
+      employees: params.employees,
+      occasionalResults: params.occasionalResults,
+    })
+  ) {
+    return true;
+  }
+
+  const targetMonth = params.targetMonth.trim();
+  if (!targetMonth) {
+    return false;
+  }
+
+  const { month } = parseYearMonthKey(targetMonth);
+  if (month !== ANNUAL_DETERMINATION_APPLICATION_MONTH) {
+    return false;
+  }
+
+  const employeeById = new Map(params.employees.map((employee) => [employee.id, employee]));
+
+  for (const row of params.annualResults) {
+    if (row.applicationMonth !== targetMonth) {
+      continue;
+    }
+
+    const employee = employeeById.get(row.employeeId);
+    if (employee && isAnnualDeterminationAwaitingApply(row, employee)) {
+      return true;
     }
   }
 
   return false;
+}
+
+/** @deprecated hasUnappliedRevisionForMonth を使用してください */
+export function hasPendingInsuranceUpdatesForMonth(
+  params: Parameters<typeof hasUnappliedRevisionForMonth>[0]
+): boolean {
+  return hasUnappliedRevisionForMonth(params);
 }
 
 /** @deprecated hasPendingInsuranceUpdatesForMonth を使用してください */
@@ -155,6 +208,22 @@ function listMonthsInclusive(from: string, to: string): string[] {
   return months;
 }
 
+/** 適用月に紐づく随時改定の判定に必要な給与読込月 */
+export function collectOccasionalRevisionPayrollMonthsForApplicationMonth(
+  applicationMonth: string
+): string[] {
+  const normalized = applicationMonth.trim();
+  if (!/^\d{4}-\d{2}$/.test(normalized)) {
+    return [];
+  }
+
+  const { searchFrom, searchTo } =
+    getOccasionalRevisionSearchRangeForApplicationMonth(normalized);
+  const assessmentEndMonth = getNextYearMonthKey(getNextYearMonthKey(searchTo));
+
+  return listMonthsInclusive(searchFrom, assessmentEndMonth);
+}
+
 /** 適用待ち改定の判定に必要な給与データの読込月 */
 export function collectPayrollMonthsForPendingRevisionCheck(targetMonth: string): string[] {
   const normalized = targetMonth.trim();
@@ -165,6 +234,12 @@ export function collectPayrollMonthsForPendingRevisionCheck(targetMonth: string)
   for (let index = 0; index < 4; index += 1) {
     months.add(cursor);
     cursor = getPreviousYearMonthKey(cursor);
+  }
+
+  for (const occasionalMonth of collectOccasionalRevisionPayrollMonthsForApplicationMonth(
+    normalized
+  )) {
+    months.add(occasionalMonth);
   }
 
   if (month === ANNUAL_DETERMINATION_APPLICATION_MONTH) {

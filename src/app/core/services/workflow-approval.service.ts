@@ -8,7 +8,7 @@ import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import { WorkflowRequest } from '@features/workflow/models/workflow-request.model';
 import { buildAdminTodoTitleForRequest } from '@features/workflow/utils/workflow-payload.utils';
 import { buildDependentFromAddDependentWorkflowPayload } from '@features/workflow/utils/workflow-dependent.utils';
-import { isAddDependentWorkflowRequestType, isChangeApplicationWorkflowRequestType, isLeaveWorkflowRequestType } from '@features/workflow/utils/workflow-navigation.utils';
+import { isAddDependentWorkflowRequestType, isLeaveWorkflowRequestType } from '@features/workflow/utils/workflow-navigation.utils';
 import { employeeFullName } from '@features/payroll/utils/compensation.utils';
 import { firstValueFrom, take } from 'rxjs';
 
@@ -37,8 +37,7 @@ export class WorkflowApprovalService {
     if (
       request.status !== 'pending' ||
       isLeaveWorkflowRequestType(request.type) ||
-      isAddDependentWorkflowRequestType(request.type) ||
-      isChangeApplicationWorkflowRequestType(request.type)
+      isAddDependentWorkflowRequestType(request.type)
     ) {
       return;
     }

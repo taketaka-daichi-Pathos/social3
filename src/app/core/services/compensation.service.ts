@@ -10,6 +10,7 @@ import {
   WriteBatch,
 } from '@angular/fire/firestore';
 import { FirestoreCollections } from '@core/models/firestore-collections';
+import { MonthlyLockService } from '@core/services/monthly-lock.service';
 import { requireAuthenticatedUser } from '@core/utils/auth.utils';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import {
@@ -23,6 +24,8 @@ import { normalizePayrollAdjustmentType } from '@features/payroll/models/payroll
 import {
   calculatePayrollEntryTotalPayment,
   calculatePayrollDisplayTotal,
+  roundNonNegativePayrollYen,
+  roundPayrollYen,
 } from '@features/payroll/utils/compensation.utils';
 import {
   calculateBonusEntryAmount,
@@ -52,6 +55,7 @@ interface CompensationDocument {
 export class CompensationService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
+  private readonly monthlyLockService = inject(MonthlyLockService);
 
   resetState(): void {
     // インメモリキャッシュは未保持。将来追加時のフック。
@@ -254,7 +258,7 @@ export class CompensationService {
     paymentDate: string
   ): Promise<void> {
     const user = await requireAuthenticatedUser(this.auth);
-    await this.assertMonthUnlocked(user.uid, targetMonth);
+    const normalizedPaymentDate = this.normalizePaymentDate(paymentDate);
 
     try {
       const existing = await this.getRecord('bonus', targetMonth);
@@ -305,8 +309,8 @@ export class CompensationService {
   }
 
   private normalizeCompensationEntry(entry: CompensationEntry): CompensationEntry {
-    const fixedWages = Number(entry.fixedWages ?? 0);
-    const nonFixedWages = Number(entry.nonFixedWages ?? 0);
+    const fixedWages = roundNonNegativePayrollYen(entry.fixedWages ?? 0);
+    const nonFixedWages = roundNonNegativePayrollYen(entry.nonFixedWages ?? 0);
     const bonusAmount = entry.bonusAmount ?? calculateBonusEntryAmount(fixedWages, nonFixedWages);
     const standardBonusAmount =
       entry.standardBonusAmount ?? calculateStandardBonusAmount(bonusAmount);
@@ -320,7 +324,7 @@ export class CompensationService {
       locked: Boolean(entry.locked),
       bonusAmount,
       standardBonusAmount,
-      fixedWagesAtPayment: Number(entry.fixedWagesAtPayment ?? 0),
+      fixedWagesAtPayment: roundNonNegativePayrollYen(entry.fixedWagesAtPayment ?? 0),
       paymentDate: this.normalizePaymentDate(entry.paymentDate),
       savedAt: entry.savedAt ?? new Date().toISOString(),
     };
@@ -332,30 +336,34 @@ export class CompensationService {
   }
 
   private normalizePayrollEntry(entry: PayrollEntry): PayrollEntry {
-    const adjustmentAmount = Number(entry.adjustmentAmount ?? 0);
+    const baseSalary = roundNonNegativePayrollYen(entry.baseSalary ?? 0);
+    const allowances = (entry.allowances ?? []).map((row) => ({
+      name: String(row.name ?? ''),
+      amount: roundNonNegativePayrollYen(row.amount ?? 0),
+    }));
+    const nonFixedWages = roundNonNegativePayrollYen(entry.nonFixedWages ?? 0);
+    const adjustmentAmount = roundPayrollYen(entry.adjustmentAmount ?? 0);
     const adjustmentType =
       adjustmentAmount !== 0 ? normalizePayrollAdjustmentType(entry.adjustmentType) : null;
     const adjustmentTargetMonth = String(entry.adjustmentTargetMonth ?? '').trim();
     const totalPayment =
-      entry.totalPayment ??
-      calculatePayrollDisplayTotal(
-        entry.baseSalary,
-        entry.allowances ?? [],
-        entry.nonFixedWages ?? 0,
-        adjustmentAmount
-      );
+      entry.totalPayment != null
+        ? roundNonNegativePayrollYen(entry.totalPayment)
+        : calculatePayrollDisplayTotal(
+            baseSalary,
+            allowances,
+            nonFixedWages,
+            adjustmentAmount
+          );
 
     return {
       employeeId: String(entry.employeeId ?? ''),
       employeeNumber: String(entry.employeeNumber ?? ''),
       employeeName: String(entry.employeeName ?? ''),
-      baseSalary: Number(entry.baseSalary ?? 0),
-      allowances: (entry.allowances ?? []).map((row) => ({
-        name: String(row.name ?? ''),
-        amount: Number(row.amount ?? 0),
-      })),
-      nonFixedWages: Number(entry.nonFixedWages ?? 0),
-      baseDays: Number(entry.baseDays ?? 0),
+      baseSalary,
+      allowances,
+      nonFixedWages,
+      baseDays: roundNonNegativePayrollYen(entry.baseDays ?? 0),
       adjustmentAmount,
       adjustmentType,
       adjustmentTargetMonth,

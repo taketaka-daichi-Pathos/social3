@@ -18,7 +18,7 @@ import {
 } from '@features/settings/validators/company-settings.validators';
 import { RegisterCompanyData, RegisterCompanyField } from '../../models/register-company.model';
 import { resolveCompanyInsuranceRatesForPrefecture } from '@features/settings/utils/company-insurance-rate.utils';
-import { getCurrentYearMonthKey } from '@features/payroll/utils/compensation.utils';
+import { getCurrentYearAprilMonthKey } from '@features/payroll/utils/compensation.utils';
 import { passwordMatchValidator } from '../../validators/auth.validators';
 
 @Component({
@@ -68,7 +68,7 @@ export class RegisterCompanyComponent implements OnInit {
         Validators.pattern(OFFICE_NUMBER_PATTERN),
         Validators.maxLength(5),
       ]),
-      systemStartDate: this.fb.control(getCurrentYearMonthKey(), [
+      systemStartDate: this.fb.control(getCurrentYearAprilMonthKey(), [
         Validators.required,
         Validators.pattern(/^\d{4}-\d{2}$/),
       ]),

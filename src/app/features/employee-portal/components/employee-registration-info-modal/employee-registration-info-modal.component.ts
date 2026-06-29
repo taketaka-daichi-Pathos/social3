@@ -5,11 +5,7 @@ import { EmployeeSession } from '@core/services/employee-session.service';
 import { toFirestoreErrorMessage } from '@core/utils/firestore-error.utils';
 import { EmployeeApplicationDialogShellComponent } from '@features/employee-portal/components/employee-application-dialog-shell/employee-application-dialog-shell.component';
 import {
-  displayBankAccountType,
-  displayCommutePassAmount,
-  displayMaskedAccountNumber,
   displayRegistrationDate,
-  displayRegistrationPostalCode,
   displayRegistrationValue,
 } from '@features/employee-portal/utils/employee-registration-display.utils';
 import { Dependent } from '@features/dependents/models/dependent.model';
@@ -79,24 +75,8 @@ export class EmployeeRegistrationInfoModalComponent {
     return displayRegistrationValue(value);
   }
 
-  displayPostalCode(value: string | null | undefined): string {
-    return displayRegistrationPostalCode(value);
-  }
-
   displayDate(value: string | null | undefined): string {
     return displayRegistrationDate(value);
-  }
-
-  displayAccountType(value: string | null | undefined): string {
-    return displayBankAccountType(value);
-  }
-
-  displayAccountNumber(value: string | null | undefined): string {
-    return displayMaskedAccountNumber(value);
-  }
-
-  displayCommuteAmount(value: number | null | undefined): string {
-    return displayCommutePassAmount(value);
   }
 
   dependentName(dependent: Dependent): string {

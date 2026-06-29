@@ -9,10 +9,6 @@ const REQUEST_TYPE_LABELS: Record<WorkflowRequestType, string> = {
   maternity_leave: '産前産後休業',
   add_dependent: '扶養追加',
   onboarding: '入社手続き',
-  basic_info: '基本情報入力',
-  address_change: '住所変更',
-  commute_change: '通勤交通費（定期代）変更',
-  bank_account: '給与振込口座の登録・変更',
   retirement: '退職手続き',
   dependent_info: '扶養家族情報',
 };
@@ -30,19 +26,6 @@ export function isLeaveWorkflowRequestType(type: WorkflowRequestType): boolean {
 
 export function isAddDependentWorkflowRequestType(type: WorkflowRequestType): boolean {
   return type === 'add_dependent';
-}
-
-export function isChangeApplicationWorkflowRequestType(type: WorkflowRequestType): boolean {
-  return (
-    type === 'address_change' ||
-    type === 'commute_change' ||
-    type === 'bank_account' ||
-    type === 'basic_info'
-  );
-}
-
-export function isCommuteChangeWorkflowRequestType(type: WorkflowRequestType): boolean {
-  return type === 'commute_change';
 }
 
 const ADMIN_TODO_TAB_ROUTES: Record<AdminTodoTargetTab, string> = {
@@ -74,11 +57,7 @@ export function resolveWorkflowRequestRoute(request: WorkflowRequest): string {
     case 'retirement':
       return '/retirement';
     case 'onboarding':
-    case 'basic_info':
-    case 'address_change':
-    case 'commute_change':
-    case 'bank_account':
-      return '/applications';
+      return '/employees';
     default:
       return '/employees';
   }

@@ -1,9 +1,5 @@
 import {
   AddDependentWorkflowRequestPayload,
-  AddressChangeWorkflowRequestPayload,
-  BankAccountWorkflowRequestPayload,
-  BasicInfoWorkflowRequestPayload,
-  CommuteChangeWorkflowRequestPayload,
   LeaveWorkflowRequestKind,
   LeaveWorkflowRequestPayload,
 } from '@features/workflow/models/workflow-request-payload.model';
@@ -86,47 +82,6 @@ export function parseAddDependentWorkflowPayload(
   };
 }
 
-export function parseBasicInfoWorkflowPayload(
-  payload: Record<string, unknown>
-): BasicInfoWorkflowRequestPayload {
-  return {
-    currentAddress: asString(payload['currentAddress']),
-    bankName: asString(payload['bankName']),
-    accountNumber: asString(payload['accountNumber']),
-  };
-}
-
-export function parseAddressChangeWorkflowPayload(
-  payload: Record<string, unknown>
-): AddressChangeWorkflowRequestPayload {
-  return {
-    postalCode: asString(payload['postalCode']),
-    address: asString(payload['address']),
-  };
-}
-
-export function parseCommuteChangeWorkflowPayload(
-  payload: Record<string, unknown>
-): CommuteChangeWorkflowRequestPayload {
-  const rawAmount = payload['commutePassAmount'];
-  return {
-    commuteRoute: asString(payload['commuteRoute']),
-    commutePassAmount:
-      rawAmount == null || rawAmount === '' ? null : Number(rawAmount),
-  };
-}
-
-export function parseBankAccountWorkflowPayload(
-  payload: Record<string, unknown>
-): BankAccountWorkflowRequestPayload {
-  return {
-    bankName: asString(payload['bankName']),
-    bankBranchName: asString(payload['bankBranchName']),
-    bankAccountType: asString(payload['bankAccountType']),
-    bankAccountNumber: asString(payload['bankAccountNumber']),
-  };
-}
-
 export interface WorkflowPayloadDisplayRow {
   label: string;
   value: string;
@@ -185,43 +140,6 @@ export function buildWorkflowPayloadDisplayRows(
         },
       ];
     }
-    case 'basic_info': {
-      const parsed = parseBasicInfoWorkflowPayload(payload);
-      return [
-        { label: '現住所', value: parsed.currentAddress || '—' },
-        { label: '金融機関名', value: parsed.bankName || '—' },
-        { label: '口座番号', value: parsed.accountNumber || '—' },
-      ];
-    }
-    case 'address_change': {
-      const parsed = parseAddressChangeWorkflowPayload(payload);
-      return [
-        { label: '郵便番号', value: parsed.postalCode || '—' },
-        { label: '住所', value: parsed.address || '—' },
-      ];
-    }
-    case 'commute_change': {
-      const parsed = parseCommuteChangeWorkflowPayload(payload);
-      return [
-        { label: '通勤経路', value: parsed.commuteRoute || '—' },
-        {
-          label: '定期代',
-          value:
-            parsed.commutePassAmount == null || Number.isNaN(parsed.commutePassAmount)
-              ? '—'
-              : `${parsed.commutePassAmount.toLocaleString('ja-JP')}円`,
-        },
-      ];
-    }
-    case 'bank_account': {
-      const parsed = parseBankAccountWorkflowPayload(payload);
-      return [
-        { label: '金融機関名', value: parsed.bankName || '—' },
-        { label: '支店名', value: parsed.bankBranchName || '—' },
-        { label: '口座種別', value: parsed.bankAccountType || '—' },
-        { label: '口座番号', value: parsed.bankAccountNumber || '—' },
-      ];
-    }
     default:
       return Object.entries(payload).map(([label, value]) => ({
         label,
@@ -238,7 +156,6 @@ export function buildAdminTodoTitleForRequest(
     childcare_leave: '育休申請',
     maternity_leave: '産休申請',
     add_dependent: '扶養追加申請',
-    basic_info: '基本情報登録',
   };
 
   const label = labels[type] ?? '申請';

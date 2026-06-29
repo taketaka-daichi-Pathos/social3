@@ -148,18 +148,6 @@ export class EmployeeTaskService {
     });
   }
 
-  async createBasicInfoRequest(
-    companyOwnerUid: string,
-    employeeId: string,
-    requestedFields: EmployeeTaskRequestedField[]
-  ): Promise<EmployeeTask> {
-    return this.createTask(companyOwnerUid, {
-      employeeId,
-      taskType: 'BASIC_INFO_REQUEST',
-      requestedFields,
-    });
-  }
-
   async createMaternityLeaveInfoRequest(
     companyOwnerUid: string,
     employeeId: string,

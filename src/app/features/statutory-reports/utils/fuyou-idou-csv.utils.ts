@@ -276,8 +276,8 @@ function mapEmployeeBlock(fields: string[], employee: Employee, company: Company
   setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_MYNUMBER, myNumberFields.myNumber);
   setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_PENSION_SYMBOL, myNumberFields.pensionSymbol);
   setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_PENSION_NUMBER, myNumberFields.pensionNumber);
-  setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_POSTAL, stripPostalCodeHyphen(employee.postalCode));
-  setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_ADDRESS, (employee.address ?? '').trim());
+  setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_POSTAL, '');
+  setField(fields, FUYOU_IDOU_BLOCK_OFFSET.EMPLOYEE_ADDRESS, '');
 }
 
 /**

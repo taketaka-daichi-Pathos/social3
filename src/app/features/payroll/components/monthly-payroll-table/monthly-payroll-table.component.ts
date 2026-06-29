@@ -61,6 +61,7 @@ import {
   resolvePayrollEntryForMonth,
   resolvePayrollAllowances,
   resolvePayrollBaseDays,
+  roundNonNegativePayrollYen,
   resolvePayrollBaseSalary,
   toEmployeeAllowances,
   toYearMonthKeyFromParts,
@@ -71,7 +72,9 @@ import {
   saveStoredTargetMonth,
 } from '@features/payroll/utils/payroll-storage.utils';
 import { buildMonthlyLockConfirmMessage } from '@features/payroll/utils/monthly-lock-confirm.utils';
-import { PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE } from '@features/payroll/utils/pending-revision-application.utils';
+import {
+  buildUnappliedRevisionBlockMessage,
+} from '@features/payroll/utils/pending-revision-application.utils';
 import { expandPayrollLoadMonthsWithRegistrationHistory } from '@features/payroll/utils/payroll-engine-sync.utils';
 import {
   canLockPayrollMonthSequentially,
@@ -180,14 +183,17 @@ export class MonthlyPayrollTableComponent implements OnInit {
   });
   readonly adjustmentPreAdjustmentTotal = signal(0);
 
-  readonly hasPendingUpdates = signal(false);
-  readonly pendingInsuranceUpdatesCheckReady = signal(false);
-  readonly pendingInsuranceUpdatesBlockMessage =
-    PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE;
+  readonly hasUnappliedRevision = signal(false);
+  readonly unappliedRevisionCheckReady = signal(false);
+  readonly unappliedRevisionBlockMessage = computed(() =>
+    buildUnappliedRevisionBlockMessage(
+      normalizeYearMonthKey(this.targetMonth()) ?? this.targetMonth().trim()
+    )
+  );
   readonly monthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
   readonly socialInsuranceFilter = signal<SocialInsuranceCategoryFilter>('all');
   readonly socialInsuranceFilterOptions = SOCIAL_INSURANCE_CATEGORY_FILTER_OPTIONS;
-  private pendingInsuranceUpdatesCheckVersion = 0;
+  private unappliedRevisionCheckVersion = 0;
 
   readonly canConfirmTargetMonthLock = computed(() => {
     if (this.isTargetMonthBeforeSystemStart()) {
@@ -314,14 +320,14 @@ export class MonthlyPayrollTableComponent implements OnInit {
       this.isTargetMonthBeforeSystemStart();
       this.systemStartDate();
       this.canConfirmTargetMonthLock();
-      this.hasPendingUpdates();
-      this.pendingInsuranceUpdatesCheckReady();
+      this.hasUnappliedRevision();
+      this.unappliedRevisionCheckReady();
 
       untracked(() => this.refreshConfirmButtonDisabledState('effect'));
     });
 
     this.watchPreviousMonthLockState();
-    this.checkPendingInsuranceUpdates();
+    this.checkUnappliedRevision();
   }
 
   ngOnInit(): void {
@@ -358,7 +364,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
     void this.loadCompanyAllowances();
   }
 
-  private checkPendingInsuranceUpdates(): void {
+  private checkUnappliedRevision(): void {
     combineLatest([
       this.targetMonth$,
       this.employees$,
@@ -368,21 +374,21 @@ export class MonthlyPayrollTableComponent implements OnInit {
       .pipe(
         switchMap(([targetMonth, employees, , companyLoaded]) => {
           if (!companyLoaded) {
-            this.hasPendingUpdates.set(false);
-            this.pendingInsuranceUpdatesCheckReady.set(true);
+            this.hasUnappliedRevision.set(false);
+            this.unappliedRevisionCheckReady.set(true);
             return EMPTY;
           }
 
           const normalizedTarget =
             normalizeYearMonthKey(targetMonth) ?? targetMonth.trim();
           if (!normalizedTarget || employees.length === 0) {
-            this.hasPendingUpdates.set(false);
-            this.pendingInsuranceUpdatesCheckReady.set(true);
+            this.hasUnappliedRevision.set(false);
+            this.unappliedRevisionCheckReady.set(true);
             return EMPTY;
           }
 
-          const version = ++this.pendingInsuranceUpdatesCheckVersion;
-          this.pendingInsuranceUpdatesCheckReady.set(false);
+          const version = ++this.unappliedRevisionCheckVersion;
+          this.unappliedRevisionCheckReady.set(false);
 
           const baseMonths =
             this.revisionService.collectPayrollMonthsForPendingRevisionCheck(
@@ -410,23 +416,23 @@ export class MonthlyPayrollTableComponent implements OnInit {
       )
       .subscribe({
         next: ({ version, normalizedTarget, employees, payrollRecords }) => {
-          if (version !== this.pendingInsuranceUpdatesCheckVersion) {
+          if (version !== this.unappliedRevisionCheckVersion) {
             return;
           }
 
-          const hasPending = this.revisionService.checkPendingInsuranceUpdatesForMonth(
+          const hasUnapplied = this.revisionService.checkUnappliedRevisionForMonth(
             normalizedTarget,
             employees,
             payrollRecords
           );
-          this.hasPendingUpdates.set(hasPending);
-          this.pendingInsuranceUpdatesCheckReady.set(true);
-          this.refreshConfirmButtonDisabledState('pendingInsuranceUpdatesCheck');
+          this.hasUnappliedRevision.set(hasUnapplied);
+          this.unappliedRevisionCheckReady.set(true);
+          this.refreshConfirmButtonDisabledState('unappliedRevisionCheck');
         },
         error: () => {
-          this.hasPendingUpdates.set(false);
-          this.pendingInsuranceUpdatesCheckReady.set(true);
-          this.refreshConfirmButtonDisabledState('pendingInsuranceUpdatesCheck:error');
+          this.hasUnappliedRevision.set(false);
+          this.unappliedRevisionCheckReady.set(true);
+          this.refreshConfirmButtonDisabledState('unappliedRevisionCheck:error');
         },
       });
   }
@@ -476,8 +482,8 @@ export class MonthlyPayrollTableComponent implements OnInit {
     const formDataReady = this.formDataReady();
     const entriesCount = this.entriesCount();
     const canConfirm = this.canConfirmTargetMonthLock();
-    const hasPendingUpdates = this.hasPendingUpdates();
-    const pendingInsuranceUpdatesCheckReady = this.pendingInsuranceUpdatesCheckReady();
+    const hasUnappliedRevision = this.hasUnappliedRevision();
+    const unappliedRevisionCheckReady = this.unappliedRevisionCheckReady();
     const isTargetLocked = this.isTargetMonthLocked();
     const previousMonthLocked = this.previousMonthLocked();
 
@@ -490,8 +496,8 @@ export class MonthlyPayrollTableComponent implements OnInit {
       lockingMonth ||
       formRebuildInProgress ||
       hasNoEligibleRows ||
-      !pendingInsuranceUpdatesCheckReady ||
-      hasPendingUpdates ||
+      !unappliedRevisionCheckReady ||
+      hasUnappliedRevision ||
       !canConfirm;
 
     console.log('[Disabled判定]', {
@@ -507,8 +513,8 @@ export class MonthlyPayrollTableComponent implements OnInit {
       hasNoEligibleRows,
       isTargetLocked,
       previousMonthLocked,
-      pendingInsuranceUpdatesCheckReady,
-      hasPendingUpdates,
+      unappliedRevisionCheckReady,
+      hasUnappliedRevision,
       targetMonth: this.targetMonth(),
       latestLockedMonth: this.latestLockedMonth(),
     });
@@ -641,12 +647,12 @@ export class MonthlyPayrollTableComponent implements OnInit {
       return;
     }
 
-    if (!this.pendingInsuranceUpdatesCheckReady()) {
+    if (!this.unappliedRevisionCheckReady()) {
       return;
     }
 
-    if (this.hasPendingUpdates()) {
-      this.lockActionError.set(this.pendingInsuranceUpdatesBlockMessage);
+    if (this.hasUnappliedRevision()) {
+      this.lockActionError.set(this.unappliedRevisionBlockMessage());
       return;
     }
 
@@ -1371,7 +1377,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
       return;
     }
 
-    const parsed = Number(input.value);
+    const parsed = roundNonNegativePayrollYen(Number(input.value));
     if (Number.isFinite(parsed)) {
       control.setValue(parsed, { emitEvent: false });
     }

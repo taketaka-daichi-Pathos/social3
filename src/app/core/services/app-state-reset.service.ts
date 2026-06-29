@@ -2,7 +2,6 @@ import { inject, Injectable } from '@angular/core';
 import { AdminEmployeeLinkService } from '@core/services/admin-employee-link.service';
 import { AdminTodoService } from '@core/services/admin-todo.service';
 import { AgeEventContextService, AgeEventNotificationService } from '@core/services/age-event-notification.service';
-import { ApplicationWorkflowInboxService } from '@core/services/application-workflow-inbox.service';
 import { CompanyService } from '@core/services/company.service';
 import { CompensationService } from '@core/services/compensation.service';
 import { DependentWorkflowInboxService } from '@core/services/dependent-workflow-inbox.service';
@@ -23,7 +22,6 @@ export class AppStateResetService {
   private readonly workflowNotificationService = inject(WorkflowNotificationService);
   private readonly workflowApprovalService = inject(WorkflowApprovalService);
   private readonly leaveWorkflowInboxService = inject(LeaveWorkflowInboxService);
-  private readonly applicationWorkflowInboxService = inject(ApplicationWorkflowInboxService);
   private readonly dependentWorkflowInboxService = inject(DependentWorkflowInboxService);
   private readonly ageEventContextService = inject(AgeEventContextService);
   private readonly ageEventNotificationService = inject(AgeEventNotificationService);
@@ -49,7 +47,6 @@ export class AppStateResetService {
     this.workflowNotificationService.resetState();
     this.workflowApprovalService.resetState();
     this.leaveWorkflowInboxService.resetState();
-    this.applicationWorkflowInboxService.resetState();
     this.dependentWorkflowInboxService.resetState();
     this.ageEventContextService.resetState();
     this.ageEventNotificationService.resetState();
@@ -64,7 +61,6 @@ export class AppStateResetService {
       this.workflowNotificationService.hasCachedState() ||
       this.workflowApprovalService.hasCachedState() ||
       this.leaveWorkflowInboxService.hasCachedState() ||
-      this.applicationWorkflowInboxService.hasCachedState() ||
       this.dependentWorkflowInboxService.hasCachedState() ||
       this.ageEventNotificationService.hasCachedState() ||
       this.adminTodoService.hasCachedState()

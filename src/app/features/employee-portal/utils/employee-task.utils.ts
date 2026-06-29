@@ -21,11 +21,6 @@ export const EMPLOYEE_TASK_TYPE_DEFINITIONS: Record<EmployeeTaskType, EmployeeTa
     description:
       '退職後の連絡先を入力し、健康保険被保険者証の返却についてご確認ください。',
   },
-  BASIC_INFO_REQUEST: {
-    taskType: 'BASIC_INFO_REQUEST',
-    title: '基本情報（郵便番号・住所）の入力',
-    description: '法定帳票の提出に必要な郵便番号と住所を入力してください。',
-  },
   MATERNITY_LEAVE_INFO_REQUEST: {
     taskType: 'MATERNITY_LEAVE_INFO_REQUEST',
     title: '産前産後休業の詳細情報の入力',
@@ -53,8 +48,6 @@ export const EMPLOYEE_TASK_FIELD_LABELS: Record<EmployeeTaskRequestedField, stri
   postRetirementAddress: '退職後の住所',
   postRetirementEmail: '退職後のメールアドレス',
   insuranceCardReturnCommitment: '健康保険被保険者証の返却確認',
-  postalCode: '郵便番号',
-  address: '住所',
   expectedDeliveryDate: '出産予定日',
   deliveryType: '出産種別',
   childcareChild1NameKana: '養育する子（1人目）氏名カナ',

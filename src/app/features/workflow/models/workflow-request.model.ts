@@ -4,10 +4,6 @@ export type WorkflowRequestType =
   | 'maternity_leave'
   | 'add_dependent'
   | 'onboarding'
-  | 'basic_info'
-  | 'address_change'
-  | 'commute_change'
-  | 'bank_account'
   | 'retirement'
   | 'dependent_info';
 

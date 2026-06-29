@@ -12,7 +12,7 @@ import {
   PayrollAdjustmentFormValue,
   PayrollAdjustmentType,
 } from '@features/payroll/models/payroll-adjustment.model';
-import { validatePayrollAdjustmentTotal } from '@features/payroll/utils/compensation.utils';
+import { validatePayrollAdjustmentTotal, roundPayrollYen } from '@features/payroll/utils/compensation.utils';
 
 @Component({
   selector: 'app-payroll-adjustment-modal',
@@ -121,7 +121,7 @@ export class PayrollAdjustmentModalComponent {
     this.validationError.set('');
 
     const raw = this.form.getRawValue();
-    const amount = Number(raw.adjustmentAmount) || 0;
+    const amount = roundPayrollYen(raw.adjustmentAmount);
     this.syncTotalFloorError(amount);
     const type = raw.adjustmentType;
     const targetMonth = String(raw.adjustmentTargetMonth ?? '').trim();

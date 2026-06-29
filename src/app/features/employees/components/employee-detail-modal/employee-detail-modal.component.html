@@ -49,32 +49,6 @@
             <dt>メールアドレス</dt>
             <dd>{{ emp.email || '—' }}</dd>
           </dl>
-
-          <div class="mt-5 border-t border-gray-200 pt-5">
-            <h4 class="mb-3 text-sm font-semibold text-gray-900">住所情報</h4>
-            <dl class="grid grid-cols-[11rem_1fr] gap-x-4 gap-y-2 text-[0.8125rem]">
-              <dt class="font-medium text-gray-500">郵便番号</dt>
-              <dd class="text-gray-900">{{ displayPostalCode(emp.postalCode) }}</dd>
-              <dt class="font-medium text-gray-500">住所</dt>
-              <dd class="break-words leading-relaxed text-gray-900">
-                {{ displayRegistrationField(emp.address) }}
-              </dd>
-            </dl>
-          </div>
-
-          <div class="mt-5 border-t border-gray-200 pt-5">
-            <h4 class="mb-3 text-sm font-semibold text-gray-900">給与振込口座情報</h4>
-            <dl class="grid grid-cols-[11rem_1fr] gap-x-4 gap-y-2 text-[0.8125rem]">
-              <dt class="font-medium text-gray-500">金融機関名</dt>
-              <dd class="text-gray-900">{{ displayRegistrationField(emp.bankName) }}</dd>
-              <dt class="font-medium text-gray-500">支店名</dt>
-              <dd class="text-gray-900">{{ displayRegistrationField(emp.bankBranchName) }}</dd>
-              <dt class="font-medium text-gray-500">口座種別</dt>
-              <dd class="text-gray-900">{{ displayAccountType(emp.bankAccountType) }}</dd>
-              <dt class="font-medium text-gray-500">口座番号</dt>
-              <dd class="text-gray-900">{{ displayRegistrationField(emp.bankAccountNumber) }}</dd>
-            </dl>
-          </div>
         </section>
 
         <section class="detail-modal__section">

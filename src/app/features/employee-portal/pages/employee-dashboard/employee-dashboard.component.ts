@@ -45,9 +45,6 @@ export class EmployeeDashboardComponent implements OnInit {
 
   readonly pendingTasks = computed(() => this.tasks().filter((task) => task.status === 'PENDING'));
   readonly completedTasks = computed(() => this.tasks().filter((task) => task.status === 'COMPLETED'));
-  readonly basicInfoRequestTask = computed(() =>
-    this.pendingTasks().find((task) => task.taskType === 'BASIC_INFO_REQUEST') ?? null
-  );
   readonly maternityLeaveInfoRequestTask = computed(() =>
     this.pendingTasks().find((task) => task.taskType === 'MATERNITY_LEAVE_INFO_REQUEST') ?? null
   );

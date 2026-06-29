@@ -11,6 +11,7 @@ import {
 import { toHalfWidthDigits } from '@core/utils/text-normalize.utils';
 import { PayrollAllowanceEntry } from '@features/payroll/models/compensation.model';
 import { MONTHLY_LOCK_ERROR_MESSAGE } from '@features/payroll/utils/monthly-lock.utils';
+import { roundNonNegativePayrollYen } from '@features/payroll/utils/compensation.utils';
 
 export interface PayrollBreakdownValue {
   baseSalary: number;
@@ -147,10 +148,10 @@ export class PayrollBreakdownModalComponent {
 
     const raw = this.form.getRawValue();
     this.confirmed.emit({
-      baseSalary: Number(raw.baseSalary) || 0,
+      baseSalary: roundNonNegativePayrollYen(raw.baseSalary) || 0,
       allowances: raw.allowances.map((row) => ({
         name: row.name,
-        amount: Number(row.amount) || 0,
+        amount: roundNonNegativePayrollYen(row.amount) || 0,
       })),
     });
   }

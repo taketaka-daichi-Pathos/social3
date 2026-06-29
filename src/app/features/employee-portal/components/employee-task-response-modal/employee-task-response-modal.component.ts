@@ -66,8 +66,6 @@ export class EmployeeTaskResponseModalComponent {
     postRetirementAddress: this.fb.control(''),
     postRetirementEmail: this.fb.control(''),
     insuranceCardReturnCommitment: this.fb.control(false),
-    postalCode: this.fb.control(''),
-    address: this.fb.control(''),
     expectedDeliveryDate: this.fb.control(''),
     deliveryType: this.fb.control<'1' | '2' | ''>(''),
     childcareChild1NameKana: this.fb.control(''),
@@ -106,8 +104,6 @@ export class EmployeeTaskResponseModalComponent {
           postRetirementAddress: '',
           postRetirementEmail: '',
           insuranceCardReturnCommitment: false,
-          postalCode: '',
-          address: '',
           expectedDeliveryDate: '',
           deliveryType: '',
           childcareChild1NameKana: '',
@@ -148,10 +144,6 @@ export class EmployeeTaskResponseModalComponent {
     return this.task()?.requestedFields.includes(field) ?? false;
   }
 
-  isBasicInfoTask(): boolean {
-    return this.task()?.taskType === 'BASIC_INFO_REQUEST';
-  }
-
   isMaternityLeaveInfoTask(): boolean {
     return this.task()?.taskType === 'MATERNITY_LEAVE_INFO_REQUEST';
   }
@@ -178,8 +170,7 @@ export class EmployeeTaskResponseModalComponent {
   }
 
   submitButtonLabel(): string {
-    return this.isBasicInfoTask() ||
-      this.isMaternityLeaveInfoTask() ||
+    return this.isMaternityLeaveInfoTask() ||
       this.isChildcareLeaveInfoTask() ||
       this.isDependentInfoTask() ||
       this.isRetirementProcedureTask()
@@ -293,24 +284,6 @@ export class EmployeeTaskResponseModalComponent {
         errors.push('健康保険被保険者証の返却確認にチェックを入れてください');
       } else {
         values.insuranceCardReturnCommitment = true;
-      }
-    }
-
-    if (this.includesField('postalCode')) {
-      const postalCode = this.form.controls.postalCode.value.replace(/\D/g, '');
-      if (postalCode.length !== 7) {
-        errors.push('郵便番号は7桁で入力してください');
-      } else {
-        values.postalCode = postalCode;
-      }
-    }
-
-    if (this.includesField('address')) {
-      const address = this.form.controls.address.value.trim();
-      if (!address) {
-        errors.push('住所を入力してください');
-      } else {
-        values.address = address;
       }
     }
 

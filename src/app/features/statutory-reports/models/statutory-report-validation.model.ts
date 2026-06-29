@@ -11,8 +11,6 @@ export type StatutoryRequiredFieldKey =
   | 'birthDate'
   | 'resignationDate'
   | 'insuranceCardReturned'
-  | 'postalCode'
-  | 'address'
   | 'maternityExpectedDeliveryDate'
   | 'maternityDeliveryType'
   | 'childcareChildrenInfo';
@@ -36,8 +34,6 @@ export const STATUTORY_REQUIRED_FIELD_LABELS: Record<StatutoryRequiredFieldKey, 
   birthDate: '生年月日',
   resignationDate: '退職日',
   insuranceCardReturned: '健康保険被保険者証の返却',
-  postalCode: '郵便番号',
-  address: '住所',
   maternityExpectedDeliveryDate: '出産予定日',
   maternityDeliveryType: '出産種別',
   childcareChildrenInfo: '養育する子の情報',

@@ -32,6 +32,14 @@
       >
         手当設定
       </button>
+      <button
+        type="button"
+        class="company-settings__tab"
+        [class.company-settings__tab--active]="activeTab() === 'bonus'"
+        (click)="setTab('bonus')"
+      >
+        賞与設定
+      </button>
     </nav>
 
     <form class="company-settings__form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
@@ -439,7 +447,7 @@
               </div>
             }
           </div>
-        } @else {
+        } @else if (activeTab() === 'allowances') {
           <div class="company-settings__allowances">
             <p class="company-settings__hint company-settings__hint--section">
               会社独自の手当を登録します。給与計算や従業員台帳で利用できます。
@@ -581,6 +589,67 @@
                 </div>
               </div>
             </div>
+          </div>
+        } @else if (activeTab() === 'bonus') {
+          <div class="company-settings__bonus-settings">
+            <p class="company-settings__hint company-settings__hint--section">
+              年間の賞与支払日を登録します。賞与入力画面ではここで登録した賞与を選択して入力します。
+            </p>
+
+            <div class="company-settings__bonus-list" formArrayName="bonusPaymentSettings">
+              @if (bonusPaymentSettingsArray.length === 0) {
+                <p class="company-settings__hint">登録されている賞与支払日はありません。「行を追加」から登録してください。</p>
+              }
+
+              @for (row of bonusPaymentSettingsArray.controls; track row.controls.id.value; let i = $index) {
+                <div class="company-settings__bonus-row" [formGroupName]="i">
+                  <input type="hidden" formControlName="id" />
+
+                  <div class="company-settings__field">
+                    <label class="company-settings__label" [for]="'bonusName' + i">賞与名</label>
+                    <input
+                      [id]="'bonusName' + i"
+                      type="text"
+                      class="company-settings__input"
+                      formControlName="name"
+                      placeholder="例: 夏季賞与"
+                      autocomplete="off"
+                    />
+                    @if (showBonusPaymentFieldError(i, 'name')) {
+                      <p class="company-settings__error">{{ bonusPaymentFieldErrorMessage(i, 'name') }}</p>
+                    }
+                  </div>
+
+                  <div class="company-settings__field">
+                    <label class="company-settings__label" [for]="'bonusPaymentDate' + i">支払年月日</label>
+                    <input
+                      [id]="'bonusPaymentDate' + i"
+                      type="date"
+                      class="company-settings__input company-settings__input--date"
+                      formControlName="paymentDate"
+                      [min]="bonusPaymentMinDate()"
+                      autocomplete="off"
+                      (blur)="onBonusPaymentDateBlur(i)"
+                    />
+                    @if (showBonusPaymentFieldError(i, 'paymentDate')) {
+                      <p class="company-settings__error">{{ bonusPaymentFieldErrorMessage(i, 'paymentDate') }}</p>
+                    }
+                  </div>
+
+                  <button
+                    type="button"
+                    class="company-settings__bonus-remove"
+                    (click)="removeBonusPaymentSetting(i)"
+                  >
+                    削除
+                  </button>
+                </div>
+              }
+            </div>
+
+            <button type="button" class="company-settings__bonus-add" (click)="addBonusPaymentSetting()">
+              ＋ 行を追加
+            </button>
           </div>
         }
 

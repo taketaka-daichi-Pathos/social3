@@ -3,56 +3,52 @@
     <div>
       <h2 class="comp-table__title">{{ titleLabel }}</h2>
       <p class="comp-table__description">
-        支払い日を設定のうえ、各行ごとに{{ titleLabel }}を入力・保存します。入社前の従業員は表示されません。標準賞与額は1,000円未満を切り捨てて算出します。
+        支払い日を選択のうえ、各行ごとに{{ titleLabel }}を入力・保存します。入社前の従業員は表示されません。標準賞与額は1,000円未満を切り捨てて算出します。
+      </p>
+      <p class="comp-table__description comp-table__description--note">
+        ※賞与の支払日は、事前に
+        <a
+          class="comp-table__settings-link text-primary font-semibold underline underline-offset-2"
+          [routerLink]="companySettingsBonusTabLink"
+          [queryParams]="companySettingsBonusTabQueryParams"
+        >会社設定の賞与タブ</a>
+        から登録してください。
       </p>
     </div>
 
     <div class="comp-table__header-controls">
-      <div class="comp-table__payment-date" formGroupName="paymentDateParts">
+      <div class="comp-table__payment-date">
         <span class="comp-table__month-label">支払い日</span>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <label class="sr-only" for="bonusPaymentYear">年（YYYY）</label>
-          <input
-            id="bonusPaymentYear"
-            type="text"
-            class="comp-table__date-input comp-table__date-input--year"
-            formControlName="year"
-            maxlength="4"
-            inputmode="numeric"
-            autocomplete="off"
-            [class.comp-table__date-input--invalid]="isPaymentDateInvalid()"
-            (input)="onPaymentYearInput($event)"
-            (blur)="onPaymentDatePartsBlur()"
-          />
-          <span class="text-sm text-gray-500">年</span>
-
-          <label class="sr-only" for="bonusPaymentMonth">月</label>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="sr-only" for="bonusPaymentYearSelect">年</label>
           <select
-            id="bonusPaymentMonth"
-            class="comp-table__filter-select comp-table__date-input--month"
-            formControlName="month"
-            (change)="onPaymentMonthChange()"
+            id="bonusPaymentYearSelect"
+            class="comp-table__filter-select comp-table__date-input--year"
+            formControlName="selectedYear"
+            (change)="onBonusPaymentSelectionChange()"
           >
-            <option value="">—</option>
-            @for (month of paymentMonthOptions; track month) {
-              <option [value]="month">{{ month }}月</option>
+            <option value="">{{ yearSelectPlaceholder() }}</option>
+            @if (companySettingsLoaded() && hasBonusPaymentSettings()) {
+              @for (year of bonusPaymentYearOptions(); track year) {
+                <option [value]="year.toString()">{{ year }}年</option>
+              }
             }
           </select>
 
-          <label class="sr-only" for="bonusPaymentDay">日</label>
-          <input
-            id="bonusPaymentDay"
-            type="text"
-            class="comp-table__date-input comp-table__date-input--day"
-            formControlName="day"
-            maxlength="2"
-            inputmode="numeric"
-            autocomplete="off"
-            [class.comp-table__date-input--invalid]="isPaymentDateInvalid()"
-            (input)="onPaymentDayInput($event)"
-            (blur)="onPaymentDatePartsBlur()"
-          />
-          <span class="text-sm text-gray-500">日</span>
+          <label class="sr-only" for="bonusPaymentSettingSelect">賞与</label>
+          <select
+            id="bonusPaymentSettingSelect"
+            class="comp-table__filter-select comp-table__date-input--month"
+            formControlName="bonusPaymentSettingId"
+            (change)="onBonusPaymentSelectionChange()"
+          >
+            <option value="">{{ bonusPaymentSelectPlaceholder() }}</option>
+            @if (companySettingsLoaded() && hasBonusPaymentSettings()) {
+              @for (setting of sortedBonusPaymentSettings(); track setting.id) {
+                <option [value]="setting.id">{{ formatBonusTemplateLabel(setting) }}</option>
+              }
+            }
+          </select>
         </div>
       </div>
     </div>
@@ -74,19 +70,15 @@
     </div>
   </div>
 
-  @if (paymentDateError() || isPaymentDateInvalid()) {
+  @if (!hasBonusPaymentSettings() && companySettingsLoaded()) {
     <p class="comp-table__alert" role="alert">
-      {{ paymentDateError() || paymentDateValidationMessage() }}
+      先に会社設定から賞与支払日を登録してください。
     </p>
   }
 
-  @if (isBonusMonthLocked()) {
-    <p class="comp-table__alert comp-table__alert--locked" role="status">🔒 対象月は確定済みのため、賞与の編集・保存はできません。</p>
-  }
-
-  @if (showPreviousMonthNotLockedCompensationSaveWarning()) {
+  @if (paymentDateError()) {
     <p class="comp-table__alert" role="alert">
-      {{ previousMonthNotLockedCompensationSaveMessage }}
+      {{ paymentDateError() }}
     </p>
   }
 
@@ -231,68 +223,4 @@
       </div>
     </div>
   }
-
-  <section class="comp-table__history">
-    <button
-      type="button"
-      class="comp-table__history-toggle"
-      [attr.aria-expanded]="historyExpanded()"
-      (click)="toggleHistoryPanel()"
-    >
-      <span class="comp-table__history-toggle-label">賞与支給履歴</span>
-      <span class="comp-table__history-toggle-icon">{{ historyExpanded() ? '▲' : '▼' }}</span>
-    </button>
-
-    @if (historyExpanded()) {
-      <div class="comp-table__history-body">
-        @if (bonusHistoryPaymentDateGroups().length === 0) {
-          <p class="comp-table__history-empty">賞与支給履歴はありません</p>
-        } @else {
-          @for (group of bonusHistoryPaymentDateGroups(); track group.paymentDate) {
-            <section class="comp-table__payment-date-group">
-              <button
-                type="button"
-                class="comp-table__payment-date-toggle"
-                [attr.aria-expanded]="isPaymentDateExpanded(group.paymentDate)"
-                (click)="togglePaymentDatePanel(group.paymentDate)"
-              >
-                <span>{{ group.label }}</span>
-                <span class="comp-table__history-toggle-icon">
-                  {{ isPaymentDateExpanded(group.paymentDate) ? '▲' : '▼' }}
-                </span>
-              </button>
-
-              @if (isPaymentDateExpanded(group.paymentDate)) {
-                <div class="comp-table__history-table-wrap">
-                  <table class="comp-table__history-table">
-                    <colgroup>
-                      <col class="comp-table__history-col-number" />
-                      <col class="comp-table__history-col-name" />
-                      <col class="comp-table__history-col-amount" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>社員番号</th>
-                        <th>名前</th>
-                        <th class="comp-table__th-amount">賞与額</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (item of group.rows; track item.id) {
-                        <tr>
-                          <td class="comp-table__history-cell-number">{{ item.employeeNumber }}</td>
-                          <td class="comp-table__history-cell-name">{{ item.employeeName }}</td>
-                          <td class="comp-table__cell-amount">¥{{ item.bonusAmount | number }}</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-            </section>
-          }
-        }
-      </div>
-    }
-  </section>
 </section>

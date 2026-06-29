@@ -161,17 +161,13 @@ export class WorkflowRequestService {
       'maternity_leave',
       'add_dependent',
       'onboarding',
-      'basic_info',
-      'address_change',
-      'commute_change',
-      'bank_account',
       'retirement',
       'dependent_info',
     ];
 
     return allowed.includes(value as WorkflowRequestType)
       ? (value as WorkflowRequestType)
-      : 'basic_info';
+      : 'onboarding';
   }
 
   private normalizeRequestStatus(value: unknown): WorkflowRequestStatus {

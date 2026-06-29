@@ -245,7 +245,7 @@ function pickEffectiveRevisionHistoryEntry(
   return sortedDesc[sortedDesc.length - 1];
 }
 
-/** 随時改定・算定基礎の「変更前等級」参照用。従業員マスタの等級・標準報酬月額をそのまま返す。 */
+/** 従業員マスタの現在等級・標準報酬月額（一覧表示などマスタ参照用） */
 export function resolveEmployeeMasterCurrentGrades(employee: Employee): {
   healthStandard: number;
   pensionStandard: number;

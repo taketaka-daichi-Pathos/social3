@@ -7,7 +7,21 @@ export interface BonusHistoryFiscalYearGroup {
   rows: BonusHistoryEntry[];
 }
 
+function formatDateToIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function normalizePaymentDate(value: unknown): string {
+  if (value && typeof value === 'object' && 'toDate' in value) {
+    const date = (value as { toDate: () => Date }).toDate();
+    if (!Number.isNaN(date.getTime())) {
+      return formatDateToIsoDate(date);
+    }
+  }
+
   const trimmed = String(value ?? '').trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
 }
@@ -45,7 +59,7 @@ export function findBonusHistoryForPaymentDate(
 }
 
 export function calculateHistoryStandardBonusAmount(bonusAmount: number): number {
-  const amount = Math.max(0, Math.floor(Number(bonusAmount) || 0));
+  const amount = Math.max(0, Math.round(Number(bonusAmount) || 0));
   if (amount <= 0) {
     return 0;
   }
@@ -98,11 +112,11 @@ export function createBonusHistoryEntry(data: {
   bonusAmount: number;
   standardBonusAmount?: number;
 }): BonusHistoryEntry {
-  const bonusAmount = Math.max(0, Math.floor(Number(data.bonusAmount) || 0));
-  const fixedWagesAtPayment = Math.max(0, Math.floor(Number(data.fixedWagesAtPayment) || 0));
+  const bonusAmount = Math.max(0, Math.round(Number(data.bonusAmount) || 0));
+  const fixedWagesAtPayment = Math.max(0, Math.round(Number(data.fixedWagesAtPayment) || 0));
   const standardBonusAmount =
     data.standardBonusAmount != null && Number.isFinite(Number(data.standardBonusAmount))
-      ? Math.max(0, Math.floor(Number(data.standardBonusAmount)))
+      ? Math.max(0, Math.round(Number(data.standardBonusAmount)))
       : calculateHistoryStandardBonusAmount(bonusAmount);
 
   return {

@@ -4,13 +4,18 @@ import {
   OccasionalRevisionResult,
 } from '@features/revision/models/revision.model';
 import {
+  buildUnappliedRevisionBlockMessage,
+  collectOccasionalRevisionPayrollMonthsForApplicationMonth,
   collectPayrollMonthsForPendingRevisionCheck,
   hasPendingInsuranceUpdatesForMonth,
   hasPendingRevisionApplicationForMonth,
+  hasUnappliedOccasionalRevisionForMonth,
+  hasUnappliedRevisionForMonth,
   isAnnualDeterminationAwaitingApply,
   isAnnualRevisionPendingApplication,
   isOccasionalRevisionAwaitingApply,
   isOccasionalRevisionPendingApplication,
+  isOccasionalRevisionUnappliedForPayrollLock,
   PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE,
 } from '@features/payroll/utils/pending-revision-application.utils';
 
@@ -120,7 +125,8 @@ function createOccasionalRow(
 describe('pending-revision-application.utils', () => {
   it('exposes the payroll lock warning message', () => {
     expect(PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE).toContain('社会保険改定');
-    expect(PENDING_INSURANCE_UPDATES_BLOCK_MESSAGE).toContain('未処理');
+    expect(buildUnappliedRevisionBlockMessage('2026-08')).toContain('2026年8月');
+    expect(buildUnappliedRevisionBlockMessage('2026-08')).toContain('随時改定');
   });
 
   it('detects pending annual revision for the application month', () => {
@@ -129,7 +135,7 @@ describe('pending-revision-application.utils', () => {
 
     expect(isAnnualRevisionPendingApplication(row, employee)).toBe(true);
     expect(
-      hasPendingInsuranceUpdatesForMonth({
+      hasUnappliedRevisionForMonth({
         targetMonth: '2025-09',
         employees: [employee],
         annualResults: [row],
@@ -150,7 +156,7 @@ describe('pending-revision-application.utils', () => {
     const employee = createEmployee();
 
     expect(
-      hasPendingInsuranceUpdatesForMonth({
+      hasUnappliedRevisionForMonth({
         targetMonth: '2025-08',
         employees: [employee],
         annualResults: [createAnnualRow({ applicationMonth: '2025-09' })],
@@ -185,20 +191,44 @@ describe('pending-revision-application.utils', () => {
     expect(isAnnualRevisionPendingApplication(createAnnualRow(), employee)).toBe(false);
   });
 
-  it('detects pending occasional revision for the application month', () => {
+  it('detects unapplied occasional revision when application month matches target month', () => {
     const employee = createEmployee();
+    const row = createOccasionalRow({
+      changeMonth: '2026-05',
+      applicationMonth: '2026-08',
+    });
 
+    expect(isOccasionalRevisionUnappliedForPayrollLock(row, employee)).toBe(true);
     expect(
-      hasPendingInsuranceUpdatesForMonth({
-        targetMonth: '2025-09',
+      hasUnappliedOccasionalRevisionForMonth({
+        targetMonth: '2026-08',
+        employees: [employee],
+        occasionalResults: [row],
+      })
+    ).toBe(true);
+    expect(
+      hasUnappliedRevisionForMonth({
+        targetMonth: '2026-08',
         employees: [employee],
         annualResults: [],
-        occasionalResults: [createOccasionalRow()],
+        occasionalResults: [row],
       })
     ).toBe(true);
   });
 
-  it('detects pending occasional revision with pending status', () => {
+  it('ignores occasional revision for a different application month', () => {
+    const employee = createEmployee();
+
+    expect(
+      hasUnappliedOccasionalRevisionForMonth({
+        targetMonth: '2026-08',
+        employees: [employee],
+        occasionalResults: [createOccasionalRow({ applicationMonth: '2026-09' })],
+      })
+    ).toBe(false);
+  });
+
+  it('ignores pending occasional revision that is not yet eligible', () => {
     const employee = createEmployee();
     const row = createOccasionalRow({
       status: 'pending',
@@ -209,24 +239,39 @@ describe('pending-revision-application.utils', () => {
     expect(isOccasionalRevisionPendingApplication(row, employee)).toBe(false);
     expect(isOccasionalRevisionAwaitingApply(row, employee)).toBe(true);
     expect(
-      hasPendingInsuranceUpdatesForMonth({
+      hasUnappliedRevisionForMonth({
         targetMonth: '2025-08',
         employees: [employee],
         annualResults: [],
         occasionalResults: [row],
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('ignores excluded occasional revision', () => {
     const employee = createEmployee();
 
     expect(
-      isOccasionalRevisionAwaitingApply(
+      isOccasionalRevisionUnappliedForPayrollLock(
         createOccasionalRow({ isEligible: false, status: 'excluded' }),
         employee
       )
     ).toBe(false);
+  });
+
+  it('collects payroll months for August application checks', () => {
+    const months = collectPayrollMonthsForPendingRevisionCheck('2026-08');
+
+    expect(months).toContain('2026-04');
+    expect(months).toContain('2026-05');
+    expect(months).toContain('2026-07');
+    expect(months).toContain('2026-08');
+    expect(collectOccasionalRevisionPayrollMonthsForApplicationMonth('2026-08')).toEqual([
+      '2026-04',
+      '2026-05',
+      '2026-06',
+      '2026-07',
+    ]);
   });
 
   it('collects payroll months for September application checks', () => {
@@ -235,5 +280,18 @@ describe('pending-revision-application.utils', () => {
     expect(months).toContain('2025-04');
     expect(months).toContain('2025-06');
     expect(months).toContain('2025-09');
+  });
+
+  it('keeps deprecated aliases working', () => {
+    const employee = createEmployee();
+
+    expect(
+      hasPendingInsuranceUpdatesForMonth({
+        targetMonth: '2025-09',
+        employees: [employee],
+        annualResults: [],
+        occasionalResults: [createOccasionalRow()],
+      })
+    ).toBe(true);
   });
 });

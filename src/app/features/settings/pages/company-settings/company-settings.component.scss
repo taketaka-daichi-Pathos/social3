@@ -353,6 +353,65 @@
     font-variant-numeric: tabular-nums;
   }
 
+  &__bonus-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  &__bonus-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__bonus-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) 8rem auto;
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.75rem;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: #fafafa;
+
+    @media (max-width: 720px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__input--month-day {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: 0.02em;
+  }
+
+  &__bonus-remove {
+    margin-top: 1.6rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid #fecaca;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: #b91c1c;
+    font-size: 0.8125rem;
+    cursor: pointer;
+
+    @media (max-width: 720px) {
+      margin-top: 0;
+    }
+  }
+
+  &__bonus-add {
+    align-self: flex-start;
+    padding: 0.55rem 1rem;
+    border: 1px dashed $color-border;
+    border-radius: $radius-sm;
+    background: #fff;
+    color: $color-primary;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
   &__history-title {
     margin: 0 0 0.75rem;
     font-size: 0.875rem;

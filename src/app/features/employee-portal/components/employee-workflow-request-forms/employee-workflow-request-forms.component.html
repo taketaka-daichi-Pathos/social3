@@ -2,7 +2,7 @@
   <header class="mb-6">
     <h3 class="m-0 mb-1 text-lg font-bold text-gray-900">各種申請</h3>
     <p class="m-0 text-sm text-gray-500">
-      休業・扶養・住所・通勤交通費・口座などの変更申請をこちらから送信できます。
+      休業・扶養の変更申請をこちらから送信できます。
     </p>
   </header>
 
@@ -36,38 +36,6 @@
                 />
               </svg>
             }
-            @case ('address') {
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                />
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-            }
-            @case ('commute') {
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                />
-              </svg>
-            }
-            @case ('bank') {
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                />
-              </svg>
-            }
           }
         </span>
         <span class="min-w-0 flex-1">
@@ -88,27 +56,6 @@
 
 <app-dependent-application-dialog
   [open]="activeDialog() === 'dependent'"
-  [session]="session()"
-  (closed)="closeDialog()"
-  (submitted)="onApplicationSubmitted()"
-/>
-
-<app-address-change-application-dialog
-  [open]="activeDialog() === 'address_change'"
-  [session]="session()"
-  (closed)="closeDialog()"
-  (submitted)="onApplicationSubmitted()"
-/>
-
-<app-commute-change-application-dialog
-  [open]="activeDialog() === 'commute_change'"
-  [session]="session()"
-  (closed)="closeDialog()"
-  (submitted)="onApplicationSubmitted()"
-/>
-
-<app-bank-account-application-dialog
-  [open]="activeDialog() === 'bank_account'"
   [session]="session()"
   (closed)="closeDialog()"
   (submitted)="onApplicationSubmitted()"

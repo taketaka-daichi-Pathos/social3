@@ -3,8 +3,6 @@ import { Component, computed, effect, inject, input, output, signal } from '@ang
 import { EmployeeInsuranceSummary, SocialInsurancePremiumBreakdown } from '@core/models/social-insurance.model';
 import { SocialInsuranceRevisionService } from '@core/services/social-insurance-revision.service';
 import {
-  displayBankAccountType,
-  displayRegistrationPostalCode,
   displayRegistrationValue,
 } from '@features/employee-portal/utils/employee-registration-display.utils';
 import { Employee } from '@features/employees/models/employee.model';
@@ -231,14 +229,6 @@ export class EmployeeDetailModalComponent {
 
   displayRegistrationField(value: string | null | undefined): string {
     return displayRegistrationValue(value);
-  }
-
-  displayPostalCode(value: string | null | undefined): string {
-    return displayRegistrationPostalCode(value);
-  }
-
-  displayAccountType(value: string | null | undefined): string {
-    return displayBankAccountType(value);
   }
 
   hasAllowances(employee: Employee): boolean {

@@ -199,12 +199,6 @@ export class StatutoryReportsComponent implements OnInit {
           event.employee.id,
           requestedFields
         );
-      } else if (definition.taskType === 'BASIC_INFO_REQUEST') {
-        await this.employeeTaskService.createBasicInfoRequest(
-          companyOwnerUid,
-          event.employee.id,
-          requestedFields
-        );
       } else if (definition.taskType === 'MATERNITY_LEAVE_INFO_REQUEST') {
         await this.employeeTaskService.createMaternityLeaveInfoRequest(
           companyOwnerUid,

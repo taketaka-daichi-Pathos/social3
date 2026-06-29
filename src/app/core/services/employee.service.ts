@@ -764,76 +764,6 @@ export class EmployeeService {
     }
   }
 
-  async updateEmployeeApplicationFields(
-    employeeId: string,
-    updates: {
-      postalCode?: string;
-      address?: string;
-      bankName?: string;
-      bankBranchName?: string;
-      bankAccountType?: string;
-      bankAccountNumber?: string;
-      commuteRoute?: string;
-      commutePassAmount?: number | null;
-    }
-  ): Promise<void> {
-    const user = await requireAuthenticatedUser(this.auth);
-    const payload: {
-      postalCode?: string;
-      address?: string;
-      bankName?: string;
-      bankBranchName?: string;
-      bankAccountType?: string;
-      bankAccountNumber?: string;
-      commuteRoute?: string;
-      commutePassAmount?: number | null;
-    } = {};
-
-    if (updates.postalCode != null) {
-      payload.postalCode = updates.postalCode;
-    }
-    if (updates.address != null) {
-      payload.address = updates.address;
-    }
-    if (updates.bankName != null) {
-      payload.bankName = updates.bankName;
-    }
-    if (updates.bankBranchName != null) {
-      payload.bankBranchName = updates.bankBranchName;
-    }
-    if (updates.bankAccountType != null) {
-      payload.bankAccountType = updates.bankAccountType;
-    }
-    if (updates.bankAccountNumber != null) {
-      payload.bankAccountNumber = updates.bankAccountNumber;
-    }
-    if (updates.commuteRoute != null) {
-      payload.commuteRoute = updates.commuteRoute;
-    }
-    if (updates.commutePassAmount !== undefined) {
-      payload.commutePassAmount = updates.commutePassAmount;
-    }
-
-    if (Object.keys(payload).length === 0) {
-      return;
-    }
-
-    try {
-      await updateDoc(
-        doc(
-          this.firestore,
-          FirestoreCollections.companies,
-          user.uid,
-          FirestoreCollections.employees,
-          employeeId
-        ),
-        payload
-      );
-    } catch (error) {
-      throw new Error(toFirestoreErrorMessage(error, '従業員マスターの更新に失敗しました'));
-    }
-  }
-
   async findEmployeeByNumber(
     companyOwnerUid: string,
     employeeNumber: string
@@ -990,14 +920,6 @@ export class EmployeeService {
       updates['insuranceCardReturnCommitment'] = values.insuranceCardReturnCommitment;
     }
 
-    if (requestedFields.includes('postalCode') && values.postalCode) {
-      updates['postalCode'] = values.postalCode.replace(/\D/g, '').slice(0, 7);
-    }
-
-    if (requestedFields.includes('address') && values.address) {
-      updates['address'] = values.address.trim();
-    }
-
     const maternityLeaveUpdates: Partial<
       Pick<LeaveRecord, 'expectedDeliveryDate' | 'deliveryType' | 'actualDeliveryDate'>
     > = {};
@@ -1075,8 +997,6 @@ export class EmployeeService {
           ...(updates['insuranceCardReturned'] != null
             ? { insuranceCardReturned: updates['insuranceCardReturned'] as boolean }
             : {}),
-          ...(updates['postalCode'] ? { postalCode: updates['postalCode'] as string } : {}),
-          ...(updates['address'] ? { address: updates['address'] as string } : {}),
         });
         return;
       }
@@ -1114,8 +1034,6 @@ export class EmployeeService {
           ...(updates['insuranceCardReturned'] != null
             ? { insuranceCardReturned: updates['insuranceCardReturned'] as boolean }
             : {}),
-          ...(updates['postalCode'] ? { postalCode: updates['postalCode'] as string } : {}),
-          ...(updates['address'] ? { address: updates['address'] as string } : {}),
         });
         return;
       }
@@ -1128,8 +1046,6 @@ export class EmployeeService {
 
         await updateDoc(employeeRef, {
           pendingDependentSubmission,
-          ...(updates['postalCode'] ? { postalCode: updates['postalCode'] as string } : {}),
-          ...(updates['address'] ? { address: updates['address'] as string } : {}),
         });
         return;
       }
@@ -1162,10 +1078,6 @@ export class EmployeeService {
                 insuranceCardReturnCommitment: updates['insuranceCardReturnCommitment'] as boolean,
               }
             : {}),
-          ...(updates['postalCode']
-            ? { postalCode: updates['postalCode'] as string }
-            : {}),
-          ...(updates['address'] ? { address: updates['address'] as string } : {}),
         }
       );
     } catch (error) {
@@ -1286,17 +1198,6 @@ export class EmployeeService {
         row['insuranceCardReturnCommitment'] == null
           ? null
           : Boolean(row['insuranceCardReturnCommitment']),
-      postalCode: String(row['postalCode'] ?? '').trim(),
-      address: String(row['address'] ?? '').trim(),
-      bankName: String(row['bankName'] ?? '').trim(),
-      bankBranchName: String(row['bankBranchName'] ?? '').trim(),
-      bankAccountType: String(row['bankAccountType'] ?? '').trim(),
-      bankAccountNumber: String(row['bankAccountNumber'] ?? '').trim(),
-      commuteRoute: String(row['commuteRoute'] ?? '').trim(),
-      commutePassAmount:
-        row['commutePassAmount'] == null || row['commutePassAmount'] === ''
-          ? null
-          : Number(row['commutePassAmount']),
       salaryHistory,
       gradeHistory: this.parseGradeHistory(row['gradeHistory']),
       registrationPayrollLockedThrough:

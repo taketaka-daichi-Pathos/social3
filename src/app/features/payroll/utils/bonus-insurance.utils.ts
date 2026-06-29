@@ -94,7 +94,7 @@ export function normalizeNonNegativeAmount(value: unknown): number {
     return 0;
   }
 
-  return Math.floor(amount);
+  return Math.round(amount);
 }
 
 export function calculateBonusEntryAmount(fixedWages: number, nonFixedWages: number): number {
@@ -115,7 +115,7 @@ function resolveHistoryStandardBonusAmount(
 ): number {
   const fromStandard = Number(entry.standardBonusAmount);
   if (entry.standardBonusAmount != null && Number.isFinite(fromStandard)) {
-    return Math.max(0, Math.floor(fromStandard));
+    return Math.max(0, Math.round(fromStandard));
   }
 
   return calculateStandardBonusAmount(Number(entry.bonusAmount) ?? 0);
@@ -374,7 +374,7 @@ export function resolveHealthLongTermCareBonusStandard(
 export function resolveEntryStandardBonusAmount(entry: CompensationEntry): number {
   const fromStandard = Number(entry.standardBonusAmount);
   if (entry.standardBonusAmount != null && Number.isFinite(fromStandard)) {
-    return Math.max(0, Math.floor(fromStandard));
+    return Math.max(0, Math.round(fromStandard));
   }
 
   return calculateStandardBonusAmount(

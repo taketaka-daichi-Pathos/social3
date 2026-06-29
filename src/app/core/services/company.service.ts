@@ -33,6 +33,7 @@ import { resolveCompanyInsuranceRatesForPrefecture } from '@features/settings/ut
 import { getCurrentCareInsuranceRate } from '@features/settings/utils/care-insurance-rate.utils';
 import { sortInsuranceRateHistoryDesc } from '@features/settings/utils/insurance-rate-history.utils';
 import { normalizeCompanyAllowancesForSave } from '@features/settings/utils/allowance-sync.utils';
+import { normalizeBonusPaymentSettings } from '@features/settings/utils/bonus-payment-settings.utils';
 import { resolveInitialInsuranceRateApplicableMonth } from '@features/settings/utils/statutory-insurance-rate-period.utils';
 
 export interface UpdateCompanyOptions {
@@ -74,6 +75,7 @@ export class CompanyService {
       ...companyFields,
       ...insuranceRates,
       allowances: [...DEFAULT_COMPANY_ALLOWANCES],
+      bonusPaymentSettings: [],
       ownerUid: uid,
     };
 
@@ -142,6 +144,7 @@ export class CompanyService {
     const companyRef = doc(this.firestore, FirestoreCollections.companies, user.uid);
     const { companyId, insuranceRateHistory: _, systemStartDate: _locked, ...updatable } = settings;
     const allowances = normalizeCompanyAllowancesForSave(settings.allowances);
+    const bonusPaymentSettings = normalizeBonusPaymentSettings(settings.bonusPaymentSettings);
     const linkedEmployeeId = settings.linkedEmployeeId?.trim() || null;
 
     console.log('[CompanyService.updateCompany] Firestore 更新 payload', {
@@ -149,6 +152,7 @@ export class CompanyService {
       companyId,
       linkedEmployeeId,
       allowances,
+      bonusPaymentSettings,
       insuranceRateHistoryEntry: options.insuranceRateHistoryEntry ?? null,
     });
 
@@ -157,6 +161,7 @@ export class CompanyService {
       companyId,
       linkedEmployeeId,
       allowances,
+      bonusPaymentSettings,
       updatedAt: serverTimestamp(),
     });
 
@@ -265,6 +270,7 @@ export class CompanyService {
         data.longTermCareInsuranceRate ?? getCurrentCareInsuranceRate(),
       allowances:
         data.allowances?.length ? data.allowances : [...DEFAULT_COMPANY_ALLOWANCES],
+      bonusPaymentSettings: normalizeBonusPaymentSettings(data.bonusPaymentSettings),
     };
   }
 

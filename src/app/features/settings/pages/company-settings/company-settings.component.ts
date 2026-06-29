@@ -2,9 +2,14 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Auth } from '@angular/fire/auth';
+import { ActivatedRoute } from '@angular/router';
 import {
+  FormArray,
+  FormControl,
+  FormGroup,
   NonNullableFormBuilder,
   ReactiveFormsModule,
+  ValidatorFn,
   Validators,
 } from '@angular/forms';
 import { CompanyService } from '@core/services/company.service';
@@ -18,6 +23,7 @@ import {
   resolveSystemOperationMonthFromLatestLock,
 } from '@features/payroll/utils/system-operation-month.utils';
 import {
+  BonusPaymentSetting,
   CompanyAllowance,
   CompanyAllowanceFormField,
   CompanySettings,
@@ -34,6 +40,12 @@ import {
   shouldAppendInsuranceRateHistory,
   sortInsuranceRateHistoryDesc,
 } from '../../utils/insurance-rate-history.utils';
+import {
+  bonusPaymentSettingsFromFormValues,
+  normalizeBonusPaymentSettingDate,
+  resolveMinBonusPaymentDateFromSystemStart,
+} from '../../utils/bonus-payment-settings.utils';
+import { bonusPaymentDateNotBeforeSystemStartValidator } from '../../validators/bonus-payment-settings.validators';
 import {
   COMPANY_ALLOWANCE_FORM_FIELDS,
   companyAllowancesFromFormValues,
@@ -61,6 +73,12 @@ const APPLICABLE_MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
 const ALLOWANCE_AMOUNT_VALIDATORS = [Validators.min(0)];
 
+type BonusPaymentSettingFormGroup = FormGroup<{
+  id: FormControl<string>;
+  name: FormControl<string>;
+  paymentDate: FormControl<string>;
+}>;
+
 @Component({
   selector: 'app-company-settings',
   standalone: true,
@@ -76,6 +94,7 @@ export class CompanySettingsComponent implements OnInit {
   private readonly employeeService = inject(EmployeeService);
   private readonly adminEmployeeLinkService = inject(AdminEmployeeLinkService);
   private readonly monthlyLockService = inject(MonthlyLockService);
+  private readonly route = inject(ActivatedRoute);
 
   readonly prefectures = PREFECTURE_INSURANCE_RATES;
   readonly activeTab = signal<CompanySettingsTab>('basic');
@@ -149,6 +168,7 @@ export class CompanySettingsComponent implements OnInit {
     fixedOvertimeAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
     commutingAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
     otherAllowance: this.fb.control<number | null>(null, ALLOWANCE_AMOUNT_VALIDATORS),
+    bonusPaymentSettings: this.fb.array<BonusPaymentSettingFormGroup>([]),
   });
 
   readonly loading = signal(true);
@@ -162,6 +182,7 @@ export class CompanySettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.setupApplicableMonthValidator();
+    this.applyInitialTabFromQuery();
 
     this.form.controls.prefecture.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -247,6 +268,99 @@ export class CompanySettingsComponent implements OnInit {
     }
   }
 
+  get bonusPaymentSettingsArray(): FormArray<BonusPaymentSettingFormGroup> {
+    return this.form.controls.bonusPaymentSettings;
+  }
+
+  addBonusPaymentSetting(): void {
+    this.bonusPaymentSettingsArray.push(this.createBonusPaymentSettingGroup());
+  }
+
+  removeBonusPaymentSetting(index: number): void {
+    this.bonusPaymentSettingsArray.removeAt(index);
+  }
+
+  onBonusPaymentDateBlur(index: number): void {
+    const control = this.bonusPaymentSettingsArray.at(index).controls.paymentDate;
+    const normalized = normalizeBonusPaymentSettingDate(control.value);
+    if (normalized) {
+      control.setValue(normalized, { emitEvent: false });
+    }
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  showBonusPaymentFieldError(index: number, field: 'name' | 'paymentDate'): boolean {
+    const control = this.bonusPaymentSettingsArray.at(index).controls[field];
+    return control.invalid && (control.touched || control.dirty || this.submitted);
+  }
+
+  bonusPaymentFieldErrorMessage(index: number, field: 'name' | 'paymentDate'): string {
+    const control = this.bonusPaymentSettingsArray.at(index).controls[field];
+    if (control.hasError('required')) {
+      return field === 'name' ? '賞与名を入力してください' : '支払年月日を入力してください';
+    }
+
+    if (field === 'paymentDate' && control.hasError('invalidDateBeforeStart')) {
+      return 'システム利用開始年月より前の日付は設定できません';
+    }
+
+    if (field === 'paymentDate' && control.hasError('invalidPaymentDate')) {
+      return '支払年月日は YYYY-MM-DD 形式で入力してください（例: 2026-07-10）';
+    }
+
+    return '入力内容を確認してください';
+  }
+
+  bonusPaymentMinDate(): string {
+    return resolveMinBonusPaymentDateFromSystemStart(this.form.controls.systemStartDate.value) ?? '';
+  }
+
+  private applyInitialTabFromQuery(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'basic' || tab === 'rates' || tab === 'allowances' || tab === 'bonus') {
+      this.setTab(tab);
+    }
+  }
+
+  private createBonusPaymentSettingGroup(
+    row?: Partial<BonusPaymentSetting>
+  ): BonusPaymentSettingFormGroup {
+    return this.fb.group({
+      id: this.fb.control(row?.id ?? crypto.randomUUID()),
+      name: this.fb.control(row?.name ?? '', Validators.required),
+      paymentDate: this.fb.control(row?.paymentDate ?? '', this.buildBonusPaymentDateValidators()),
+    });
+  }
+
+  private buildBonusPaymentDateValidators(): ValidatorFn[] {
+    return [
+      Validators.required,
+      (control) =>
+        normalizeBonusPaymentSettingDate(String(control.value ?? '').trim())
+          ? null
+          : { invalidPaymentDate: true },
+      bonusPaymentDateNotBeforeSystemStartValidator(
+        () => this.form.controls.systemStartDate.value
+      ),
+    ];
+  }
+
+  private refreshBonusPaymentDateValidation(): void {
+    for (const group of this.bonusPaymentSettingsArray.controls) {
+      group.controls.paymentDate.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  private populateBonusPaymentSettings(settings: BonusPaymentSetting[] | undefined): void {
+    this.bonusPaymentSettingsArray.clear();
+
+    for (const row of settings ?? []) {
+      this.bonusPaymentSettingsArray.push(this.createBonusPaymentSettingGroup(row));
+    }
+
+    this.refreshBonusPaymentDateValidation();
+  }
+
   isSubmitDisabled(): boolean {
     if (this.saving() || this.loading()) {
       return true;
@@ -260,6 +374,10 @@ export class CompanySettingsComponent implements OnInit {
         control.errors?.['lockedApplicableMonth'] ||
         control.errors?.['statutoryMasterPeriod']
       );
+    }
+
+    if (this.activeTab() === 'bonus') {
+      return !this.canSaveActiveTab();
     }
 
     return false;
@@ -364,6 +482,8 @@ export class CompanySettingsComponent implements OnInit {
         await this.syncLinkedEmployeeEmailIfNeeded(data);
         await this.adminEmployeeLinkService.reloadLink();
         this.showSaveSuccessMessage('基本情報を保存しました');
+      } else if (this.activeTab() === 'bonus') {
+        this.showSaveSuccessMessage('賞与支払日設定を保存しました');
       }
     } catch {
       this.saveError.set('保存に失敗しました。時間をおいて再度お試しください。');
@@ -390,6 +510,28 @@ export class CompanySettingsComponent implements OnInit {
           valid = false;
           if (markTouched) {
             control.markAsTouched();
+          }
+        }
+      }
+
+      return valid;
+    }
+
+    if (tab === 'bonus') {
+      if (this.bonusPaymentSettingsArray.length === 0) {
+        return true;
+      }
+
+      let valid = true;
+
+      for (const group of this.bonusPaymentSettingsArray.controls) {
+        for (const control of Object.values(group.controls)) {
+          control.updateValueAndValidity({ emitEvent: false });
+          if (control.invalid) {
+            valid = false;
+            if (markTouched) {
+              control.markAsTouched();
+            }
           }
         }
       }
@@ -718,6 +860,7 @@ export class CompanySettingsComponent implements OnInit {
     );
     this.form.controls.companyId.setValue(company.companyId);
     this.populateAllowances(company.allowances);
+    this.populateBonusPaymentSettings(company.bonusPaymentSettings);
     this.insuranceRateHistory.set(sortInsuranceRateHistoryDesc(company.insuranceRateHistory ?? []));
     this.refreshApplicableMonthValidation();
 
@@ -787,7 +930,9 @@ export class CompanySettingsComponent implements OnInit {
         ? ['prefecture', 'applicableMonth', 'healthInsuranceRate', 'longTermCareInsuranceRate']
         : tab === 'allowances'
           ? [...COMPANY_ALLOWANCE_FORM_FIELDS]
-          : [
+          : tab === 'bonus'
+            ? []
+            : [
               'companyName',
               'employerLastName',
               'employerFirstName',
@@ -850,6 +995,7 @@ export class CompanySettingsComponent implements OnInit {
         commutingAllowance: raw.commutingAllowance,
         otherAllowance: raw.otherAllowance,
       }),
+      bonusPaymentSettings: bonusPaymentSettingsFromFormValues(raw.bonusPaymentSettings),
       insuranceRateHistory: this.insuranceRateHistory(),
     };
   }

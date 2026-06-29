@@ -48,10 +48,6 @@ function isFieldPresent(employee: Employee, field: StatutoryRequiredFieldKey): b
       return Boolean(employee.resignationDate?.trim());
     case 'insuranceCardReturned':
       return employee.insuranceCardReturned != null;
-    case 'postalCode':
-      return normalizeDigits(employee.postalCode ?? '').length === 7;
-    case 'address':
-      return Boolean(employee.address?.trim());
     case 'maternityExpectedDeliveryDate': {
       const record = findPrimaryMaternityLeaveRecord(employee);
       return record ? hasMaternityExpectedDeliveryDate(record) : false;
@@ -124,12 +120,9 @@ export const STATUTORY_REPORT_DEFINITIONS: Record<StatutoryReportId, StatutoryRe
   },
   'fuyo-ido': {
     exportImplemented: true,
-    requiredFields: ['myNumber', 'birthDate', 'postalCode', 'address'],
-    taskType: 'BASIC_INFO_REQUEST',
-    taskFieldMapping: {
-      postalCode: 'postalCode',
-      address: 'address',
-    },
+    requiredFields: ['myNumber', 'birthDate'],
+    taskType: null,
+    taskFieldMapping: {},
     filterCandidates: (employee) =>
       (employee.status === 'active' && employeeHasFuyouIdouDependents(employee)) ||
       isAge75FuyouIdouExportCandidate(employee, getCurrentYearMonthKey()),

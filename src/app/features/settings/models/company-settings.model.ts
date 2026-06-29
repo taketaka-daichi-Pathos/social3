@@ -19,6 +19,13 @@ export const DEFAULT_COMPANY_ALLOWANCES: readonly CompanyAllowance[] = FIXED_COM
   ({ name }) => ({ name, amount: null })
 );
 
+/** 会社設定で登録する賞与支払日マスタ（支払年月日は YYYY-MM-DD） */
+export interface BonusPaymentSetting {
+  id: string;
+  name: string;
+  paymentDate: string;
+}
+
 export interface CompanySettings {
   companyId: string;
   /** 管理者アカウントに紐づく従業員レコードID（任意） */
@@ -41,11 +48,12 @@ export interface CompanySettings {
   healthInsuranceRate: number | null;
   longTermCareInsuranceRate: number | null;
   allowances: CompanyAllowance[];
+  bonusPaymentSettings?: BonusPaymentSetting[];
   insuranceRateHistory?: InsuranceRateHistoryEntry[];
 }
 export type CompanySettingsFormField = Exclude<
   keyof CompanySettings,
-  'allowances' | 'insuranceRateHistory'
+  'allowances' | 'bonusPaymentSettings' | 'insuranceRateHistory'
 >;
 
-export type CompanySettingsTab = 'basic' | 'rates' | 'allowances';
+export type CompanySettingsTab = 'basic' | 'rates' | 'allowances' | 'bonus';

@@ -118,35 +118,6 @@
           </div>
         }
 
-        @if (includesField('postalCode')) {
-          <div class="task-modal__field">
-            <label class="task-modal__field-label" for="postalCode">{{ fieldLabel('postalCode') }}</label>
-            <input
-              id="postalCode"
-              type="text"
-              class="task-modal__input"
-              formControlName="postalCode"
-              inputmode="numeric"
-              maxlength="8"
-              placeholder="1234567"
-              autocomplete="off"
-            />
-          </div>
-        }
-
-        @if (includesField('address')) {
-          <div class="task-modal__field">
-            <label class="task-modal__field-label" for="address">{{ fieldLabel('address') }}</label>
-            <textarea
-              id="address"
-              class="task-modal__textarea"
-              formControlName="address"
-              rows="3"
-              autocomplete="off"
-            ></textarea>
-          </div>
-        }
-
         @if (includesField('expectedDeliveryDate')) {
           <div class="task-modal__field">
             <label class="task-modal__field-label" for="expectedDeliveryDate">

@@ -12,6 +12,21 @@ import {
   isRetiredEmployee,
 } from '@features/employees/utils/retirement.utils';
 
+/** 給与・賞与の入力金額を円単位の整数へ正規化（浮動小数点誤差を四捨五入で吸収） */
+export function roundPayrollYen(value: unknown): number {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return 0;
+  }
+
+  return Math.round(amount);
+}
+
+/** 0円未満にならない給与項目の正規化 */
+export function roundNonNegativePayrollYen(value: unknown): number {
+  return Math.max(0, roundPayrollYen(value));
+}
+
 function parseLocalDate(value: string): Date {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (match) {
@@ -562,15 +577,15 @@ export function extractPayrollRowFormValues(
     employeeId: String(raw.employeeId ?? ''),
     employeeNumber: String(raw.employeeNumber ?? ''),
     employeeName: String(raw.employeeName ?? ''),
-    baseSalary: Number(group.controls.baseSalary.value ?? 0),
-    nonFixedWages: Number(group.controls.nonFixedWages.value ?? 0),
-    baseDays: Number(group.controls.baseDays.value),
-    adjustmentAmount: Number(group.controls.adjustmentAmount.value ?? 0),
+    baseSalary: roundNonNegativePayrollYen(group.controls.baseSalary.value ?? 0),
+    nonFixedWages: roundNonNegativePayrollYen(group.controls.nonFixedWages.value ?? 0),
+    baseDays: roundNonNegativePayrollYen(group.controls.baseDays.value),
+    adjustmentAmount: roundPayrollYen(group.controls.adjustmentAmount.value ?? 0),
     adjustmentType: group.controls.adjustmentType.value ?? null,
     adjustmentTargetMonth: String(group.controls.adjustmentTargetMonth.value ?? '').trim(),
     allowances: group.controls.allowances.controls.map((allowance) => ({
       name: String(allowance.controls.name.value ?? ''),
-      amount: Number(allowance.controls.amount.value ?? 0),
+      amount: roundNonNegativePayrollYen(allowance.controls.amount.value ?? 0),
     })),
   };
 }
@@ -591,15 +606,17 @@ export function buildPayrollEntryFromFormValues(
   },
   options: { locked?: boolean; registrationLocked?: boolean } = {}
 ): PayrollEntry {
+  const baseSalary = roundNonNegativePayrollYen(raw.baseSalary ?? 0);
+  const nonFixedWages = roundNonNegativePayrollYen(raw.nonFixedWages ?? 0);
   const allowances = raw.allowances.map((row) => ({
     name: row.name,
-    amount: Number(row.amount ?? 0),
+    amount: roundNonNegativePayrollYen(row.amount ?? 0),
   }));
-  const adjustmentAmount = Number(raw.adjustmentAmount ?? 0);
+  const adjustmentAmount = roundPayrollYen(raw.adjustmentAmount ?? 0);
   const totalPayment = calculatePayrollDisplayTotal(
-    Number(raw.baseSalary ?? 0),
+    baseSalary,
     allowances,
-    Number(raw.nonFixedWages ?? 0),
+    nonFixedWages,
     adjustmentAmount
   );
 
@@ -607,10 +624,10 @@ export function buildPayrollEntryFromFormValues(
     employeeId: String(raw.employeeId ?? ''),
     employeeNumber: String(raw.employeeNumber ?? ''),
     employeeName: String(raw.employeeName ?? ''),
-    baseSalary: Number(raw.baseSalary ?? 0),
+    baseSalary,
     allowances,
-    nonFixedWages: Number(raw.nonFixedWages ?? 0),
-    baseDays: Number(raw.baseDays ?? 0),
+    nonFixedWages,
+    baseDays: roundNonNegativePayrollYen(raw.baseDays ?? 0),
     adjustmentAmount,
     adjustmentType: adjustmentAmount !== 0 ? raw.adjustmentType ?? null : null,
     adjustmentTargetMonth: adjustmentAmount !== 0 ? String(raw.adjustmentTargetMonth ?? '').trim() : '',
@@ -624,12 +641,18 @@ export function calculateFixedWagesTotal(
   baseSalary: number,
   allowances: PayrollAllowanceEntry[]
 ): number {
-  const allowanceTotal = allowances.reduce((sum, row) => sum + (row.amount ?? 0), 0);
-  return baseSalary + allowanceTotal;
+  const allowanceTotal = allowances.reduce(
+    (sum, row) => sum + roundNonNegativePayrollYen(row.amount ?? 0),
+    0
+  );
+  return roundNonNegativePayrollYen(baseSalary) + allowanceTotal;
 }
 
 export function calculateEmployeeAllowancesTotal(allowances: EmployeeAllowance[]): number {
-  return (allowances ?? []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  return (allowances ?? []).reduce(
+    (sum, row) => sum + roundNonNegativePayrollYen(row.amount),
+    0
+  );
 }
 
 /** salaryHistory の最新月エントリを返す */
@@ -715,8 +738,8 @@ export function wouldPayrollAdjustmentExceedTotal(
   preAdjustmentTotal: number,
   adjustmentAmount: number
 ): boolean {
-  const base = Math.max(0, Number(preAdjustmentTotal) || 0);
-  const adjustment = Number(adjustmentAmount) || 0;
+  const base = roundNonNegativePayrollYen(preAdjustmentTotal);
+  const adjustment = roundPayrollYen(adjustmentAmount);
   return base + adjustment < 0;
 }
 
@@ -744,7 +767,9 @@ export function calculatePayrollDisplayTotal(
     allowances,
     nonFixedWages
   );
-  return Math.max(0, preAdjustmentTotal + (Number(adjustmentAmount) || 0));
+  return roundNonNegativePayrollYen(
+    preAdjustmentTotal + roundPayrollYen(adjustmentAmount)
+  );
 }
 
 export function toEmployeeAllowances(allowances: PayrollAllowanceEntry[]): EmployeeAllowance[] {

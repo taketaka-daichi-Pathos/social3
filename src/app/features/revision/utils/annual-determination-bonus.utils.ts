@@ -25,20 +25,55 @@ export function getAnnualDeterminationBonusAssessmentPeriod(targetYear: number):
   };
 }
 
+/** 算定基礎の賞与判定期間内か（支給日 YYYY-MM-DD のみ。paymentMonth は使用しない） */
+export function isBonusPaymentDateInAnnualDeterminationAssessmentPeriod(
+  paymentDate: string,
+  targetYear: number
+): boolean {
+  const normalized = normalizeBonusPaymentDate(paymentDate);
+  if (!normalized) {
+    return false;
+  }
+
+  const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
+  return normalized >= from && normalized <= to;
+}
+
 export function filterBonusHistoryInAssessmentPeriod(
   bonusHistory: BonusHistoryEntry[] | undefined,
   targetYear: number
 ): BonusHistoryEntry[] {
-  const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
+  return (bonusHistory ?? []).filter((entry) =>
+    isBonusPaymentDateInAnnualDeterminationAssessmentPeriod(entry.paymentDate, targetYear)
+  );
+}
 
-  return (bonusHistory ?? []).filter((entry) => {
+interface AssessmentPeriodBonusPayment {
+  paymentDate: string;
+  bonusAmount: number;
+}
+
+/** 判定期間内の賞与を支給日単位で集約（同一支給日は1回としてカウント） */
+export function aggregateAssessmentPeriodBonusPayments(
+  bonusHistory: BonusHistoryEntry[] | undefined,
+  targetYear: number
+): AssessmentPeriodBonusPayment[] {
+  const totalsByPaymentDate = new Map<string, number>();
+
+  for (const entry of filterBonusHistoryInAssessmentPeriod(bonusHistory, targetYear)) {
     const paymentDate = normalizeBonusPaymentDate(entry.paymentDate);
     if (!paymentDate) {
-      return false;
+      continue;
     }
 
-    return paymentDate >= from && paymentDate <= to;
-  });
+    const bonusAmount = Math.max(0, Math.floor(Number(entry.bonusAmount) || 0));
+    totalsByPaymentDate.set(paymentDate, (totalsByPaymentDate.get(paymentDate) ?? 0) + bonusAmount);
+  }
+
+  return [...totalsByPaymentDate.entries()]
+    .filter(([, bonusAmount]) => bonusAmount > 0)
+    .map(([paymentDate, bonusAmount]) => ({ paymentDate, bonusAmount }))
+    .sort((left, right) => left.paymentDate.localeCompare(right.paymentDate));
 }
 
 export function assessAnnualDeterminationBonusAdjustment(
@@ -46,12 +81,23 @@ export function assessAnnualDeterminationBonusAdjustment(
   targetYear: number
 ): AnnualDeterminationBonusAssessment {
   const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
-  const entries = filterBonusHistoryInAssessmentPeriod(bonusHistory, targetYear);
-  const bonusPaymentCount = entries.length;
-  const bonusTotalAmount = entries.reduce(
-    (sum, entry) => sum + Math.max(0, Math.floor(Number(entry.bonusAmount) || 0)),
-    0
-  );
+  const payments = aggregateAssessmentPeriodBonusPayments(bonusHistory, targetYear);
+  const bonusPaymentCount = payments.length;
+  const bonusTotalAmount = payments.reduce((sum, payment) => sum + payment.bonusAmount, 0);
+
+  const debugResult =
+    bonusPaymentCount >= FREQUENT_BONUS_MIN_PAYMENT_COUNT
+      ? { applied: true, monthlyBonusAllocation: Math.floor(bonusTotalAmount / 12) }
+      : { applied: false, reason: '対象外（判定期間内の支給回数が4回未満）' };
+
+  console.log('[AnnualDeterminationBonus] 年4回以上賞与の加算判定', {
+    targetYear,
+    assessmentPeriod: { from, to },
+    bonusPaymentCount,
+    bonusPaymentDates: payments.map((payment) => payment.paymentDate),
+    bonusPayments: payments,
+    result: debugResult,
+  });
 
   if (bonusPaymentCount < FREQUENT_BONUS_MIN_PAYMENT_COUNT) {
     return {

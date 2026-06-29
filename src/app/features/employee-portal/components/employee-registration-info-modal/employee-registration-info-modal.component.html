@@ -2,7 +2,7 @@
   [open]="open()"
   dialogId="employee-registration-info-modal"
   title="登録情報の照会"
-  description="現在マスターに登録されている情報を確認できます。変更が必要な場合は各種申請メニューから申請してください。"
+  description="現在マスターに登録されている情報を確認できます。"
   [wide]="true"
   (closed)="close()"
 >
@@ -40,56 +40,6 @@
           <div class="registration-info__row">
             <dt>入社日</dt>
             <dd>{{ displayDate(employee.hireDate) }}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="registration-info__section">
-        <h3 class="registration-info__section-title">住所</h3>
-        <dl class="registration-info__list">
-          <div class="registration-info__row">
-            <dt>郵便番号</dt>
-            <dd>{{ displayPostalCode(employee.postalCode) }}</dd>
-          </div>
-          <div class="registration-info__row">
-            <dt>住所</dt>
-            <dd>{{ displayValue(employee.address) }}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="registration-info__section">
-        <h3 class="registration-info__section-title">給与振込口座</h3>
-        <dl class="registration-info__list">
-          <div class="registration-info__row">
-            <dt>金融機関名</dt>
-            <dd>{{ displayValue(employee.bankName) }}</dd>
-          </div>
-          <div class="registration-info__row">
-            <dt>支店名</dt>
-            <dd>{{ displayValue(employee.bankBranchName) }}</dd>
-          </div>
-          <div class="registration-info__row">
-            <dt>口座種別</dt>
-            <dd>{{ displayAccountType(employee.bankAccountType) }}</dd>
-          </div>
-          <div class="registration-info__row">
-            <dt>口座番号</dt>
-            <dd>{{ displayAccountNumber(employee.bankAccountNumber) }}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section class="registration-info__section">
-        <h3 class="registration-info__section-title">通勤交通費（定期代）</h3>
-        <dl class="registration-info__list">
-          <div class="registration-info__row">
-            <dt>通勤経路</dt>
-            <dd>{{ displayValue(employee.commuteRoute) }}</dd>
-          </div>
-          <div class="registration-info__row">
-            <dt>定期代</dt>
-            <dd>{{ displayCommuteAmount(employee.commutePassAmount) }}</dd>
           </div>
         </dl>
       </section>
