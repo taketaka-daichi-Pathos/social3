@@ -12,7 +12,7 @@ import { AdminEmployeeLinkService } from '@core/services/admin-employee-link.ser
 import { EmployeeService } from '@core/services/employee.service';
 import { MonthlyLockService } from '@core/services/monthly-lock.service';
 import { PostalCodeInputComponent } from '@shared/components/postal-code-input/postal-code-input.component';
-import { getCurrentYearMonthKey, getNextYearMonthKey } from '@features/payroll/utils/compensation.utils';
+import { getCurrentYearAprilMonthKey, getCurrentYearMonthKey, getNextYearMonthKey } from '@features/payroll/utils/compensation.utils';
 import {
   normalizeYearMonthKey,
   resolveSystemOperationMonthFromLatestLock,
@@ -132,7 +132,7 @@ export class CompanySettingsComponent implements OnInit {
       Validators.maxLength(5),
     ]),
     systemStartDate: this.fb.control({ value: '', disabled: true }),
-    applicableMonth: this.fb.control(getCurrentYearMonthKey(), [
+    applicableMonth: this.fb.control(getCurrentYearAprilMonthKey(), [
       Validators.required,
       Validators.pattern(APPLICABLE_MONTH_PATTERN),
     ]),
@@ -625,9 +625,7 @@ export class CompanySettingsComponent implements OnInit {
   private resolveNextApplicableMonthForNewEntry(): string {
     const history = this.insuranceRateHistory();
     if (history.length === 0) {
-      return (
-        normalizeYearMonthKey(this.form.controls.systemStartDate.value) ?? getCurrentYearMonthKey()
-      );
+      return getCurrentYearAprilMonthKey();
     }
 
     const latestMonth =
@@ -881,15 +879,14 @@ export class CompanySettingsComponent implements OnInit {
     latestLockedMonth: string | null
   ): string {
     const history = company.insuranceRateHistory ?? [];
-    const normalizedSystemStart = normalizeYearMonthKey(company.systemStartDate);
 
-    if (history.length === 0 && normalizedSystemStart) {
-      return normalizedSystemStart;
+    if (history.length === 0) {
+      return getCurrentYearAprilMonthKey();
     }
 
     return resolveSystemOperationMonthFromLatestLock(latestLockedMonth, {
       systemStartDate: company.systemStartDate,
-      calendarMonth: getCurrentYearMonthKey(),
+      calendarMonth: getCurrentYearAprilMonthKey(),
     });
   }
 

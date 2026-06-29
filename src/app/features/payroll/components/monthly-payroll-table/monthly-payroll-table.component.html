@@ -55,10 +55,15 @@
         <div class="payroll-table__month-lock-badge" role="status">🔒 確定済み</div>
       } @else {
         <div class="flex flex-col items-end gap-1 max-w-72">
+          @if (hasPendingUpdates()) {
+            <p class="m-0 text-xs leading-snug text-red-700 text-right" role="alert">
+              {{ pendingInsuranceUpdatesBlockMessage }}
+            </p>
+          }
           <button
             type="button"
             class="payroll-table__lock-btn disabled:opacity-50 disabled:cursor-not-allowed"
-            [disabled]="confirmButtonDisabled() || isTargetMonthBeforeSystemStart()"
+            [disabled]="confirmButtonDisabled() || isTargetMonthBeforeSystemStart() || hasPendingUpdates()"
             [attr.title]="showPreviousMonthNotLockedWarning() ? previousMonthNotLockedMessage : null"
             (click)="confirmLockTargetMonth()"
           >
@@ -301,6 +306,7 @@
       : ''
   "
   [value]="adjustmentValue()"
+  [preAdjustmentTotal]="adjustmentPreAdjustmentTotal()"
   (confirmed)="onAdjustmentConfirmed($event)"
   (closed)="onAdjustmentModalClosed()"
 />

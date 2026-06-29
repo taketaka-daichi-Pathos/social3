@@ -163,8 +163,13 @@
       background: $color-primary;
       color: #fff;
 
-      &:hover {
+      &:hover:not(:disabled) {
         background: $color-primary-dark;
+      }
+
+      &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
       }
     }
   }

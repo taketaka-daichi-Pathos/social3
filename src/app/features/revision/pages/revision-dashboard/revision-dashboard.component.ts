@@ -28,6 +28,11 @@ import {
   RevisionStatus,
 } from '@features/revision/models/revision.model';
 import {
+  isAnnualRevisionTrulyExcluded,
+  isAnnualRevisionPendingApplication,
+  isOccasionalRevisionPendingApplication,
+} from '@features/payroll/utils/pending-revision-application.utils';
+import {
   buildAnnualRevisionHistoryEntry,
   buildOccasionalRevisionHistoryEntry,
   formatGradeWithAmount,
@@ -40,8 +45,11 @@ import {
 } from '@features/revision/utils/revision-history.utils';
 import { formatAnnualDeterminationBonusPeriodLabel } from '@features/revision/utils/annual-determination-bonus.utils';
 import {
+  collectOccasionalApplicationMonths,
   formatOccasionalRevisionPeriodLabel,
   getOccasionalRevisionDashboardSearchRange,
+  resolvePreferredOccasionalApplicationMonth,
+  shiftOccasionalApplicationMonth,
 } from '@features/revision/utils/occasional-revision.utils';
 import { expandPayrollLoadMonthsWithRegistrationHistory } from '@features/payroll/utils/payroll-engine-sync.utils';
 import {
@@ -83,7 +91,7 @@ export class RevisionDashboardComponent implements OnInit {
 
   readonly activeSubTab = signal('annual');
   readonly targetYear = signal(new Date().getFullYear());
-  readonly occasionalChangeMonth = signal('');
+  readonly occasionalApplicationMonth = signal('');
   readonly occasionalStatusFilter = signal<RevisionStatusFilter>('action_required');
   readonly loading = signal(true);
   readonly loadError = signal('');
@@ -95,6 +103,7 @@ export class RevisionDashboardComponent implements OnInit {
 
   private readonly employees = signal<Employee[]>([]);
   private rebuildVersion = 0;
+  private pendingOccasionalStoredMonth = '';
 
   private static readonly APPLY_CONFIRM_MESSAGE =
     '社員マスタ（等級・標準報酬月額）が更新され、指定の適用月から新しい社会保険料が計算されます。よろしいですか？';
@@ -123,13 +132,33 @@ export class RevisionDashboardComponent implements OnInit {
     )
   );
 
+  readonly availableOccasionalApplicationMonths = computed(() =>
+    collectOccasionalApplicationMonths(this.occasionalResults())
+  );
+
+  readonly hasOccasionalApplicationMonthData = computed(
+    () => this.availableOccasionalApplicationMonths().length > 0
+  );
+
+  readonly canNavigatePrevOccasionalApplicationMonth = computed(() => {
+    const available = this.availableOccasionalApplicationMonths();
+    const index = available.indexOf(this.occasionalApplicationMonth());
+    return index > 0;
+  });
+
+  readonly canNavigateNextOccasionalApplicationMonth = computed(() => {
+    const available = this.availableOccasionalApplicationMonths();
+    const index = available.indexOf(this.occasionalApplicationMonth());
+    return index >= 0 && index < available.length - 1;
+  });
+
   readonly occasionalResultsForSelectedMonth = computed(() => {
-    const changeMonth = this.occasionalChangeMonth();
-    if (!changeMonth) {
+    const applicationMonth = this.occasionalApplicationMonth();
+    if (!applicationMonth) {
       return [];
     }
 
-    return this.occasionalResults().filter((row) => row.changeMonth === changeMonth);
+    return this.occasionalResults().filter((row) => row.applicationMonth === applicationMonth);
   });
 
   readonly annualPendingCount = computed(() =>
@@ -177,10 +206,7 @@ export class RevisionDashboardComponent implements OnInit {
     const targetYear = loadStoredRevisionYear(currentYear);
 
     this.targetYear.set(targetYear);
-    this.occasionalChangeMonth.set(
-      loadStoredRevisionOccasionalMonth(toYearMonthKeyFromParts(targetYear, now.getMonth() + 1))
-    );
-    this.syncOccasionalChangeMonthYear(targetYear);
+    this.pendingOccasionalStoredMonth = loadStoredRevisionOccasionalMonth('');
 
     this.employeeService
       .watchEmployees()
@@ -220,21 +246,26 @@ export class RevisionDashboardComponent implements OnInit {
     this.setTargetYear(this.targetYear() + 1);
   }
 
-  prevOccasionalChangeMonth(): void {
-    this.shiftOccasionalChangeMonth(-1);
+  prevOccasionalApplicationMonth(): void {
+    this.navigateOccasionalApplicationMonth(-1);
   }
 
-  nextOccasionalChangeMonth(): void {
-    this.shiftOccasionalChangeMonth(1);
+  nextOccasionalApplicationMonth(): void {
+    this.navigateOccasionalApplicationMonth(1);
   }
 
-  occasionalChangeMonthLabel(): string {
-    const changeMonth = this.occasionalChangeMonth();
-    if (!changeMonth) {
+  occasionalApplicationMonthLabel(): string {
+    const applicationMonth = this.occasionalApplicationMonth();
+    if (!applicationMonth) {
       return '—';
     }
 
-    return formatOccasionalRevisionPeriodLabel(changeMonth);
+    const firstRow = this.occasionalResultsForSelectedMonth()[0];
+    if (firstRow) {
+      return formatOccasionalRevisionPeriodLabel(firstRow.changeMonth);
+    }
+
+    return this.formatApplicationMonthLabel(applicationMonth);
   }
 
   occasionalStatusFilterEmptyMessage(): string {
@@ -257,74 +288,58 @@ export class RevisionDashboardComponent implements OnInit {
 
     this.targetYear.set(year);
     saveStoredRevisionYear(year);
-    this.syncOccasionalChangeMonthYear(year);
     void this.recalculate();
   }
 
-  private shiftOccasionalChangeMonth(delta: number): void {
-    const current = this.occasionalChangeMonth();
-    if (!current) {
+  private navigateOccasionalApplicationMonth(delta: -1 | 1): void {
+    const available = this.availableOccasionalApplicationMonths();
+    const current = this.occasionalApplicationMonth();
+    const nextMonth = shiftOccasionalApplicationMonth(available, current, delta);
+    if (!nextMonth) {
       return;
     }
 
-    const { year, month } = parseYearMonthKey(current);
-    let nextMonth = month + delta;
-    let nextYear = year;
-
-    while (nextMonth < 1) {
-      nextMonth += 12;
-      nextYear -= 1;
-    }
-
-    while (nextMonth > 12) {
-      nextMonth -= 12;
-      nextYear += 1;
-    }
-
-    if (nextYear < 1900 || nextYear > 2100) {
-      return;
-    }
-
-    const nextChangeMonth = toYearMonthKeyFromParts(nextYear, nextMonth);
-    this.occasionalChangeMonth.set(nextChangeMonth);
-    saveStoredRevisionOccasionalMonth(nextChangeMonth);
-
-    if (nextYear !== this.targetYear()) {
-      this.targetYear.set(nextYear);
-      saveStoredRevisionYear(nextYear);
-      void this.recalculate();
-    }
+    this.setOccasionalApplicationMonth(nextMonth);
   }
 
-  private syncOccasionalChangeMonthYear(year: number): void {
-    const current = this.occasionalChangeMonth();
-    if (!current) {
-      const fallback = toYearMonthKeyFromParts(year, new Date().getMonth() + 1);
-      this.occasionalChangeMonth.set(fallback);
-      saveStoredRevisionOccasionalMonth(fallback);
+  private setOccasionalApplicationMonth(month: string): void {
+    this.occasionalApplicationMonth.set(month);
+    saveStoredRevisionOccasionalMonth(month);
+  }
+
+  private syncOccasionalApplicationMonth(legacyStoredMonth?: string): void {
+    const available = this.availableOccasionalApplicationMonths();
+    const resolved = resolvePreferredOccasionalApplicationMonth(
+      available,
+      this.occasionalApplicationMonth(),
+      legacyStoredMonth,
+      this.occasionalResults()
+    );
+
+    if (!resolved) {
+      this.occasionalApplicationMonth.set('');
       return;
     }
 
-    const { month } = parseYearMonthKey(current);
-    const synced = toYearMonthKeyFromParts(year, month);
-    this.occasionalChangeMonth.set(synced);
-    saveStoredRevisionOccasionalMonth(synced);
+    this.setOccasionalApplicationMonth(resolved);
   }
 
   private isAnnualTrulyExcluded(row: AnnualDeterminationResult): boolean {
-    return (
-      row.exclusionReasons.includes('hired_after_june') ||
-      row.exclusionReasons.includes('occasional_revision_scheduled') ||
-      row.occasionalPriorityApplicationMonth != null
-    );
+    return isAnnualRevisionTrulyExcluded(row);
   }
 
   private isAnnualSubmissionTarget(row: AnnualDeterminationResult): boolean {
-    return !this.isAnnualApplied(row) && !this.isAnnualTrulyExcluded(row);
+    const employee = this.employees().find((item) => item.id === row.employeeId);
+    return employee
+      ? isAnnualRevisionPendingApplication(row, employee)
+      : !this.isAnnualTrulyExcluded(row) && !this.isAnnualApplied(row);
   }
 
   private isOccasionalActionRequired(row: OccasionalRevisionResult): boolean {
-    return row.isEligible && !this.isOccasionalApplied(row);
+    const employee = this.employees().find((item) => item.id === row.employeeId);
+    return employee
+      ? isOccasionalRevisionPendingApplication(row, employee)
+      : row.isEligible && !this.isOccasionalApplied(row);
   }
 
   private matchesOccasionalStatusFilter(
@@ -898,6 +913,8 @@ export class RevisionDashboardComponent implements OnInit {
         overlayOccasionalResultsWithRevisionHistory(occasionalResults, employees)
       );
       this.annualResults.set(overlayAnnualResultsWithRevisionHistory(annualResults, employees));
+      this.syncOccasionalApplicationMonth(this.pendingOccasionalStoredMonth || undefined);
+      this.pendingOccasionalStoredMonth = '';
       this.loadError.set('');
     } catch (error) {
       if (version !== this.rebuildVersion) {
@@ -909,6 +926,7 @@ export class RevisionDashboardComponent implements OnInit {
       );
       this.annualResults.set([]);
       this.occasionalResults.set([]);
+      this.occasionalApplicationMonth.set('');
     } finally {
       if (version === this.rebuildVersion) {
         this.loading.set(false);

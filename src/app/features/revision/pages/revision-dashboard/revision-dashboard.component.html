@@ -278,16 +278,18 @@
               type="button"
               class="revision__stepper-btn"
               aria-label="前の月"
-              (click)="prevOccasionalChangeMonth()"
+              [disabled]="!canNavigatePrevOccasionalApplicationMonth()"
+              (click)="prevOccasionalApplicationMonth()"
             >
               ◀
             </button>
-            <span class="revision__stepper-label">{{ occasionalChangeMonthLabel() }}</span>
+            <span class="revision__stepper-label">{{ occasionalApplicationMonthLabel() }}</span>
             <button
               type="button"
               class="revision__stepper-btn"
               aria-label="次の月"
-              (click)="nextOccasionalChangeMonth()"
+              [disabled]="!canNavigateNextOccasionalApplicationMonth()"
+              (click)="nextOccasionalApplicationMonth()"
             >
               ▶
             </button>
@@ -296,7 +298,9 @@
         <p class="revision__panel-note">{{ occasionalPanelNote() }}</p>
       </div>
 
-      @if (occasionalResultsForSelectedMonth().length === 0) {
+      @if (!hasOccasionalApplicationMonthData()) {
+        <p class="revision__status">対象データが存在しません</p>
+      } @else if (occasionalResultsForSelectedMonth().length === 0) {
         <p class="revision__status">固定的賃金の変動は検出されませんでした</p>
       } @else {
         <div class="revision__table-wrap">

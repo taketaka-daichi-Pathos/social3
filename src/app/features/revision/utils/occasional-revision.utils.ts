@@ -1,4 +1,8 @@
-import { PayrollMonthSnapshot, RevisionStatus } from '@features/revision/models/revision.model';
+import {
+  OccasionalRevisionResult,
+  PayrollMonthSnapshot,
+  RevisionStatus,
+} from '@features/revision/models/revision.model';
 import { OccasionalExclusionReason } from '@features/revision/models/revision.model';
 import { resolveRevisionMonthPaymentAmount } from '@features/revision/utils/annual-determination-adjustment.utils';
 import { OccasionalRevisionMonthDetail } from '@features/revision/services/zuiji-calculator.service';
@@ -453,6 +457,77 @@ export function resolveOccasionalRevisionEligibility(params: {
     exclusionReasons,
     exclusionLabels,
   };
+}
+
+/** 随時改定データから、データが存在する適用月（YYYY-MM）の昇順リストを返す */
+export function collectOccasionalApplicationMonths(
+  results: ReadonlyArray<Pick<OccasionalRevisionResult, 'applicationMonth'>>
+): string[] {
+  const months = new Set<string>();
+
+  for (const row of results) {
+    const applicationMonth = row.applicationMonth?.trim();
+    if (applicationMonth) {
+      months.add(applicationMonth);
+    }
+  }
+
+  return [...months].sort();
+}
+
+/**
+ * 表示する適用月を決定する。
+ * 保存値が変動月（旧仕様）の場合は適用月へ変換し、該当がなければ最新の適用月を返す。
+ */
+export function resolvePreferredOccasionalApplicationMonth(
+  availableMonths: readonly string[],
+  preferredMonth: string | null | undefined,
+  legacyStoredMonth: string | null | undefined,
+  results: ReadonlyArray<Pick<OccasionalRevisionResult, 'changeMonth' | 'applicationMonth'>>
+): string | null {
+  if (availableMonths.length === 0) {
+    return null;
+  }
+
+  const availableSet = new Set(availableMonths);
+
+  for (const candidate of [preferredMonth, legacyStoredMonth]) {
+    const normalized = candidate?.trim();
+    if (normalized && availableSet.has(normalized)) {
+      return normalized;
+    }
+  }
+
+  const legacyChangeMonth = legacyStoredMonth?.trim();
+  if (legacyChangeMonth) {
+    const fromChangeMonth = results
+      .find((row) => row.changeMonth === legacyChangeMonth)
+      ?.applicationMonth?.trim();
+    if (fromChangeMonth && availableSet.has(fromChangeMonth)) {
+      return fromChangeMonth;
+    }
+  }
+
+  return availableMonths[availableMonths.length - 1] ?? null;
+}
+
+/** 適用月リスト内で前後の月へ移動する。移動できない場合は null */
+export function shiftOccasionalApplicationMonth(
+  availableMonths: readonly string[],
+  currentMonth: string,
+  delta: -1 | 1
+): string | null {
+  const index = availableMonths.indexOf(currentMonth);
+  if (index < 0) {
+    return null;
+  }
+
+  const nextIndex = index + delta;
+  if (nextIndex < 0 || nextIndex >= availableMonths.length) {
+    return null;
+  }
+
+  return availableMonths[nextIndex] ?? null;
 }
 
 /** 随時改定の変動月（起算月）から新等級の適用月（変動月の3ヶ月後）を算出する */

@@ -26,10 +26,10 @@ function isAdjustmentExcludedType(type: PayrollAdjustmentType | null): boolean {
   return type === 'mid_hire_reduction' || type === 'delayed_unpaid';
 }
 
-/** 画面表示の総支給額（固定賃金＋非固定賃金＋調整額） */
+/** 画面表示の総支給額（固定賃金＋非固定賃金＋調整額。下限0円） */
 export function resolvePayrollDisplayTotal(snapshot: PayrollMonthSnapshot): number {
   const adjustmentAmount = Number(snapshot.adjustmentAmount ?? 0);
-  return snapshot.totalPayment + adjustmentAmount;
+  return Math.max(0, Number(snapshot.totalPayment ?? 0) + adjustmentAmount);
 }
 
 /**

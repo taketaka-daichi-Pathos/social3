@@ -22,13 +22,23 @@ import {
   PayrollMonthSnapshot,
   RevisionStatus,
 } from '@features/revision/models/revision.model';
-import { resolveOccasionalPriorityOverAnnual, resolveEmployeeMasterCurrentGrades, resolveStandardRemunerationAtMonth, findAppliedOccasionalRevision, findAppliedAnnualRevision, overlayAnnualResultWithRevisionHistory } from '@features/revision/utils/revision-history.utils';
+import {
+  resolveOccasionalPriorityOverAnnual,
+  resolveEmployeeMasterCurrentGrades,
+  resolveStandardRemunerationAtMonth,
+  findAppliedOccasionalRevision,
+  findAppliedAnnualRevision,
+  overlayAnnualResultWithRevisionHistory,
+  overlayAnnualResultsWithRevisionHistory,
+  overlayOccasionalResultsWithRevisionHistory,
+} from '@features/revision/utils/revision-history.utils';
 import { assessAnnualDeterminationBonusAdjustment, enrichRevisionMonthDetailsWithBonus, resolveOccasionalRevisionAverageWithBonus } from '@features/revision/utils/annual-determination-bonus.utils';
 import { SanteiCalculatorService } from '@features/revision/services/santei-calculator.service';
 import { ZuijiCalculatorService } from '@features/revision/services/zuiji-calculator.service';
 import {
   buildOccasionalMonthDetailsForDisplay,
   evaluateOccasionalRevisionCandidate,
+  getOccasionalRevisionDashboardSearchRange,
   logOccasionalRevisionDebug,
   normalizeSnapshotFixedWages,
   resolveOccasionalRevisionEligibility,
@@ -43,10 +53,10 @@ import {
   toRateTargetDateFromYearMonth,
 } from '@features/settings/utils/insurance-rate-date.utils';
 import {
-  getOccasionalRevisionSearchRangeForMonth,
-  hasAnnualDeterminationTargetsForMonth,
-  hasOccasionalRevisionTargetsForMonth,
-} from '@features/payroll/utils/monthly-lock-revision-impact.utils';
+  collectPayrollMonthsForPendingRevisionCheck,
+  getOccasionalRevisionSearchRangeForApplicationMonth,
+  hasPendingInsuranceUpdatesForMonth,
+} from '@features/payroll/utils/pending-revision-application.utils';
 import { mergeSalaryHistoryIntoPayrollSnapshots } from '@features/payroll/utils/payroll-engine-sync.utils';
 
 const ANNUAL_APPLICATION_MONTH = 9;
@@ -104,31 +114,77 @@ export class SocialInsuranceRevisionService {
     return mergeSalaryHistoryIntoPayrollSnapshots(map, employees);
   }
 
-  /** 月次確定時に算定基礎・随時改定の警告を出すべき従業員がいるか */
+  /** 月次確定時に適用待ちの算定基礎・随時改定があるか */
+  hasPendingRevisionApplicationsForMonth(
+    targetMonth: string,
+    employees: Employee[],
+    payrollRecords: PayrollRecord[]
+  ): boolean {
+    const normalizedTargetMonth = targetMonth.trim();
+    if (!normalizedTargetMonth) {
+      return false;
+    }
+
+    const payrollSnapshots = this.buildPayrollSnapshotMap(payrollRecords, employees);
+    const { year, month } = parseYearMonthKey(normalizedTargetMonth);
+
+    const occasionalRange =
+      month === ANNUAL_APPLICATION_MONTH
+        ? getOccasionalRevisionDashboardSearchRange(year)
+        : getOccasionalRevisionSearchRangeForApplicationMonth(normalizedTargetMonth);
+
+    const occasionalResults = overlayOccasionalResultsWithRevisionHistory(
+      this.calculateOccasionalRevisions(
+        employees,
+        payrollSnapshots,
+        occasionalRange.searchFrom,
+        occasionalRange.searchTo
+      ),
+      employees
+    );
+
+    const annualResults =
+      month === ANNUAL_APPLICATION_MONTH
+        ? overlayAnnualResultsWithRevisionHistory(
+            this.calculateAnnualDeterminations(
+              year,
+              employees,
+              payrollSnapshots,
+              occasionalResults
+            ),
+            employees
+          )
+        : [];
+
+    return hasPendingInsuranceUpdatesForMonth({
+      targetMonth: normalizedTargetMonth,
+      employees,
+      annualResults,
+      occasionalResults,
+    });
+  }
+
+  /** 対象月の未適用社会保険改定の有無（月次給与確定ブロック用） */
+  checkPendingInsuranceUpdatesForMonth(
+    targetMonth: string,
+    employees: Employee[],
+    payrollRecords: PayrollRecord[]
+  ): boolean {
+    return this.hasPendingRevisionApplicationsForMonth(targetMonth, employees, payrollRecords);
+  }
+
+  /** @deprecated hasPendingRevisionApplicationsForMonth を使用してください */
   hasRevisionTargetsForMonthLock(
     targetMonth: string,
     employees: Employee[],
     payrollRecords: PayrollRecord[]
   ): boolean {
-    const payrollRecord =
-      payrollRecords.find((record) => record.targetMonth === targetMonth) ?? null;
+    return this.hasPendingRevisionApplicationsForMonth(targetMonth, employees, payrollRecords);
+  }
 
-    if (
-      hasAnnualDeterminationTargetsForMonth(targetMonth, employees, payrollRecord)
-    ) {
-      return true;
-    }
-
-    const payrollSnapshots = this.buildPayrollSnapshotMap(payrollRecords, employees);
-    const { searchFrom, searchTo } = getOccasionalRevisionSearchRangeForMonth(targetMonth);
-    const occasionalResults = this.calculateOccasionalRevisions(
-      employees,
-      payrollSnapshots,
-      searchFrom,
-      searchTo
-    );
-
-    return hasOccasionalRevisionTargetsForMonth(targetMonth, occasionalResults);
+  /** 月次確定ブロック判定に必要な給与読込月 */
+  collectPayrollMonthsForPendingRevisionCheck(targetMonth: string): string[] {
+    return collectPayrollMonthsForPendingRevisionCheck(targetMonth);
   }
 
   calculateOccasionalRevisions(

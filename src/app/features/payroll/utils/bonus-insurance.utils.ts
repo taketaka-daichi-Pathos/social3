@@ -398,22 +398,11 @@ export function getSameMonthExistingStandardBonusTotal(
     return 0;
   }
 
-  const normalizedCurrentPaymentDate = normalizeBonusEntryPaymentDate(currentPaymentDate);
-
-  return record.entries.reduce((total, entry) => {
-    if (entry.employeeId !== employeeId || !entry.locked) {
-      return total;
-    }
-
-    const entryPaymentDate = normalizeBonusEntryPaymentDate(entry.paymentDate);
-    if (normalizedCurrentPaymentDate && entryPaymentDate === normalizedCurrentPaymentDate) {
-      return total;
-    }
-
-    const standardAmount = resolveEntryStandardBonusAmount(entry);
-    const nextTotal = total + standardAmount;
-    return Number.isFinite(nextTotal) ? nextTotal : total;
-  }, 0);
+  return getSameMonthExistingStandardBonusTotalFromRecord(
+    employeeId,
+    record,
+    currentPaymentDate
+  );
 }
 
 export function getSameMonthExistingStandardBonusTotalFromRecord(
@@ -425,15 +414,13 @@ export function getSameMonthExistingStandardBonusTotalFromRecord(
     return 0;
   }
 
-  const normalizedCurrentPaymentDate = normalizeBonusEntryPaymentDate(currentPaymentDate);
-
   return record.entries.reduce((total, entry) => {
     if (entry.employeeId !== employeeId || !entry.locked) {
       return total;
     }
 
     const entryPaymentDate = normalizeBonusEntryPaymentDate(entry.paymentDate);
-    if (normalizedCurrentPaymentDate && entryPaymentDate === normalizedCurrentPaymentDate) {
+    if (!isSameMonthPriorBonusEntry(entryPaymentDate, currentPaymentDate)) {
       return total;
     }
 
@@ -449,7 +436,6 @@ export function getPastFiscalStandardBonusTotal(
   bonusRecordsByMonth: Map<string, CompensationRecord>,
   currentPaymentDate?: string
 ): number {
-  const normalizedCurrentPaymentDate = currentPaymentDate?.trim() ?? '';
   const fiscalMonths = listFiscalYearMonthsUpTo(targetMonth);
 
   return fiscalMonths.reduce((total, yearMonth) => {
@@ -463,17 +449,11 @@ export function getPastFiscalStandardBonusTotal(
         continue;
       }
 
-      const entryPaymentDate = entry.paymentDate?.trim() || '';
-      if (normalizedCurrentPaymentDate && entryPaymentDate === normalizedCurrentPaymentDate) {
-        continue;
-      }
-
-      if (
-        yearMonth === targetMonth &&
-        normalizedCurrentPaymentDate &&
-        entryPaymentDate >= normalizedCurrentPaymentDate
-      ) {
-        continue;
+      const entryPaymentDate = normalizeBonusEntryPaymentDate(entry.paymentDate);
+      if (yearMonth === targetMonth) {
+        if (!isSameMonthPriorBonusEntry(entryPaymentDate, currentPaymentDate)) {
+          continue;
+        }
       }
 
       const standardAmount = resolveEntryStandardBonusAmount(entry);
@@ -545,6 +525,49 @@ export function calculateBonusInsurancePremiums(
 export function normalizeBonusEntryPaymentDate(paymentDate?: string): string {
   const trimmed = paymentDate?.trim() ?? '';
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
+}
+
+/** 支給日の昇順比較（ISO日付文字列） */
+export function compareBonusPaymentDates(left: string, right: string): number {
+  return normalizeBonusEntryPaymentDate(left).localeCompare(normalizeBonusEntryPaymentDate(right));
+}
+
+/**
+ * 同月内の「既存支給額」に含めるべき過去賞与か。
+ * currentPaymentDate 未指定時は同月の確定済み賞与をすべて合算（集計表示用）。
+ */
+export function isSameMonthPriorBonusEntry(
+  entryPaymentDate: string,
+  currentPaymentDate?: string
+): boolean {
+  const normalizedCurrent = normalizeBonusEntryPaymentDate(currentPaymentDate);
+  const normalizedEntry = normalizeBonusEntryPaymentDate(entryPaymentDate);
+
+  if (!normalizedCurrent) {
+    return true;
+  }
+
+  if (!normalizedEntry) {
+    return false;
+  }
+
+  return normalizedEntry < normalizedCurrent;
+}
+
+export function sortLockedBonusEntriesByPaymentDate(
+  entries: CompensationEntry[]
+): CompensationEntry[] {
+  return [...entries].sort((left, right) => {
+    const dateCompare = compareBonusPaymentDates(
+      left.paymentDate ?? '',
+      right.paymentDate ?? ''
+    );
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+
+    return left.employeeId.localeCompare(right.employeeId);
+  });
 }
 
 export function bonusEntryKey(employeeId: string, paymentDate: string): string {

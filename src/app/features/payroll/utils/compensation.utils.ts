@@ -67,6 +67,11 @@ export function getCurrentYearMonthKey(referenceDate = new Date()): string {
   return `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** 実行日の年の4月（YYYY-04）を返す。適用開始月の初期値などに使用 */
+export function getCurrentYearAprilMonthKey(referenceDate = new Date()): string {
+  return `${referenceDate.getFullYear()}-04`;
+}
+
 /** YYYY-MM から1ヶ月前の YYYY-MM を返す（1月は前年12月） */
 export function getPreviousYearMonthKey(yearMonth: string): string {
   const normalized = extractYearMonthKey(yearMonth.trim()) || yearMonth.trim();
@@ -693,14 +698,53 @@ export function calculatePayrollRevisionAmount(
   return calculatePayrollRowTotal(baseSalary, allowances, nonFixedWages);
 }
 
-/** 画面表示用の総支給額（固定賃金＋非固定賃金＋調整額） */
+export const PAYROLL_DISPLAY_TOTAL_FLOOR_ERROR =
+  '調整後の合計額が0円を下回っています';
+
+/** 調整前の給与総額（固定賃金＋非固定賃金） */
+export function calculatePayrollPreAdjustmentTotal(
+  baseSalary: number,
+  allowances: PayrollAllowanceEntry[],
+  nonFixedWages: number
+): number {
+  return calculatePayrollRevisionAmount(baseSalary, allowances, nonFixedWages);
+}
+
+/** 調整額適用後に合計が0円未満になるか */
+export function wouldPayrollAdjustmentExceedTotal(
+  preAdjustmentTotal: number,
+  adjustmentAmount: number
+): boolean {
+  const base = Math.max(0, Number(preAdjustmentTotal) || 0);
+  const adjustment = Number(adjustmentAmount) || 0;
+  return base + adjustment < 0;
+}
+
+/** 調整額が給与総額を超える場合のエラーメッセージ（問題なければ null） */
+export function validatePayrollAdjustmentTotal(
+  preAdjustmentTotal: number,
+  adjustmentAmount: number
+): string | null {
+  if (wouldPayrollAdjustmentExceedTotal(preAdjustmentTotal, adjustmentAmount)) {
+    return PAYROLL_DISPLAY_TOTAL_FLOOR_ERROR;
+  }
+
+  return null;
+}
+
+/** 画面表示用の総支給額（固定賃金＋非固定賃金＋調整額。下限0円） */
 export function calculatePayrollDisplayTotal(
   baseSalary: number,
   allowances: PayrollAllowanceEntry[],
   nonFixedWages: number,
   adjustmentAmount = 0
 ): number {
-  return calculatePayrollRevisionAmount(baseSalary, allowances, nonFixedWages) + adjustmentAmount;
+  const preAdjustmentTotal = calculatePayrollPreAdjustmentTotal(
+    baseSalary,
+    allowances,
+    nonFixedWages
+  );
+  return Math.max(0, preAdjustmentTotal + (Number(adjustmentAmount) || 0));
 }
 
 export function toEmployeeAllowances(allowances: PayrollAllowanceEntry[]): EmployeeAllowance[] {

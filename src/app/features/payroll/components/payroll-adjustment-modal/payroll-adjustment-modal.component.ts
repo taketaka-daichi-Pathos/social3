@@ -12,6 +12,7 @@ import {
   PayrollAdjustmentFormValue,
   PayrollAdjustmentType,
 } from '@features/payroll/models/payroll-adjustment.model';
+import { validatePayrollAdjustmentTotal } from '@features/payroll/utils/compensation.utils';
 
 @Component({
   selector: 'app-payroll-adjustment-modal',
@@ -26,6 +27,8 @@ export class PayrollAdjustmentModalComponent {
 
   readonly open = input(false);
   readonly employeeName = input('');
+  /** 調整前の給与総額（基本給＋手当＋非固定給） */
+  readonly preAdjustmentTotal = input(0);
   readonly value = input<PayrollAdjustmentFormValue>({
     adjustmentAmount: 0,
     adjustmentType: null,
@@ -37,6 +40,7 @@ export class PayrollAdjustmentModalComponent {
   readonly adjustmentTypeOptions = PAYROLL_ADJUSTMENT_TYPE_OPTIONS;
   readonly selectedType = signal<PayrollAdjustmentType | null>(null);
   readonly validationError = signal('');
+  readonly totalFloorError = signal('');
 
   readonly form = this.fb.group({
     adjustmentType: this.fb.control<PayrollAdjustmentType | null>(null),
@@ -52,6 +56,7 @@ export class PayrollAdjustmentModalComponent {
 
       const current = this.value();
       this.validationError.set('');
+      this.totalFloorError.set('');
       this.form.patchValue({
         adjustmentType: current.adjustmentType,
         adjustmentAmount: current.adjustmentAmount,
@@ -59,6 +64,7 @@ export class PayrollAdjustmentModalComponent {
       });
       this.selectedType.set(current.adjustmentType);
       this.syncAmountValidators(current.adjustmentType);
+      this.syncTotalFloorError(current.adjustmentAmount);
     });
 
     this.form.controls.adjustmentType.valueChanges
@@ -67,6 +73,13 @@ export class PayrollAdjustmentModalComponent {
         this.selectedType.set(type);
         this.syncAmountValidators(type);
         this.validationError.set('');
+        this.syncTotalFloorError(this.form.controls.adjustmentAmount.value);
+      });
+
+    this.form.controls.adjustmentAmount.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((amount) => {
+        this.syncTotalFloorError(amount);
       });
   }
 
@@ -100,11 +113,16 @@ export class PayrollAdjustmentModalComponent {
     this.closed.emit();
   }
 
+  hasBlockingError(): boolean {
+    return Boolean(this.validationError() || this.totalFloorError());
+  }
+
   onConfirm(): void {
     this.validationError.set('');
 
     const raw = this.form.getRawValue();
     const amount = Number(raw.adjustmentAmount) || 0;
+    this.syncTotalFloorError(amount);
     const type = raw.adjustmentType;
     const targetMonth = String(raw.adjustmentTargetMonth ?? '').trim();
 
@@ -114,6 +132,11 @@ export class PayrollAdjustmentModalComponent {
         adjustmentType: null,
         adjustmentTargetMonth: '',
       });
+      return;
+    }
+
+    if (this.totalFloorError()) {
+      this.form.controls.adjustmentAmount.markAsTouched();
       return;
     }
 
@@ -172,5 +195,17 @@ export class PayrollAdjustmentModalComponent {
     }
 
     amountControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private syncTotalFloorError(amount: number): void {
+    const normalizedAmount = Number(amount) || 0;
+    if (normalizedAmount === 0) {
+      this.totalFloorError.set('');
+      return;
+    }
+
+    this.totalFloorError.set(
+      validatePayrollAdjustmentTotal(this.preAdjustmentTotal(), normalizedAmount) ?? ''
+    );
   }
 }

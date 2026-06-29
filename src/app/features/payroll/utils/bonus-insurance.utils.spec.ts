@@ -102,7 +102,7 @@ describe('resolvePensionBonusStandard', () => {
 });
 
 describe('getSameMonthExistingStandardBonusTotal', () => {
-  it('sums locked bonuses in the same month while excluding the current payment date', () => {
+  it('sums only bonuses paid before the current payment date in the same month', () => {
     const record: CompensationRecord = {
       targetMonth: '2026-07',
       entries: [
@@ -135,12 +135,72 @@ describe('getSameMonthExistingStandardBonusTotal', () => {
     expect(
       getSameMonthExistingStandardBonusTotal('emp-1', '2026-07', recordsByMonth, '2026-07-25')
     ).toBe(1_000_000);
+    expect(
+      getSameMonthExistingStandardBonusTotal('emp-1', '2026-07', recordsByMonth, '2026-07-10')
+    ).toBe(0);
     expect(getSameMonthExistingStandardBonusTotal('emp-1', '2026-07', recordsByMonth)).toBe(
       1_200_000
     );
     expect(getSameMonthExistingStandardBonusTotal('emp-2', '2026-07', recordsByMonth)).toBe(
       500_000
     );
+  });
+
+  it('does not let later bonuses erase earlier pension cap allocation in the same month', () => {
+    const record: CompensationRecord = {
+      targetMonth: '2026-01',
+      entries: [
+        {
+          employeeId: 'emp-1',
+          locked: true,
+          paymentDate: '2026-01-01',
+          bonusAmount: 30_000,
+          standardBonusAmount: 30_000,
+        } as CompensationEntry,
+        {
+          employeeId: 'emp-1',
+          locked: true,
+          paymentDate: '2026-01-02',
+          bonusAmount: 3_000_000,
+          standardBonusAmount: 3_000_000,
+        } as CompensationEntry,
+      ],
+    };
+    const recordsByMonth = new Map<string, CompensationRecord>([['2026-01', record]]);
+    const rates = {
+      healthRate: 0.1,
+      longTermCareRate: 0.02,
+      pensionRate: 0.183,
+    };
+
+    const first = calculateBonusInsurancePremiums(
+      30_000,
+      0,
+      true,
+      rates,
+      getSameMonthExistingStandardBonusTotal(
+        'emp-1',
+        '2026-01',
+        recordsByMonth,
+        '2026-01-01'
+      )
+    );
+    const second = calculateBonusInsurancePremiums(
+      3_000_000,
+      30_000,
+      true,
+      rates,
+      getSameMonthExistingStandardBonusTotal(
+        'emp-1',
+        '2026-01',
+        recordsByMonth,
+        '2026-01-02'
+      )
+    );
+
+    expect(first.pensionStandardBonus).toBe(30_000);
+    expect(second.pensionStandardBonus).toBe(1_470_000);
+    expect(first.pensionStandardBonus + second.pensionStandardBonus).toBe(1_500_000);
   });
 });
 

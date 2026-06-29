@@ -74,6 +74,10 @@
           <p class="adjustment-modal__error" role="alert">{{ validationError() }}</p>
         }
 
+        @if (totalFloorError()) {
+          <p class="adjustment-modal__error" role="alert">{{ totalFloorError() }}</p>
+        }
+
         <footer class="adjustment-modal__footer">
           <button
             type="button"
@@ -82,7 +86,11 @@
           >
             キャンセル
           </button>
-          <button type="submit" class="adjustment-modal__btn adjustment-modal__btn--primary">
+          <button
+            type="submit"
+            class="adjustment-modal__btn adjustment-modal__btn--primary"
+            [disabled]="hasBlockingError()"
+          >
             確定
           </button>
         </footer>

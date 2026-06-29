@@ -20,6 +20,7 @@ import {
   calculateBonusEntryAmount,
   getLockedBonusEntries,
   parseTargetYearMonth,
+  sortLockedBonusEntriesByPaymentDate,
 } from '@features/payroll/utils/bonus-insurance.utils';
 import { formatPaymentDateLabel } from '@features/payroll/utils/bonus-history.utils';
 import {
@@ -521,8 +522,10 @@ export class MonthlyInsurancePremiumTableComponent implements OnInit {
     bonusRecordByMonth: Map<string, CompensationRecord>
   ): Promise<BonusPremiumRow[]> {
     const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
-    const lockedEntries = getLockedBonusEntries(targetBonusRecord).filter((entry) =>
-      employeeById.has(entry.employeeId)
+    const lockedEntries = sortLockedBonusEntriesByPaymentDate(
+      getLockedBonusEntries(targetBonusRecord).filter((entry) =>
+        employeeById.has(entry.employeeId)
+      )
     );
     const rows: BonusPremiumRow[] = [];
 
@@ -689,7 +692,7 @@ export class MonthlyInsurancePremiumTableComponent implements OnInit {
 
     for (const yearMonth of fiscalMonths) {
       const bonusRecord = bonusRecordByMonth.get(yearMonth) ?? null;
-      const lockedEntries = getLockedBonusEntries(bonusRecord);
+      const lockedEntries = sortLockedBonusEntriesByPaymentDate(getLockedBonusEntries(bonusRecord));
 
       for (const entry of lockedEntries) {
         const employee = employees.find((row) => row.id === entry.employeeId);

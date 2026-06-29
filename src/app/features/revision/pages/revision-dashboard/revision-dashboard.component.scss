@@ -124,9 +124,14 @@
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
 
-    &:hover {
+    &:hover:not(:disabled) {
       border-color: $color-primary;
       color: $color-primary;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
   }
 
