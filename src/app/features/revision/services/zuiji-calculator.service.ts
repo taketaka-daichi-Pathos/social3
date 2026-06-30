@@ -1,7 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Employee } from '@features/employees/models/employee.model';
 import { PayrollMonthSnapshot } from '@features/revision/models/revision.model';
-import { resolveRevisionMonthPaymentAmount } from '@features/revision/utils/annual-determination-adjustment.utils';
+import {
+  resolveOccasionalRevisionMonthInclusion,
+  resolveRevisionMonthPaymentAmount,
+} from '@features/revision/utils/annual-determination-adjustment.utils';
 import {
   PART_TIME_SPECIAL_MIN_PAYMENT_BASE_DAYS,
   REGULAR_MIN_PAYMENT_BASE_DAYS,
@@ -91,7 +94,7 @@ export class ZuijiCalculatorService {
         ? PART_TIME_SPECIAL_MIN_PAYMENT_BASE_DAYS
         : REGULAR_MIN_PAYMENT_BASE_DAYS;
 
-    return snapshot.baseDays >= minBaseDays;
+    return resolveOccasionalRevisionMonthInclusion(snapshot, minBaseDays).included;
   }
 
   private buildOccasionalMonthDetails(
@@ -101,14 +104,14 @@ export class ZuijiCalculatorService {
   ): OccasionalRevisionMonthDetail[] {
     return targetMonths.map((yearMonth, monthIndex) => {
       const snapshot = monthSnapshots[monthIndex]!;
-      const included = snapshot.baseDays >= minBaseDays;
+      const inclusion = resolveOccasionalRevisionMonthInclusion(snapshot, minBaseDays);
 
       return {
         yearMonth,
         baseDays: snapshot.baseDays,
         totalPayment: resolveRevisionMonthPaymentAmount(snapshot),
-        included,
-        note: snapshot.baseDays < minBaseDays ? '基礎日数不足' : null,
+        included: inclusion.included,
+        note: inclusion.note,
       };
     });
   }

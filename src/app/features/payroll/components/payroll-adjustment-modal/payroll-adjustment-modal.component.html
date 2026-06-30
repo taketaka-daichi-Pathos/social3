@@ -21,11 +21,15 @@
         <fieldset class="adjustment-modal__type-group">
           <legend class="adjustment-modal__field-label">調整の理由（種別）</legend>
           @for (option of adjustmentTypeOptions; track option.value) {
-            <label class="adjustment-modal__type-option">
+            <label
+              class="adjustment-modal__type-option"
+              [class.adjustment-modal__type-option--disabled]="isMidHireReductionDisabled(option)"
+            >
               <input
                 type="radio"
                 formControlName="adjustmentType"
                 [value]="option.value"
+                [disabled]="isMidHireReductionDisabled(option)"
               />
               <span>{{ option.label }}</span>
             </label>
@@ -46,25 +50,6 @@
             autocomplete="off"
           />
         </div>
-
-        @if (requiresTargetMonth()) {
-          <div class="adjustment-modal__field">
-            <label class="adjustment-modal__field-label" for="adjustmentTargetMonth">
-              @if (selectedType() === 'delayed_raise_delta') {
-                本来支払われるべきだった月
-              } @else {
-                未払い額が支払われる予定の月
-              }
-            </label>
-            <input
-              id="adjustmentTargetMonth"
-              type="month"
-              class="adjustment-modal__input adjustment-modal__input--month"
-              formControlName="adjustmentTargetMonth"
-              autocomplete="off"
-            />
-          </div>
-        }
 
         @if (noteText()) {
           <p class="adjustment-modal__note">{{ noteText() }}</p>

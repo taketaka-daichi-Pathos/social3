@@ -49,12 +49,19 @@ describe('resolvePayrollInsuranceRates', () => {
     expect(rates202604.longTermCareRate).toBeCloseTo(0.0162, 6);
   });
 
-  it('prefers company rate history when an applicable entry exists', () => {
+  it('prefers company-configured rate history from 2027-04 onward', () => {
     const company = createCompany({
       insuranceRateHistory: [
         {
+          id: 'seed-history',
+          applicableMonth: '2022-04',
+          healthInsuranceRate: 9.73,
+          careInsuranceRate: 1.59,
+          updatedAt: null,
+        },
+        {
           id: 'history-1',
-          applicableMonth: '2025-03',
+          applicableMonth: '2027-04',
           healthInsuranceRate: 10.5,
           careInsuranceRate: 1.7,
           updatedAt: null,
@@ -62,10 +69,84 @@ describe('resolvePayrollInsuranceRates', () => {
       ],
     });
 
-    const rates = resolvePayrollInsuranceRates(company, { targetYear: 2025, targetMonth: 4 });
+    const rates = resolvePayrollInsuranceRates(company, { targetYear: 2027, targetMonth: 5 });
 
     expect(rates.healthRate).toBeCloseTo(0.105, 6);
     expect(rates.longTermCareRate).toBeCloseTo(0.017, 6);
+  });
+
+  it('uses statutory prefecture master instead of stale seed history during 2022-04 to 2027-03', () => {
+    const company = createCompany({
+      prefecture: '群馬県',
+      insuranceRateHistory: [
+        {
+          id: 'seed-history',
+          applicableMonth: '2022-04',
+          healthInsuranceRate: 9.73,
+          careInsuranceRate: 1.59,
+          updatedAt: null,
+        },
+      ],
+    });
+
+    const rates = resolvePayrollInsuranceRates(company, { targetYear: 2024, targetMonth: 4 });
+
+    expect(rates.healthRate).toBeCloseTo(0.0981, 6);
+  });
+
+  it('carries forward previous-year rates from 2027-04 when no company configuration exists', () => {
+    const company = createCompany({
+      prefecture: '群馬県',
+      insuranceRateHistory: [
+        {
+          id: 'seed-history',
+          applicableMonth: '2022-04',
+          healthInsuranceRate: 9.73,
+          careInsuranceRate: 1.59,
+          updatedAt: null,
+        },
+      ],
+    });
+
+    const rates = resolvePayrollInsuranceRates(company, { targetYear: 2027, targetMonth: 4 });
+
+    expect(rates.healthRate).toBeCloseTo(0.0968, 6);
+  });
+
+  it('keeps using the latest company configuration until a newer entry is saved', () => {
+    const company = createCompany({
+      prefecture: '群馬県',
+      insuranceRateHistory: [
+        {
+          id: 'history-2027',
+          applicableMonth: '2027-04',
+          healthInsuranceRate: 10.5,
+          careInsuranceRate: 1.7,
+          updatedAt: null,
+        },
+      ],
+    });
+
+    const rates202804 = resolvePayrollInsuranceRates(company, { targetYear: 2028, targetMonth: 4 });
+    const rates202804Updated = resolvePayrollInsuranceRates(
+      createCompany({
+        prefecture: '群馬県',
+        insuranceRateHistory: [
+          ...company.insuranceRateHistory,
+          {
+            id: 'history-2028',
+            applicableMonth: '2028-04',
+            healthInsuranceRate: 10.8,
+            careInsuranceRate: 1.75,
+            updatedAt: null,
+          },
+        ],
+      }),
+      { targetYear: 2028, targetMonth: 4 }
+    );
+
+    expect(rates202804.healthRate).toBeCloseTo(0.105, 6);
+    expect(rates202804Updated.healthRate).toBeCloseTo(0.108, 6);
   });
 
   it('accepts YYYY-MM string targets', () => {

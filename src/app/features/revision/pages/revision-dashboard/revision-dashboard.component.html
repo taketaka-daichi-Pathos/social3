@@ -5,6 +5,9 @@
       <p class="revision__description">
         月次給与データに基づき、算定基礎（定時決定）と随時改定（月額変更）の判定結果を表示します。
       </p>
+      <p class="revision__description revision__description--hint">
+        ※対象年は「算定基礎」タブの年切り替えで共通です。随時改定タブでは同じ年の変動が表示されます。
+      </p>
     </div>
   </header>
 
@@ -53,6 +56,9 @@
           {{ targetYear() }}年 算定基礎 ／ 対象月: {{ determinationMonthsLabel() }} ／ 適用開始:
           {{ targetYear() }}年9月（10月納付分〜） ／ 賞与判定:
           {{ targetYear() - 1 }}年7月〜{{ targetYear() }}年6月
+        </p>
+        <p class="revision__panel-note revision__panel-note--hint">
+          ※ここで選択した年は、随時改定タブの表示対象年にも連動します。
         </p>
       </div>
 
@@ -296,6 +302,10 @@
           </div>
         </div>
         <p class="revision__panel-note">{{ occasionalPanelNote() }}</p>
+        <p class="revision__panel-note revision__panel-note--hint">
+          ※表示対象年は {{ targetYear() }}年です。年の切り替えは「算定基礎（定時決定）」タブで行ってください。上の ◀▶
+          は適用月の切り替えです。
+        </p>
       </div>
 
       @if (!hasOccasionalApplicationMonthData()) {

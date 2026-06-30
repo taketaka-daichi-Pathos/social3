@@ -601,7 +601,7 @@
                 <p class="company-settings__hint">登録されている賞与支払日はありません。「行を追加」から登録してください。</p>
               }
 
-              @for (row of bonusPaymentSettingsArray.controls; track row.controls.id.value; let i = $index) {
+              <ng-template #bonusPaymentRow let-i="i">
                 <div class="company-settings__bonus-row" [formGroupName]="i">
                   <input type="hidden" formControlName="id" />
 
@@ -643,6 +643,38 @@
                   >
                     削除
                   </button>
+                </div>
+              </ng-template>
+
+              @for (rowView of currentBonusPaymentRowViews; track rowView.group.controls.id.value) {
+                <ng-container
+                  [ngTemplateOutlet]="bonusPaymentRow"
+                  [ngTemplateOutletContext]="{ i: rowView.index }"
+                />
+              }
+
+              @if (pastBonusPaymentCount > 0) {
+                <button
+                  type="button"
+                  class="company-settings__bonus-past-toggle"
+                  (click)="togglePastBonuses()"
+                >
+                  @if (showPastBonuses()) {
+                    過去の賞与を閉じる
+                  } @else {
+                    過去の賞与を表示する（{{ pastBonusPaymentCount }}件）
+                  }
+                </button>
+              }
+
+              @if (showPastBonuses()) {
+                <div class="company-settings__bonus-past-list">
+                  @for (rowView of pastBonusPaymentRowViews; track rowView.group.controls.id.value) {
+                    <ng-container
+                      [ngTemplateOutlet]="bonusPaymentRow"
+                      [ngTemplateOutletContext]="{ i: rowView.index }"
+                    />
+                  }
                 </div>
               }
             </div>

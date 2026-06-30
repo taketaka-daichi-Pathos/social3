@@ -182,6 +182,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
     adjustmentTargetMonth: '',
   });
   readonly adjustmentPreAdjustmentTotal = signal(0);
+  readonly adjustmentHireDate = signal('');
 
   readonly hasUnappliedRevision = signal(false);
   readonly unappliedRevisionCheckReady = signal(false);
@@ -806,7 +807,9 @@ export class MonthlyPayrollTableComponent implements OnInit {
 
     const group = this.entries.at(index);
     const raw = group.getRawValue();
+    const employee = this.employeeForRow(index);
     this.adjustmentRowIndex.set(index);
+    this.adjustmentHireDate.set(employee?.hireDate?.trim() ?? '');
     this.adjustmentPreAdjustmentTotal.set(
       calculatePayrollPreAdjustmentTotal(
         raw.baseSalary,
@@ -825,6 +828,7 @@ export class MonthlyPayrollTableComponent implements OnInit {
   onAdjustmentModalClosed(): void {
     this.adjustmentModalOpen.set(false);
     this.adjustmentRowIndex.set(null);
+    this.adjustmentHireDate.set('');
     this.adjustmentPreAdjustmentTotal.set(0);
     this.adjustmentValue.set({
       adjustmentAmount: 0,

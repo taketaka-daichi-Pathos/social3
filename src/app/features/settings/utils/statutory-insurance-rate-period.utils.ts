@@ -45,6 +45,14 @@ export function isManualInsuranceRateApplicableMonthAllowed(
   return !isWithinStatutoryMasterManualEntryForbiddenPeriod(applicableMonth);
 }
 
+/** 2027-04 以降の計算対象月か（会社マスター設定・前年継続の対象期間） */
+export function isPostStatutoryConfiguredRatePeriod(
+  targetYearMonth: string | null | undefined
+): boolean {
+  const normalized = normalizeYearMonthKey(targetYearMonth);
+  return normalized != null && normalized >= STATUTORY_MASTER_MANUAL_ENTRY_ALLOWED_FROM;
+}
+
 /** システム初期生成（systemStartDate による初回履歴）として許可されるか */
 export function isSystemSeedInsuranceRateApplicableMonth(
   applicableMonth: string | null | undefined,

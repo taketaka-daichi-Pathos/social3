@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Auth } from '@angular/fire/auth';
@@ -79,10 +79,15 @@ type BonusPaymentSettingFormGroup = FormGroup<{
   paymentDate: FormControl<string>;
 }>;
 
+interface BonusPaymentRowView {
+  index: number;
+  group: BonusPaymentSettingFormGroup;
+}
+
 @Component({
   selector: 'app-company-settings',
   standalone: true,
-  imports: [ReactiveFormsModule, PostalCodeInputComponent, DecimalPipe, DatePipe],
+  imports: [ReactiveFormsModule, PostalCodeInputComponent, DecimalPipe, DatePipe, NgTemplateOutlet],
   templateUrl: './company-settings.component.html',
   styleUrl: './company-settings.component.scss',
 })
@@ -176,6 +181,10 @@ export class CompanySettingsComponent implements OnInit {
   readonly loadError = signal('');
   readonly saveError = signal('');
   readonly saveSuccess = signal('');
+
+  /** 賞与支払日の「今年以降 / 過去」判定の基準年 */
+  readonly bonusReferenceYear = new Date().getFullYear();
+  readonly showPastBonuses = signal(false);
 
   submitted = false;
   private successMessageTimer: ReturnType<typeof setTimeout> | null = null;
@@ -272,6 +281,26 @@ export class CompanySettingsComponent implements OnInit {
     return this.form.controls.bonusPaymentSettings;
   }
 
+  get currentBonusPaymentRowViews(): BonusPaymentRowView[] {
+    return this.buildBonusPaymentRowViews().filter((row) =>
+      this.isCurrentOrFutureBonusPayment(row.group)
+    );
+  }
+
+  get pastBonusPaymentRowViews(): BonusPaymentRowView[] {
+    return this.buildBonusPaymentRowViews().filter(
+      (row) => !this.isCurrentOrFutureBonusPayment(row.group)
+    );
+  }
+
+  get pastBonusPaymentCount(): number {
+    return this.pastBonusPaymentRowViews.length;
+  }
+
+  togglePastBonuses(): void {
+    this.showPastBonuses.update((value) => !value);
+  }
+
   addBonusPaymentSetting(): void {
     this.bonusPaymentSettingsArray.push(this.createBonusPaymentSettingGroup());
   }
@@ -353,12 +382,35 @@ export class CompanySettingsComponent implements OnInit {
 
   private populateBonusPaymentSettings(settings: BonusPaymentSetting[] | undefined): void {
     this.bonusPaymentSettingsArray.clear();
+    this.showPastBonuses.set(false);
 
     for (const row of settings ?? []) {
       this.bonusPaymentSettingsArray.push(this.createBonusPaymentSettingGroup(row));
     }
 
     this.refreshBonusPaymentDateValidation();
+  }
+
+  private buildBonusPaymentRowViews(): BonusPaymentRowView[] {
+    return this.bonusPaymentSettingsArray.controls.map((group, index) => ({
+      index,
+      group,
+    }));
+  }
+
+  private isCurrentOrFutureBonusPayment(group: BonusPaymentSettingFormGroup): boolean {
+    const paymentDate = group.controls.paymentDate.value.trim();
+    if (!paymentDate) {
+      return true;
+    }
+
+    const normalized = normalizeBonusPaymentSettingDate(paymentDate);
+    if (!normalized) {
+      return true;
+    }
+
+    const paymentYear = Number(normalized.slice(0, 4));
+    return paymentYear >= this.bonusReferenceYear;
   }
 
   isSubmitDisabled(): boolean {

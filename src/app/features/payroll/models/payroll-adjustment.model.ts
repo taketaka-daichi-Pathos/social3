@@ -35,14 +35,14 @@ export const PAYROLL_ADJUSTMENT_TYPE_OPTIONS: ReadonlyArray<{
     value: 'delayed_raise_delta',
     label: '遅配（昇給差額分）',
     note: '※総支給額は増加しますが、増額分は算定基礎の対象額から減額（控除）されて計算されます。',
-    requiresTargetMonth: true,
+    requiresTargetMonth: false,
     amountSign: 'positive',
   },
   {
     value: 'delayed_unpaid',
     label: '遅配（未払い）',
-    note: '※未払いが発生したこの月は、算定基礎の対象から除外されます。',
-    requiresTargetMonth: true,
+    note: '※この月に追加支給された未払い分は、算定基礎および随時改定の計算用報酬額からマイナス（除外）して計算されます。',
+    requiresTargetMonth: false,
     amountSign: 'negative',
   },
 ];

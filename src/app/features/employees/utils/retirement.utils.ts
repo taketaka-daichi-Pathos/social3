@@ -83,6 +83,23 @@ export function retirementReasonLabel(reason: string | null | undefined): string
   return trimmed || '—';
 }
 
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 退職日が入社日より前か（YYYY-MM-DD 同士の辞書順比較） */
+export function isRetirementDateBeforeHireDate(
+  retirementDate: string,
+  hireDate: string
+): boolean {
+  const normalizedRetirement = retirementDate.trim();
+  const normalizedHire = hireDate.trim();
+
+  if (!ISO_DATE_PATTERN.test(normalizedRetirement) || !ISO_DATE_PATTERN.test(normalizedHire)) {
+    return false;
+  }
+
+  return normalizedRetirement < normalizedHire;
+}
+
 export function isRetiredExportCandidate(employee: Employee): boolean {
   return employee.status === 'retired' && Boolean(employee.resignationDate?.trim());
 }

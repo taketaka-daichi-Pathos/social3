@@ -1,7 +1,6 @@
-import { Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
-  FormControl,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   Validators,
@@ -12,7 +11,15 @@ import {
   PayrollAdjustmentFormValue,
   PayrollAdjustmentType,
 } from '@features/payroll/models/payroll-adjustment.model';
-import { validatePayrollAdjustmentTotal, roundPayrollYen } from '@features/payroll/utils/compensation.utils';
+import {
+  compareYearMonths,
+  roundPayrollYen,
+  toYearMonthKey,
+  validatePayrollAdjustmentTotal,
+} from '@features/payroll/utils/compensation.utils';
+import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
+
+const MID_HIRE_REDUCTION_TYPE: PayrollAdjustmentType = 'mid_hire_reduction';
 
 @Component({
   selector: 'app-payroll-adjustment-modal',
@@ -27,6 +34,10 @@ export class PayrollAdjustmentModalComponent {
 
   readonly open = input(false);
   readonly employeeName = input('');
+  /** 給与計算の対象月（YYYY-MM） */
+  readonly targetMonth = input('');
+  /** 従業員の入社日（YYYY-MM-DD） */
+  readonly hireDate = input('');
   /** 調整前の給与総額（基本給＋手当＋非固定給） */
   readonly preAdjustmentTotal = input(0);
   readonly value = input<PayrollAdjustmentFormValue>({
@@ -41,11 +52,21 @@ export class PayrollAdjustmentModalComponent {
   readonly selectedType = signal<PayrollAdjustmentType | null>(null);
   readonly validationError = signal('');
   readonly totalFloorError = signal('');
+  readonly isHireMonth = computed(() => {
+    const hireMonth = toYearMonthKey(this.hireDate());
+    const targetMonth =
+      normalizeYearMonthKey(this.targetMonth()) ?? this.targetMonth().trim();
+
+    if (!hireMonth || !targetMonth) {
+      return false;
+    }
+
+    return compareYearMonths(hireMonth, targetMonth) === 0;
+  });
 
   readonly form = this.fb.group({
     adjustmentType: this.fb.control<PayrollAdjustmentType | null>(null),
     adjustmentAmount: this.fb.control(0, Validators.required),
-    adjustmentTargetMonth: this.fb.control(''),
   });
 
   constructor() {
@@ -55,16 +76,20 @@ export class PayrollAdjustmentModalComponent {
       }
 
       const current = this.value();
+      const mustClearMidHireReduction =
+        !this.isHireMonth() && current.adjustmentType === MID_HIRE_REDUCTION_TYPE;
+      const adjustmentType = mustClearMidHireReduction ? null : current.adjustmentType;
+      const adjustmentAmount = mustClearMidHireReduction ? 0 : current.adjustmentAmount;
+
       this.validationError.set('');
       this.totalFloorError.set('');
       this.form.patchValue({
-        adjustmentType: current.adjustmentType,
-        adjustmentAmount: current.adjustmentAmount,
-        adjustmentTargetMonth: current.adjustmentTargetMonth,
+        adjustmentType,
+        adjustmentAmount,
       });
-      this.selectedType.set(current.adjustmentType);
-      this.syncAmountValidators(current.adjustmentType);
-      this.syncTotalFloorError(current.adjustmentAmount);
+      this.selectedType.set(adjustmentType);
+      this.syncAmountValidators(adjustmentType);
+      this.syncTotalFloorError(adjustmentAmount);
     });
 
     this.form.controls.adjustmentType.valueChanges
@@ -87,8 +112,8 @@ export class PayrollAdjustmentModalComponent {
     return findPayrollAdjustmentOption(this.selectedType());
   }
 
-  requiresTargetMonth(): boolean {
-    return this.selectedOption()?.requiresTargetMonth ?? false;
+  isMidHireReductionDisabled(option: (typeof PAYROLL_ADJUSTMENT_TYPE_OPTIONS)[number]): boolean {
+    return option.value === MID_HIRE_REDUCTION_TYPE && !this.isHireMonth();
   }
 
   noteText(): string {
@@ -124,7 +149,6 @@ export class PayrollAdjustmentModalComponent {
     const amount = roundPayrollYen(raw.adjustmentAmount);
     this.syncTotalFloorError(amount);
     const type = raw.adjustmentType;
-    const targetMonth = String(raw.adjustmentTargetMonth ?? '').trim();
 
     if (amount === 0) {
       this.confirmed.emit({
@@ -142,6 +166,12 @@ export class PayrollAdjustmentModalComponent {
 
     if (!type) {
       this.validationError.set('調整の理由（種別）を選択してください。');
+      this.form.controls.adjustmentType.markAsTouched();
+      return;
+    }
+
+    if (type === MID_HIRE_REDUCTION_TYPE && !this.isHireMonth()) {
+      this.validationError.set('中途入社で給与の減額は入社月のみ選択できます。');
       this.form.controls.adjustmentType.markAsTouched();
       return;
     }
@@ -164,12 +194,6 @@ export class PayrollAdjustmentModalComponent {
       return;
     }
 
-    if (option.requiresTargetMonth && !/^\d{4}-\d{2}$/.test(targetMonth)) {
-      this.validationError.set('対象月を選択してください。');
-      this.form.controls.adjustmentTargetMonth.markAsTouched();
-      return;
-    }
-
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -178,7 +202,7 @@ export class PayrollAdjustmentModalComponent {
     this.confirmed.emit({
       adjustmentAmount: amount,
       adjustmentType: type,
-      adjustmentTargetMonth: option.requiresTargetMonth ? targetMonth : '',
+      adjustmentTargetMonth: '',
     });
   }
 

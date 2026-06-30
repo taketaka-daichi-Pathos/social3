@@ -305,6 +305,8 @@
       ? entries.at(adjustmentRowIndex()!).controls.employeeName.value
       : ''
   "
+  [targetMonth]="targetMonth()"
+  [hireDate]="adjustmentHireDate()"
   [value]="adjustmentValue()"
   [preAdjustmentTotal]="adjustmentPreAdjustmentTotal()"
   (confirmed)="onAdjustmentConfirmed($event)"

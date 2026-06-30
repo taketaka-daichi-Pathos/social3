@@ -40,11 +40,15 @@ import {
   buildOccasionalMonthDetailsForDisplay,
   evaluateOccasionalRevisionCandidate,
   getOccasionalRevisionDashboardSearchRange,
+  isOccasionalRevisionFixedWageChangeTrigger,
   logOccasionalRevisionDebug,
   normalizeSnapshotFixedWages,
   resolveOccasionalRevisionEligibility,
+  resolveOccasionalRevisionFixedWageSkipReason,
 } from '@features/revision/utils/occasional-revision.utils';
 import {
+  resolveAnnualDeterminationPriorGrades,
+  resolveOccasionalRevisionPriorGrades,
   resolvePriorGradesForReferenceMonth,
   RevisionPriorGrades,
 } from '@features/revision/utils/revision-prior-grade.utils';
@@ -281,11 +285,11 @@ export class SocialInsuranceRevisionService {
 
         // ① 固定的賃金（基本給＋固定手当）のみの変動を起算月とする
         const fixedWageDiff = currentFixedWages - previousFixedWages;
-        if (fixedWageDiff === 0) {
+        if (!isOccasionalRevisionFixedWageChangeTrigger(current, previous)) {
           logOccasionalRevisionDebug({
             ...debugBase,
             result: 'skip',
-            reason: '固定的賃金の変動なし',
+            reason: resolveOccasionalRevisionFixedWageSkipReason(current),
             currentFixedWages,
             previousFixedWages,
             fixedWageDiff,
@@ -401,10 +405,10 @@ export class SocialInsuranceRevisionService {
             this.zuijiCalculator.buildOccasionalMonthDetailsForEmployee(months, snapshots, employee)
         );
 
-        const priorGrades = this.resolvePriorGradesForReferenceMonth(
+        const priorGrades = this.resolveOccasionalRevisionPriorGrades(
           employee,
-          previousMonth,
-          previous
+          changeMonth,
+          applicationMonth
         );
         const currentHealthGrade = priorGrades.healthGrade;
         const currentPensionGrade = priorGrades.pensionGrade;
@@ -554,12 +558,7 @@ export class SocialInsuranceRevisionService {
     return employees.map((employee) => {
       const employeeSnapshots = payrollSnapshots.get(employee.id) ?? new Map();
       const applicationMonth = toYearMonthKeyFromParts(targetYear, ANNUAL_APPLICATION_MONTH);
-      const priorReferenceMonth = getPreviousYearMonthKey(determinationMonths[0]!);
-      const priorGrades = this.resolvePriorGradesForReferenceMonth(
-        employee,
-        priorReferenceMonth,
-        employeeSnapshots.get(priorReferenceMonth)
-      );
+      const priorGrades = this.resolveAnnualDeterminationPriorGrades(employee, targetYear);
       const exclusionReasons: AnnualExclusionReason[] = [];
       const exclusionLabels: string[] = [];
 
@@ -917,6 +916,21 @@ export class SocialInsuranceRevisionService {
       (amount) => this.standardRemunerationService.findHealthGradeByAmount(amount),
       (amount) => this.standardRemunerationService.findPensionGradeByAmount(amount)
     );
+  }
+
+  private resolveAnnualDeterminationPriorGrades(
+    employee: Employee,
+    targetYear: number
+  ): RevisionPriorGrades {
+    return resolveAnnualDeterminationPriorGrades(employee, targetYear);
+  }
+
+  private resolveOccasionalRevisionPriorGrades(
+    employee: Employee,
+    changeMonth: string,
+    applicationMonth: string
+  ): RevisionPriorGrades {
+    return resolveOccasionalRevisionPriorGrades(employee, changeMonth, applicationMonth);
   }
 
   private resolveRevisionCurrentGrades(employee: Employee): {

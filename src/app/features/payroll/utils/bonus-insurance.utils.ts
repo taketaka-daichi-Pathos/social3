@@ -6,7 +6,11 @@ import { DEFAULT_HEALTH_INSURANCE_RATE_PERCENT, HEALTH_INSURANCE_RATE_PERIODS, H
 import { CARE_INSURANCE_RATE_PERIODS } from '@features/settings/models/care-insurance-rate.master';
 import { getCurrentCareInsuranceRate } from '@features/settings/utils/care-insurance-rate.utils';
 import { resolveCompanyInsuranceRatesForPrefecture } from '@features/settings/utils/company-insurance-rate.utils';
-import { findApplicableInsuranceRateHistory } from '@features/settings/utils/insurance-rate-history.utils';
+import { findApplicableCompanyConfiguredInsuranceRateHistory, findApplicableInsuranceRateHistory } from '@features/settings/utils/insurance-rate-history.utils';
+import {
+  isPostStatutoryConfiguredRatePeriod,
+  isWithinStatutoryMasterManualEntryForbiddenPeriod,
+} from '@features/settings/utils/statutory-insurance-rate-period.utils';
 import {
   extractYearMonthKey,
   toRateTargetDateFromYearMonth,
@@ -56,6 +60,16 @@ export function parseTargetYearMonth(
   }
 
   return { targetYear, targetMonth };
+}
+
+/** 対象年月の前年同月（YYYY-MM）を返す */
+export function resolvePreviousCalendarYearMonthKey(yearMonth: string): string | null {
+  const parsed = parseTargetYearMonth(yearMonth);
+  if (!parsed) {
+    return null;
+  }
+
+  return formatTargetYearMonth(parsed.targetYear - 1, parsed.targetMonth);
 }
 
 function normalizePayrollRateTarget(
@@ -189,9 +203,11 @@ export function resolvePensionCapDisplay(
 
 /**
  * 給与・賞与・各種保険料の計算用。
- * 1. 会社が保存した料率履歴（対象年月以前で最も新しいエントリ）
- * 2. 都道府県マスター（対象年月時点の健康保険・介護保険料率）
- * 3. 会社ドキュメントの保存値（都道府県不明時などの最終フォールバック）
+ * 1. 法定マスター保持期間（2022-04〜2027-03）かつ都道府県あり → 対象年月の都道府県マスター
+ * 2. 2027-04 以降 → 会社設定の料率履歴（2027-04以降の適用開始月）を最優先
+ * 3. 2027-04 以降で会社設定なし → 前年同月の料率を継続
+ * 4. 2022-04 より前など → 料率変更履歴 → 都道府県マスター
+ * 5. 会社ドキュメントの保存値（都道府県不明時などの最終フォールバック）
  */
 export function resolvePayrollInsuranceRates(
   company: CompanySettings | null,
@@ -202,14 +218,19 @@ export function resolvePayrollInsuranceRates(
   const targetYear = parsedTarget?.targetYear;
   const targetMonth = parsedTarget?.targetMonth;
   const prefecture = company?.prefecture?.trim() ?? '';
+  const useStatutoryMaster =
+    !!prefecture && isWithinStatutoryMasterManualEntryForbiddenPeriod(targetYearMonth);
+  const usePostStatutoryRules = isPostStatutoryConfiguredRatePeriod(targetYearMonth);
 
-  console.log('--- [Debug] 過去料率引き当てテスト開始 ---');
+  console.log('--- [Debug] 保険料率引き当て開始 ---');
   console.log('[Debug] 1. 計算対象の年月と都道府県:', {
     year: targetYear,
     month: targetMonth,
     prefecture,
     targetYearMonth,
     targetDate,
+    useStatutoryMaster,
+    usePostStatutoryRules,
     rawTarget: target,
   });
 
@@ -217,33 +238,87 @@ export function resolvePayrollInsuranceRates(
   const prefectureMasterRates = prefecture
     ? HEALTH_INSURANCE_RATES_BY_PREFECTURE[prefecture] ?? null
     : null;
-  console.log('[Debug] 2. 参照している料率マスターの全件データ:', {
+  const historyEntry = findApplicableInsuranceRateHistory(
+    company?.insuranceRateHistory,
+    targetYearMonth
+  );
+  const configuredHistoryEntry = usePostStatutoryRules
+    ? findApplicableCompanyConfiguredInsuranceRateHistory(
+        company?.insuranceRateHistory,
+        targetYearMonth
+      )
+    : null;
+  console.log('[Debug] 2. 参照候補:', {
     companyRateHistory,
     healthInsurancePeriods: HEALTH_INSURANCE_RATE_PERIODS,
     careInsurancePeriods: CARE_INSURANCE_RATE_PERIODS,
     prefectureMasterRates,
+    selectedCompanyHistoryEntry: historyEntry,
+    selectedConfiguredHistoryEntry: configuredHistoryEntry,
     companySavedRates: {
       healthInsuranceRate: company?.healthInsuranceRate ?? null,
       longTermCareInsuranceRate: company?.longTermCareInsuranceRate ?? null,
     },
   });
 
-  const filteredCompanyHistory = companyRateHistory.filter((entry) => {
-    const month = entry.applicableMonth.trim();
-    return month && month <= targetYearMonth;
-  });
-  console.log('[Debug] 3. 適用年月で絞り込んだ候補データ:', {
-    filteredCompanyHistory,
-    selectedCompanyHistoryEntry: findApplicableInsuranceRateHistory(
-      company?.insuranceRateHistory,
-      targetYearMonth
-    ),
-  });
+  if (useStatutoryMaster) {
+    const masterRates = resolveCompanyInsuranceRatesForPrefecture(prefecture, targetDate);
+    const finalRate = {
+      source: 'prefecture_master_statutory',
+      healthInsuranceRatePercent: masterRates.healthInsuranceRate,
+      longTermCareInsuranceRatePercent: masterRates.longTermCareInsuranceRate,
+      healthRate: masterRates.healthInsuranceRate / 100,
+      longTermCareRate: masterRates.longTermCareInsuranceRate / 100,
+      pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
+      targetDate,
+      skippedHistoryEntry: historyEntry,
+    };
+    console.log(
+      '[Debug] 3. 法定マスター保持期間のため履歴をスキップし、都道府県マスターを適用:',
+      finalRate
+    );
 
-  const historyEntry = findApplicableInsuranceRateHistory(
-    company?.insuranceRateHistory,
-    targetYearMonth
-  );
+    return {
+      healthRate: finalRate.healthRate,
+      longTermCareRate: finalRate.longTermCareRate,
+      pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
+    };
+  }
+
+  if (usePostStatutoryRules) {
+    if (configuredHistoryEntry) {
+      const finalRate = {
+        source: 'company_rate_history',
+        healthInsuranceRatePercent: configuredHistoryEntry.healthInsuranceRate,
+        longTermCareInsuranceRatePercent: configuredHistoryEntry.careInsuranceRate,
+        healthRate: configuredHistoryEntry.healthInsuranceRate / 100,
+        longTermCareRate: configuredHistoryEntry.careInsuranceRate / 100,
+        pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
+        applicableMonth: configuredHistoryEntry.applicableMonth,
+      };
+      console.log('[Debug] 3. 会社マスター設定の料率履歴を適用:', finalRate);
+
+      return {
+        healthRate: finalRate.healthRate,
+        longTermCareRate: finalRate.longTermCareRate,
+        pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
+      };
+    }
+
+    const previousYearMonth = resolvePreviousCalendarYearMonthKey(targetYearMonth);
+    if (previousYearMonth) {
+      const carriedRates = resolvePayrollInsuranceRates(company, previousYearMonth);
+      console.log('[Debug] 3. 2027年以降・会社設定なし → 前年同月の料率を継続:', {
+        targetYearMonth,
+        previousYearMonth,
+        healthInsuranceRatePercent: carriedRates.healthRate * 100,
+        longTermCareInsuranceRatePercent: carriedRates.longTermCareRate * 100,
+        source: 'previous_year_carry_forward',
+      });
+
+      return carriedRates;
+    }
+  }
 
   if (historyEntry) {
     const finalRate = {
@@ -255,7 +330,7 @@ export function resolvePayrollInsuranceRates(
       pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
       applicableMonth: historyEntry.applicableMonth,
     };
-    console.log('[Debug] 4. 最終的に計算に使用される料率:', finalRate);
+    console.log('[Debug] 3. 最終的に計算に使用される料率（履歴）:', finalRate);
 
     return {
       healthRate: finalRate.healthRate,
@@ -275,7 +350,7 @@ export function resolvePayrollInsuranceRates(
       pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
       targetDate,
     };
-    console.log('[Debug] 4. 最終的に計算に使用される料率:', finalRate);
+    console.log('[Debug] 3. 最終的に計算に使用される料率（マスター）:', finalRate);
 
     return {
       healthRate: finalRate.healthRate,
@@ -293,7 +368,7 @@ export function resolvePayrollInsuranceRates(
       longTermCareRate: company.longTermCareInsuranceRate / 100,
       pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
     };
-    console.log('[Debug] 4. 最終的に計算に使用される料率:', finalRate);
+    console.log('[Debug] 3. 最終的に計算に使用される料率（会社ドキュメント）:', finalRate);
 
     return {
       healthRate: finalRate.healthRate,
@@ -310,7 +385,7 @@ export function resolvePayrollInsuranceRates(
     longTermCareRate: 0,
     pensionRate: DEFAULT_PENSION_INSURANCE_RATE,
   };
-  console.warn('[Debug] 4. 最終的に計算に使用される料率（料率未取得）:', finalRate);
+  console.warn('[Debug] 3. 最終的に計算に使用される料率（料率未取得）:', finalRate);
 
   return {
     healthRate: 0,

@@ -1,4 +1,5 @@
 import { Employee } from '@features/employees/models/employee.model';
+import { EmployeeGradeHistoryEntry } from '@features/employees/models/employee-salary-history.model';
 import {
   compareYearMonths,
   parseYearMonthKey,
@@ -13,6 +14,14 @@ import {
 
 /** 算定基礎（定時決定）の適用月 */
 export const ANNUAL_DETERMINATION_APPLICATION_MONTH = 9;
+
+/** 算定基礎の変更前等級を参照する月（その年7月1日時点＝6月末まで有効な等級） */
+export const ANNUAL_DETERMINATION_PRIOR_REFERENCE_MONTH = 6;
+
+/** 算定基礎の変更前等級参照月（YYYY-MM） */
+export function getAnnualDeterminationPriorReferenceMonth(targetYear: number): string {
+  return `${targetYear}-${String(ANNUAL_DETERMINATION_PRIOR_REFERENCE_MONTH).padStart(2, '0')}`;
+}
 
 /** 算定基礎より優先される随時改定の適用月（当年7〜9月） */
 export const OCCASIONAL_ANNUAL_PRIORITY_MONTHS = [7, 8, 9] as const;
@@ -315,6 +324,95 @@ export function resolveStandardRemunerationAtMonth(
     pensionStandard: employee.pensionStandardRemuneration,
     source: 'employee_master',
     applicationMonth: null,
+  };
+}
+
+export type EmployeeGradesAtMonthSource = 'grade_history' | 'revision_history' | 'employee_master';
+
+/** 指定月時点の等級（登録済み履歴の等級番号をそのまま使用。金額からの逆算は行わない） */
+export function resolveEmployeeGradesAtMonth(
+  employee: Employee,
+  targetYearMonth: string
+): {
+  healthStandard: number;
+  pensionStandard: number;
+  healthGrade: number | null;
+  pensionGrade: number | null;
+  source: EmployeeGradesAtMonthSource;
+} {
+  const history = employee.revisionHistory ?? [];
+
+  const applicableEntries = history.filter(
+    (entry) => compareYearMonths(entry.applicableMonth, targetYearMonth) <= 0
+  );
+  const latestApplicable =
+    applicableEntries.length > 0
+      ? pickEffectiveRevisionHistoryEntry(applicableEntries, targetYearMonth)
+      : null;
+
+  if (latestApplicable) {
+    return {
+      healthStandard: latestApplicable.afterHealthAmount,
+      pensionStandard: latestApplicable.afterPensionAmount,
+      healthGrade: latestApplicable.afterHealthGrade,
+      pensionGrade: latestApplicable.afterPensionGrade,
+      source: 'revision_history',
+    };
+  }
+
+  const nextEntry = history.find(
+    (entry) => compareYearMonths(entry.applicableMonth, targetYearMonth) > 0
+  );
+
+  if (nextEntry) {
+    return {
+      healthStandard: nextEntry.beforeHealthAmount,
+      pensionStandard: nextEntry.beforePensionAmount,
+      healthGrade: nextEntry.beforeHealthGrade,
+      pensionGrade: nextEntry.beforePensionGrade,
+      source: 'revision_history',
+    };
+  }
+
+  const fromGradeHistory = resolveGradeHistoryAtMonth(employee.gradeHistory ?? [], targetYearMonth);
+  if (fromGradeHistory) {
+    return {
+      ...fromGradeHistory,
+      source: 'grade_history',
+    };
+  }
+
+  return {
+    healthStandard: employee.healthStandardRemuneration,
+    pensionStandard: employee.pensionStandardRemuneration,
+    healthGrade: employee.healthGrade,
+    pensionGrade: employee.pensionGrade,
+    source: 'employee_master',
+  };
+}
+
+function resolveGradeHistoryAtMonth(
+  gradeHistory: EmployeeGradeHistoryEntry[],
+  targetYearMonth: string
+): {
+  healthStandard: number;
+  pensionStandard: number;
+  healthGrade: number;
+  pensionGrade: number;
+} | null {
+  const latest = gradeHistory
+    .filter((entry) => compareYearMonths(entry.effectiveMonth, targetYearMonth) <= 0)
+    .sort((left, right) => compareYearMonths(right.effectiveMonth, left.effectiveMonth))[0];
+
+  if (!latest) {
+    return null;
+  }
+
+  return {
+    healthStandard: latest.healthStandardRemuneration,
+    pensionStandard: latest.pensionStandardRemuneration,
+    healthGrade: latest.healthGrade,
+    pensionGrade: latest.pensionGrade,
   };
 }
 

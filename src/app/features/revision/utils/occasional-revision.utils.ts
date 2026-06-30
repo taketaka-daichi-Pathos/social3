@@ -4,7 +4,10 @@ import {
   RevisionStatus,
 } from '@features/revision/models/revision.model';
 import { OccasionalExclusionReason } from '@features/revision/models/revision.model';
-import { resolveRevisionMonthPaymentAmount } from '@features/revision/utils/annual-determination-adjustment.utils';
+import {
+  isDelayedUnpaidAdjustment,
+  resolveRevisionMonthPaymentAmount,
+} from '@features/revision/utils/annual-determination-adjustment.utils';
 import { OccasionalRevisionMonthDetail } from '@features/revision/services/zuiji-calculator.service';
 import {
   getNextYearMonthKey,
@@ -82,6 +85,35 @@ export function normalizeSnapshotFixedWages(snapshot: PayrollMonthSnapshot | und
   const derived = total - nonFixed;
 
   return Number.isFinite(derived) ? derived : Number.NaN;
+}
+
+/**
+ * 随時改定の起算月判定：前月比で固定的賃金（基本給＋固定手当）が変動したか。
+ * 遅配（未払い）など非固定的賃金の調整だけでは true にならない。
+ */
+export function isOccasionalRevisionFixedWageChangeTrigger(
+  current: PayrollMonthSnapshot,
+  previous: PayrollMonthSnapshot
+): boolean {
+  const currentFixedWages = normalizeSnapshotFixedWages(current);
+  const previousFixedWages = normalizeSnapshotFixedWages(previous);
+
+  if (!Number.isFinite(currentFixedWages) || !Number.isFinite(previousFixedWages)) {
+    return false;
+  }
+
+  return currentFixedWages !== previousFixedWages;
+}
+
+/** 起算月にならない理由（固定的賃金の変動がない場合） */
+export function resolveOccasionalRevisionFixedWageSkipReason(
+  current: PayrollMonthSnapshot
+): string {
+  if (isDelayedUnpaidAdjustment(current)) {
+    return '遅配（未払い）のみの変動（固定的賃金の変動なし）';
+  }
+
+  return '固定的賃金の変動なし';
 }
 
 /**

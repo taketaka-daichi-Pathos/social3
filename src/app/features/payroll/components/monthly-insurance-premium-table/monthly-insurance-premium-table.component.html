@@ -34,10 +34,6 @@
           次月 ▶
         </button>
       </div>
-
-      @if (isTargetMonthLocked()) {
-        <div class="insurance-table__month-lock-badge" role="status">🔒 確定済み</div>
-      }
     </div>
   </header>
 
@@ -64,9 +60,15 @@
       role="tab"
       [class.insurance-table__view-btn--active]="premiumView() === 'payroll'"
       [attr.aria-selected]="premiumView() === 'payroll'"
+      [attr.aria-label]="isTargetMonthLocked() ? '月次給与（確定済み）' : '月次給与'"
       (click)="setPremiumView('payroll')"
     >
-      月次給与
+      <span class="insurance-table__view-btn-label">
+        月次給与
+        @if (isTargetMonthLocked()) {
+          <span class="insurance-table__view-btn-lock" aria-hidden="true">🔒</span>
+        }
+      </span>
     </button>
     <button
       type="button"

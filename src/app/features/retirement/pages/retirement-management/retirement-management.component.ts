@@ -20,6 +20,11 @@ import {
   LOCKED_MONTH_ERROR,
   RETIREMENT_DATE_LOCKED_MONTH_MESSAGE,
 } from '@features/payroll/utils/monthly-lock.utils';
+import {
+  RETIREMENT_BEFORE_HIRE_DATE_ERROR,
+  RETIREMENT_BEFORE_HIRE_DATE_MESSAGE,
+  retirementDateNotBeforeHireValidator,
+} from '@features/retirement/validators/retirement-management.validators';
 
 @Component({
   selector: 'app-retirement-management',
@@ -67,9 +72,18 @@ export class RetirementManagementComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    const getHireDate = () => this.selectedEmployeeHireDate();
+
+    this.form.controls.retirementDate.addValidators(retirementDateNotBeforeHireValidator(getHireDate));
     this.form.controls.retirementDate.addAsyncValidators(
       createLockedMonthAsyncValidator(this.monthlyLockService)
     );
+
+    this.form.controls.employeeId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.form.controls.retirementDate.updateValueAndValidity({ emitEvent: false });
+      });
 
     this.employeeService
       .watchEmployees()
@@ -89,6 +103,19 @@ export class RetirementManagementComponent implements OnInit {
 
   employeeLabel(employee: Employee): string {
     return `${employee.employeeNumber} ${employee.lastName}${employee.firstName}`;
+  }
+
+  selectedEmployee(): Employee | undefined {
+    const employeeId = this.form.controls.employeeId.value;
+    return this.employees().find((employee) => employee.id === employeeId);
+  }
+
+  selectedEmployeeHireDate(): string {
+    return this.selectedEmployee()?.hireDate?.trim() ?? '';
+  }
+
+  retirementDateMin(): string {
+    return this.selectedEmployeeHireDate();
   }
 
   monthEndRuleHint(date: string): string {
@@ -112,6 +139,10 @@ export class RetirementManagementComponent implements OnInit {
       return true;
     }
 
+    if (controlName === 'retirementDate' && control.errors?.[RETIREMENT_BEFORE_HIRE_DATE_ERROR]) {
+      return true;
+    }
+
     return (control.touched || this.submitted) && control.invalid;
   }
 
@@ -129,6 +160,10 @@ export class RetirementManagementComponent implements OnInit {
 
     if (controlName === 'retirementDate' && control.hasError(LOCKED_MONTH_ERROR)) {
       return RETIREMENT_DATE_LOCKED_MONTH_MESSAGE;
+    }
+
+    if (controlName === 'retirementDate' && control.hasError(RETIREMENT_BEFORE_HIRE_DATE_ERROR)) {
+      return RETIREMENT_BEFORE_HIRE_DATE_MESSAGE;
     }
 
     if (controlName === 'retirementDate' && control.hasError('pattern')) {

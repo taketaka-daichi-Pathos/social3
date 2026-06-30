@@ -26,6 +26,46 @@ function isAdjustmentExcludedType(type: PayrollAdjustmentType | null): boolean {
   return type === 'mid_hire_reduction' || type === 'delayed_unpaid';
 }
 
+function hasActivePayrollAdjustment(snapshot: PayrollMonthSnapshot): boolean {
+  const adjustmentType = normalizePayrollAdjustmentType(snapshot.adjustmentType);
+  const adjustmentAmount = Number(snapshot.adjustmentAmount ?? 0);
+  return adjustmentAmount !== 0 && adjustmentType != null;
+}
+
+/** 調整種別が中途入社減額か */
+export function isMidHireReductionAdjustment(snapshot: PayrollMonthSnapshot): boolean {
+  if (!hasActivePayrollAdjustment(snapshot)) {
+    return false;
+  }
+
+  return normalizePayrollAdjustmentType(snapshot.adjustmentType) === 'mid_hire_reduction';
+}
+
+/** 調整種別が遅配（未払い）か */
+export function isDelayedUnpaidAdjustment(snapshot: PayrollMonthSnapshot): boolean {
+  if (!hasActivePayrollAdjustment(snapshot)) {
+    return false;
+  }
+
+  return normalizePayrollAdjustmentType(snapshot.adjustmentType) === 'delayed_unpaid';
+}
+
+/** 随時改定：支払基礎日数と調整種別を踏まえた対象月判定 */
+export function resolveOccasionalRevisionMonthInclusion(
+  snapshot: PayrollMonthSnapshot,
+  minBaseDays: number
+): { included: boolean; note: string | null } {
+  if (isMidHireReductionAdjustment(snapshot)) {
+    return { included: false, note: '中途入社減額のため対象外' };
+  }
+
+  if (snapshot.baseDays < minBaseDays) {
+    return { included: false, note: '基礎日数不足' };
+  }
+
+  return { included: true, note: null };
+}
+
 /** 画面表示の総支給額（固定賃金＋非固定賃金＋調整額。下限0円） */
 export function resolvePayrollDisplayTotal(snapshot: PayrollMonthSnapshot): number {
   const adjustmentAmount = Number(snapshot.adjustmentAmount ?? 0);
@@ -48,6 +88,10 @@ export function resolveRevisionMonthPaymentAmount(snapshot: PayrollMonthSnapshot
   }
 
   if (hasAdjustment && adjustmentType === 'delayed_raise_delta') {
+    return displayTotal - adjustmentAmount;
+  }
+
+  if (hasAdjustment && adjustmentType === 'delayed_unpaid') {
     return displayTotal - adjustmentAmount;
   }
 

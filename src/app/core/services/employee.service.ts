@@ -47,10 +47,10 @@ import {
   calculatePayrollEntryTotalPayment,
   DEFAULT_PAYROLL_BASE_DAYS,
   employeeFullName,
-  getCurrentYearMonthKey,
   normalizeEmployeeBaseSalary,
   toYearMonthKey,
 } from '@features/payroll/utils/compensation.utils';
+import { isRetirementDateBeforeHireDate } from '@features/employees/utils/retirement.utils';
 import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-month.utils';
 import {
   MONTHLY_LOCK_ERROR_MESSAGE,
@@ -833,7 +833,30 @@ export class EmployeeService {
     if (retirementMonth) {
       await this.monthlyLockService.assertMonthEditable(retirementMonth);
     }
-    await this.monthlyLockService.assertMonthEditable(getCurrentYearMonthKey());
+
+    const employeeSnapshot = await getDoc(
+      doc(
+        this.firestore,
+        FirestoreCollections.companies,
+        companyOwnerUid,
+        FirestoreCollections.employees,
+        employeeId
+      )
+    );
+
+    if (!employeeSnapshot.exists()) {
+      throw new Error('従業員が見つかりません');
+    }
+
+    const employee = this.toEmployee({
+      ...(employeeSnapshot.data() as Record<string, unknown>),
+      id: employeeSnapshot.id,
+    });
+    const hireDate = employee.hireDate?.trim();
+
+    if (hireDate && isRetirementDateBeforeHireDate(retirementDate, hireDate)) {
+      throw new Error('退職日は入社日以降の日付を指定してください');
+    }
 
     try {
       await updateDoc(

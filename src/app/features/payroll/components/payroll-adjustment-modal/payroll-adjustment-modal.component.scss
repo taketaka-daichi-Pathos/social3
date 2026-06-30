@@ -116,6 +116,11 @@
       margin-top: 0.15rem;
       flex-shrink: 0;
     }
+
+    &--disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
   }
 
   &__input--month {

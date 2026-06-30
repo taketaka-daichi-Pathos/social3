@@ -2,6 +2,7 @@ import {
   InsuranceRateHistoryEntry,
   InsuranceRateHistoryInput,
 } from '@features/settings/models/insurance-rate-history.model';
+import { STATUTORY_MASTER_MANUAL_ENTRY_ALLOWED_FROM } from '@features/settings/utils/statutory-insurance-rate-period.utils';
 
 /** 対象月時点で有効な最新の料率履歴（適用開始月の降順で最初にマッチしたエントリ） */
 export function findApplicableInsuranceRateHistory(
@@ -13,6 +14,30 @@ export function findApplicableInsuranceRateHistory(
   for (const entry of sortInsuranceRateHistoryDesc(history ?? [])) {
     const month = entry.applicableMonth.trim();
     if (!month || month > normalizedTarget) {
+      continue;
+    }
+
+    return entry;
+  }
+
+  return null;
+}
+
+/**
+ * 2027-04 以降に会社設定で保存された料率履歴のうち、
+ * 対象月時点で有効な最新エントリを返す（登録時シード履歴は除外）。
+ */
+export function findApplicableCompanyConfiguredInsuranceRateHistory(
+  history: InsuranceRateHistoryEntry[] | undefined,
+  targetYearMonth: string,
+  minApplicableMonth: string = STATUTORY_MASTER_MANUAL_ENTRY_ALLOWED_FROM
+): InsuranceRateHistoryEntry | null {
+  const normalizedTarget = targetYearMonth.trim();
+  const normalizedMin = minApplicableMonth.trim();
+
+  for (const entry of sortInsuranceRateHistoryDesc(history ?? [])) {
+    const month = entry.applicableMonth.trim();
+    if (!month || month > normalizedTarget || month < normalizedMin) {
       continue;
     }
 

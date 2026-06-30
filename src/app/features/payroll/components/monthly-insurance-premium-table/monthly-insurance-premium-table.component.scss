@@ -16,18 +16,6 @@
     border-radius: $radius-md;
   }
 
-  &__month-lock-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.55rem 1rem;
-    border-radius: $radius-md;
-    background: #fef3c7;
-    border: 1px solid #f59e0b;
-    color: #92400e;
-    font-size: 0.875rem;
-    font-weight: 700;
-  }
-
   &__toggle {
     display: inline-flex;
     align-items: center;
@@ -131,6 +119,8 @@
   }
 
   &__view-btn {
+    display: inline-flex;
+    align-items: center;
     padding: 0.45rem 1rem;
     border: none;
     border-radius: $radius-sm;
@@ -145,6 +135,17 @@
       background: $color-primary;
       color: #fff;
     }
+  }
+
+  &__view-btn-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  &__view-btn-lock {
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   &__cap-note {

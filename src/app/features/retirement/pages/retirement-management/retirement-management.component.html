@@ -52,6 +52,7 @@
               type="date"
               class="retirement-management__input"
               formControlName="retirementDate"
+              [attr.min]="retirementDateMin() || null"
               autocomplete="off"
             />
             @if (form.controls.retirementDate.value) {

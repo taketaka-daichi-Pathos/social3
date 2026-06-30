@@ -26,6 +26,11 @@
     font-size: 0.875rem;
     color: $color-text-muted;
     line-height: 1.5;
+
+    &--hint {
+      margin-top: 0.35rem;
+      font-size: 0.8125rem;
+    }
   }
 
   &__toggle {
@@ -193,6 +198,10 @@
     margin: 0;
     font-size: 0.8125rem;
     color: $color-text-muted;
+
+    &--hint {
+      margin-top: 0.35rem;
+    }
   }
 
   &__table-wrap {

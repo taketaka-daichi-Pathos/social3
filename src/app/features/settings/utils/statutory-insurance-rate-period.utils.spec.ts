@@ -1,5 +1,6 @@
 import {
   isManualInsuranceRateApplicableMonthAllowed,
+  isPostStatutoryConfiguredRatePeriod,
   isSystemSeedInsuranceRateApplicableMonth,
   isWithinStatutoryMasterManualEntryForbiddenPeriod,
   resolveInitialInsuranceRateApplicableMonth,
@@ -27,6 +28,12 @@ describe('statutory-insurance-rate-period.utils', () => {
   it('treats months from 2027-04 onward as allowed for manual entry', () => {
     expect(isWithinStatutoryMasterManualEntryForbiddenPeriod('2027-04')).toBe(false);
     expect(isManualInsuranceRateApplicableMonthAllowed('2027-04')).toBe(true);
+  });
+
+  it('treats months from 2027-04 onward as post-statutory configured rate period', () => {
+    expect(isPostStatutoryConfiguredRatePeriod('2027-03')).toBe(false);
+    expect(isPostStatutoryConfiguredRatePeriod('2027-04')).toBe(true);
+    expect(isPostStatutoryConfiguredRatePeriod('2028-01')).toBe(true);
   });
 
   it('normalizes systemStartDate to YYYY-MM for initial history', () => {
