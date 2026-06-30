@@ -64,6 +64,7 @@ import {
 } from '@features/revision/utils/revision-history.utils';
 import { BonusHistoryEntry } from '@features/payroll/models/bonus-history.model';
 import { parseBonusHistory } from '@features/payroll/utils/bonus-history.utils';
+import { assertBonusPaymentEditableForAppliedAnnualDetermination } from '@features/revision/utils/annual-determination-bonus-lock.utils';
 import { parseLeaveRecords } from '@features/employees/utils/leave-record.utils';
 import { sortEmployeesByNumber } from '@features/employees/utils/employee-list.utils';
 import { Dependent } from '@features/dependents/models/dependent.model';
@@ -425,6 +426,29 @@ export class EmployeeService {
 
   async appendBonusHistory(employeeId: string, historyEntry: BonusHistoryEntry): Promise<void> {
     const user = await requireAuthenticatedUser(this.auth);
+
+    const employeeSnapshot = await getDoc(
+      doc(
+        this.firestore,
+        FirestoreCollections.companies,
+        user.uid,
+        FirestoreCollections.employees,
+        employeeId
+      )
+    );
+
+    if (!employeeSnapshot.exists()) {
+      throw new Error('従業員が見つかりません');
+    }
+
+    const employee = this.toEmployee({
+      ...(employeeSnapshot.data() as Record<string, unknown>),
+      id: employeeSnapshot.id,
+    });
+    assertBonusPaymentEditableForAppliedAnnualDetermination(
+      employee,
+      historyEntry.paymentDate
+    );
 
     try {
       await updateDoc(

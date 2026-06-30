@@ -33,7 +33,7 @@ import {
   overlayAnnualResultsWithRevisionHistory,
   overlayOccasionalResultsWithRevisionHistory,
 } from '@features/revision/utils/revision-history.utils';
-import { assessAnnualDeterminationBonusAdjustment, enrichRevisionMonthDetailsWithBonus, resolveOccasionalRevisionAverageWithBonus } from '@features/revision/utils/annual-determination-bonus.utils';
+import { assessAnnualDeterminationBonusAdjustment, assessOccasionalRevisionBonusAdjustment, enrichRevisionMonthDetailsWithBonus, resolveOccasionalRevisionAverageWithBonus } from '@features/revision/utils/annual-determination-bonus.utils';
 import { SanteiCalculatorService } from '@features/revision/services/santei-calculator.service';
 import { ZuijiCalculatorService } from '@features/revision/services/zuiji-calculator.service';
 import {
@@ -415,9 +415,9 @@ export class SocialInsuranceRevisionService {
 
         let payrollOnlyAverage: number | null = null;
         let averagePayment: number | null = null;
-        let frequentBonusAdjustment = assessAnnualDeterminationBonusAdjustment(
+        let frequentBonusAdjustment = assessOccasionalRevisionBonusAdjustment(
           employee.bonusHistory,
-          parseYearMonthKey(changeMonth).year
+          changeMonth
         );
         let candidateEvaluation: ReturnType<typeof evaluateOccasionalRevisionCandidate> | null =
           null;

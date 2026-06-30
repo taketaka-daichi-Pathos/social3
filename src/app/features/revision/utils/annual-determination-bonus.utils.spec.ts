@@ -2,8 +2,11 @@ import { BonusHistoryEntry } from '@features/payroll/models/bonus-history.model'
 import {
   aggregateAssessmentPeriodBonusPayments,
   assessAnnualDeterminationBonusAdjustment,
+  assessOccasionalRevisionBonusAdjustment,
   filterBonusHistoryInAssessmentPeriod,
+  getOccasionalRevisionBonusAssessmentPeriod,
   isBonusPaymentDateInAnnualDeterminationAssessmentPeriod,
+  resolveOccasionalRevisionAverageWithBonus,
 } from '@features/revision/utils/annual-determination-bonus.utils';
 
 function createBonusEntry(
@@ -121,6 +124,92 @@ describe('annual-determination-bonus.utils', () => {
         { paymentDate: '2026-06-10', bonusAmount: 100_000 },
       ]);
       expect(assessAnnualDeterminationBonusAdjustment(bonusHistory, 2026).bonusPaymentCount).toBe(4);
+    });
+  });
+
+  describe('getOccasionalRevisionBonusAssessmentPeriod', () => {
+    it('2月改定は前年2月1日〜当年1月末日を判定期間とする', () => {
+      expect(getOccasionalRevisionBonusAssessmentPeriod('2026-02')).toEqual({
+        from: '2025-02-01',
+        to: '2026-01-31',
+      });
+    });
+
+    it('10月改定は前年10月1日〜当年9月末日を判定期間とする', () => {
+      expect(getOccasionalRevisionBonusAssessmentPeriod('2026-10')).toEqual({
+        from: '2025-10-01',
+        to: '2026-09-30',
+      });
+    });
+  });
+
+  describe('assessOccasionalRevisionBonusAdjustment', () => {
+    const quarterlyBonusesAcrossYearBoundary = [
+      createBonusEntry('2025-02-10', 120_000),
+      createBonusEntry('2025-05-10', 120_000),
+      createBonusEntry('2025-08-10', 120_000),
+      createBonusEntry('2025-11-10', 120_000),
+    ];
+
+    it('2月改定では年跨ぎの直近12ヶ月で4回以上の賞与を加算する', () => {
+      const assessment = assessOccasionalRevisionBonusAdjustment(
+        quarterlyBonusesAcrossYearBoundary,
+        '2026-02'
+      );
+
+      expect(assessment.applied).toBe(true);
+      expect(assessment.bonusPaymentCount).toBe(4);
+      expect(assessment.bonusTotalAmount).toBe(480_000);
+      expect(assessment.monthlyBonusAllocation).toBe(40_000);
+      expect(assessment.assessmentPeriodFrom).toBe('2025-02-01');
+      expect(assessment.assessmentPeriodTo).toBe('2026-01-31');
+    });
+
+    it('算定基礎の判定期間では同じ賞与実績が4回未満になる（年跨ぎ漏れの再現）', () => {
+      const assessment = assessAnnualDeterminationBonusAdjustment(
+        quarterlyBonusesAcrossYearBoundary,
+        2026
+      );
+
+      expect(assessment.applied).toBe(false);
+      expect(assessment.bonusPaymentCount).toBe(2);
+    });
+
+    it('10月改定でも直近12ヶ月の賞与を正しく加算する', () => {
+      const bonusHistory = [
+        createBonusEntry('2025-10-10', 120_000),
+        createBonusEntry('2026-01-10', 120_000),
+        createBonusEntry('2026-04-10', 120_000),
+        createBonusEntry('2026-07-10', 120_000),
+      ];
+
+      const assessment = assessOccasionalRevisionBonusAdjustment(bonusHistory, '2026-10');
+
+      expect(assessment.applied).toBe(true);
+      expect(assessment.bonusPaymentCount).toBe(4);
+      expect(assessment.assessmentPeriodFrom).toBe('2025-10-01');
+      expect(assessment.assessmentPeriodTo).toBe('2026-09-30');
+    });
+  });
+
+  describe('resolveOccasionalRevisionAverageWithBonus', () => {
+    it('給与平均に賞与の12等分を加算する', () => {
+      const bonusHistory = [
+        createBonusEntry('2025-02-10', 120_000),
+        createBonusEntry('2025-05-10', 120_000),
+        createBonusEntry('2025-08-10', 120_000),
+        createBonusEntry('2025-11-10', 120_000),
+      ];
+
+      const { averagePayment, frequentBonusAdjustment } = resolveOccasionalRevisionAverageWithBonus(
+        300_000,
+        bonusHistory,
+        '2026-02'
+      );
+
+      expect(averagePayment).toBe(340_000);
+      expect(frequentBonusAdjustment.applied).toBe(true);
+      expect(frequentBonusAdjustment.monthlyBonusAllocation).toBe(40_000);
     });
   });
 });

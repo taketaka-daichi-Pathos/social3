@@ -5,6 +5,15 @@ import { normalizeYearMonthKey } from '@features/payroll/utils/system-operation-
 export const BONUS_PAYMENT_DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 /** YYYY-MM-DD を正規化。不正な日付は null */
+/** 賞与名・支払日がともに未入力の行（「行を追加」直後の下書き行） */
+export function isBonusPaymentRowEmpty(
+  row: Pick<{ name: string; paymentDate: string }, 'name' | 'paymentDate'>
+): boolean {
+  const name = String(row.name ?? '').trim();
+  const paymentDate = String(row.paymentDate ?? '').trim();
+  return !name && !paymentDate;
+}
+
 export function normalizeBonusPaymentSettingDate(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed || !BONUS_PAYMENT_DATE_PATTERN.test(trimmed)) {
@@ -67,7 +76,7 @@ export function normalizeBonusPaymentSettings(value: unknown): BonusPaymentSetti
 export function bonusPaymentSettingsFromFormValues(
   rows: Array<{ id: string; name: string; paymentDate: string }>
 ): BonusPaymentSetting[] {
-  return rows
+  const parsed = rows
     .map((row) => {
       const name = row.name.trim();
       const paymentDate = normalizeBonusPaymentSettingDate(row.paymentDate);
@@ -82,6 +91,79 @@ export function bonusPaymentSettingsFromFormValues(
       } satisfies BonusPaymentSetting;
     })
     .filter((entry): entry is BonusPaymentSetting => entry != null);
+
+  return sortBonusPaymentSettingsForDisplay(parsed);
+}
+
+export function resolveBonusPaymentYear(
+  paymentDate: string | null | undefined
+): number | null {
+  const normalized = normalizeBonusPaymentSettingDate(String(paymentDate ?? '').trim());
+  if (!normalized) {
+    return null;
+  }
+
+  return Number(normalized.slice(0, 4));
+}
+
+export function compareBonusPaymentSettingsForDisplay(
+  left: Pick<BonusPaymentSetting, 'name' | 'paymentDate' | 'id'>,
+  right: Pick<BonusPaymentSetting, 'name' | 'paymentDate' | 'id'>
+): number {
+  const leftYear = resolveBonusPaymentYear(left.paymentDate) ?? Number.MAX_SAFE_INTEGER;
+  const rightYear = resolveBonusPaymentYear(right.paymentDate) ?? Number.MAX_SAFE_INTEGER;
+
+  if (leftYear !== rightYear) {
+    return leftYear - rightYear;
+  }
+
+  const dateCompare = left.paymentDate.localeCompare(right.paymentDate);
+  if (dateCompare !== 0) {
+    return dateCompare;
+  }
+
+  const nameCompare = left.name.localeCompare(right.name, 'ja');
+  if (nameCompare !== 0) {
+    return nameCompare;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+export function sortBonusPaymentSettingsForDisplay(
+  settings: BonusPaymentSetting[]
+): BonusPaymentSetting[] {
+  return [...settings].sort(compareBonusPaymentSettingsForDisplay);
+}
+
+export interface BonusPaymentSettingsYearGroup {
+  year: number;
+  settings: BonusPaymentSetting[];
+}
+
+export function groupBonusPaymentSettingsByYear(
+  settings: BonusPaymentSetting[]
+): BonusPaymentSettingsYearGroup[] {
+  const sorted = sortBonusPaymentSettingsForDisplay(settings);
+  const groups = new Map<number, BonusPaymentSetting[]>();
+
+  for (const setting of sorted) {
+    const year = resolveBonusPaymentYear(setting.paymentDate);
+    if (year == null) {
+      continue;
+    }
+
+    const bucket = groups.get(year) ?? [];
+    bucket.push(setting);
+    groups.set(year, bucket);
+  }
+
+  return [...groups.entries()]
+    .sort(([leftYear], [rightYear]) => leftYear - rightYear)
+    .map(([year, groupedSettings]) => ({
+      year,
+      settings: groupedSettings,
+    }));
 }
 
 export function formatBonusPaymentSettingLabel(
@@ -208,5 +290,5 @@ export function resolveBonusPaymentSelectionFromDate(
 }
 
 export function sortBonusPaymentSettings(settings: BonusPaymentSetting[]): BonusPaymentSetting[] {
-  return [...settings].sort((left, right) => left.paymentDate.localeCompare(right.paymentDate));
+  return sortBonusPaymentSettingsForDisplay(settings);
 }

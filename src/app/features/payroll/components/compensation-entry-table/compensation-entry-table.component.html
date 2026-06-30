@@ -189,6 +189,10 @@
                     <p class="comp-table__row-error comp-table__row-error--hint">
                       入社日より前の支払日のため入力できません
                     </p>
+                  } @else if (isRowBlockedByAppliedAnnualDetermination(i)) {
+                    <p class="comp-table__row-error comp-table__row-error--hint">
+                      {{ appliedAnnualDeterminationLockMessage(i) }}
+                    </p>
                   }
                 </td>
                 <td class="comp-table__cell-total">¥{{ rowTotal(i) | number }}</td>

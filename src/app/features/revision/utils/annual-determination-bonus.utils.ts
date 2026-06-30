@@ -14,6 +14,13 @@ export interface AnnualDeterminationBonusAssessment {
   payrollOnlyAverage: number | null;
 }
 
+function formatIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** 算定基礎の賞与判定期間（前年7/1〜当年6/30） */
 export function getAnnualDeterminationBonusAssessmentPeriod(targetYear: number): {
   from: string;
@@ -25,18 +32,41 @@ export function getAnnualDeterminationBonusAssessmentPeriod(targetYear: number):
   };
 }
 
-/** 算定基礎の賞与判定期間内か（支給日 YYYY-MM-DD のみ。paymentMonth は使用しない） */
-export function isBonusPaymentDateInAnnualDeterminationAssessmentPeriod(
+/**
+ * 随時改定の賞与判定期間（変動月基準の直近12ヶ月）。
+ * 例: 変動月 2026-02 → 2025-02-01 〜 2026-01-31（前年同月1日〜変動月の前月末日）
+ */
+export function getOccasionalRevisionBonusAssessmentPeriod(changeMonth: string): {
+  from: string;
+  to: string;
+} {
+  const { year, month } = parseYearMonthKey(changeMonth);
+  const from = `${year - 1}-${String(month).padStart(2, '0')}-01`;
+  const to = formatIsoDate(new Date(year, month, 0));
+  return { from, to };
+}
+
+/** 指定判定期間内か（支給日 YYYY-MM-DD のみ。paymentMonth は使用しない） */
+export function isBonusPaymentDateInAssessmentPeriod(
   paymentDate: string,
-  targetYear: number
+  from: string,
+  to: string
 ): boolean {
   const normalized = normalizeBonusPaymentDate(paymentDate);
   if (!normalized) {
     return false;
   }
 
-  const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
   return normalized >= from && normalized <= to;
+}
+
+/** 算定基礎の賞与判定期間内か（支給日 YYYY-MM-DD のみ。paymentMonth は使用しない） */
+export function isBonusPaymentDateInAnnualDeterminationAssessmentPeriod(
+  paymentDate: string,
+  targetYear: number
+): boolean {
+  const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
+  return isBonusPaymentDateInAssessmentPeriod(paymentDate, from, to);
 }
 
 export function filterBonusHistoryInAssessmentPeriod(
@@ -53,14 +83,25 @@ interface AssessmentPeriodBonusPayment {
   bonusAmount: number;
 }
 
-/** 判定期間内の賞与を支給日単位で集約（同一支給日は1回としてカウント） */
-export function aggregateAssessmentPeriodBonusPayments(
+export function filterBonusHistoryInPeriod(
   bonusHistory: BonusHistoryEntry[] | undefined,
-  targetYear: number
+  from: string,
+  to: string
+): BonusHistoryEntry[] {
+  return (bonusHistory ?? []).filter((entry) =>
+    isBonusPaymentDateInAssessmentPeriod(entry.paymentDate, from, to)
+  );
+}
+
+/** 判定期間内の賞与を支給日単位で集約（同一支給日は1回としてカウント） */
+export function aggregateBonusPaymentsInPeriod(
+  bonusHistory: BonusHistoryEntry[] | undefined,
+  from: string,
+  to: string
 ): AssessmentPeriodBonusPayment[] {
   const totalsByPaymentDate = new Map<string, number>();
 
-  for (const entry of filterBonusHistoryInAssessmentPeriod(bonusHistory, targetYear)) {
+  for (const entry of filterBonusHistoryInPeriod(bonusHistory, from, to)) {
     const paymentDate = normalizeBonusPaymentDate(entry.paymentDate);
     if (!paymentDate) {
       continue;
@@ -76,12 +117,22 @@ export function aggregateAssessmentPeriodBonusPayments(
     .sort((left, right) => left.paymentDate.localeCompare(right.paymentDate));
 }
 
-export function assessAnnualDeterminationBonusAdjustment(
+/** 算定基礎の判定期間内の賞与を支給日単位で集約（同一支給日は1回としてカウント） */
+export function aggregateAssessmentPeriodBonusPayments(
   bonusHistory: BonusHistoryEntry[] | undefined,
   targetYear: number
-): AnnualDeterminationBonusAssessment {
+): AssessmentPeriodBonusPayment[] {
   const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
-  const payments = aggregateAssessmentPeriodBonusPayments(bonusHistory, targetYear);
+  return aggregateBonusPaymentsInPeriod(bonusHistory, from, to);
+}
+
+function buildBonusAssessment(
+  bonusHistory: BonusHistoryEntry[] | undefined,
+  from: string,
+  to: string,
+  debugContext: Record<string, unknown>
+): AnnualDeterminationBonusAssessment {
+  const payments = aggregateBonusPaymentsInPeriod(bonusHistory, from, to);
   const bonusPaymentCount = payments.length;
   const bonusTotalAmount = payments.reduce((sum, payment) => sum + payment.bonusAmount, 0);
 
@@ -91,7 +142,7 @@ export function assessAnnualDeterminationBonusAdjustment(
       : { applied: false, reason: '対象外（判定期間内の支給回数が4回未満）' };
 
   console.log('[AnnualDeterminationBonus] 年4回以上賞与の加算判定', {
-    targetYear,
+    ...debugContext,
     assessmentPeriod: { from, to },
     bonusPaymentCount,
     bonusPaymentDates: payments.map((payment) => payment.paymentDate),
@@ -122,12 +173,29 @@ export function assessAnnualDeterminationBonusAdjustment(
   };
 }
 
+export function assessAnnualDeterminationBonusAdjustment(
+  bonusHistory: BonusHistoryEntry[] | undefined,
+  targetYear: number
+): AnnualDeterminationBonusAssessment {
+  const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
+  return buildBonusAssessment(bonusHistory, from, to, { targetYear, revisionType: 'annual' });
+}
+
+/** 随時改定の年4回以上賞与加算判定（変動月基準の直近12ヶ月） */
+export function assessOccasionalRevisionBonusAdjustment(
+  bonusHistory: BonusHistoryEntry[] | undefined,
+  changeMonth: string
+): AnnualDeterminationBonusAssessment {
+  const { from, to } = getOccasionalRevisionBonusAssessmentPeriod(changeMonth);
+  return buildBonusAssessment(bonusHistory, from, to, { changeMonth, revisionType: 'occasional' });
+}
+
 export function formatAnnualDeterminationBonusPeriodLabel(targetYear: number): string {
   const { from, to } = getAnnualDeterminationBonusAssessmentPeriod(targetYear);
   return `${from} 〜 ${to}`;
 }
 
-/** 年4回以上賞与の12等分加算額（算定基礎・随時改定共通） */
+/** 年4回以上賞与の12等分加算額（算定基礎用） */
 export function calculateBonusTwelfthAmount(
   bonusHistory: BonusHistoryEntry[] | undefined,
   targetYear: number
@@ -153,7 +221,7 @@ export function toFrequentBonusAdjustment(
 
 /**
  * 随時改定の平均報酬月額（3ヶ月給与平均 + 年4回以上賞与の1/12加算）。
- * 判定期間・加算ロジックは算定基礎と同一。
+ * 判定期間は変動月基準の直近12ヶ月（算定基礎の7月〜翌6月とは異なる）。
  */
 export function resolveOccasionalRevisionAverageWithBonus(
   payrollOnlyAverage: number,
@@ -163,8 +231,7 @@ export function resolveOccasionalRevisionAverageWithBonus(
   averagePayment: number;
   frequentBonusAdjustment: AnnualDeterminationFrequentBonusAdjustment;
 } {
-  const targetYear = parseYearMonthKey(changeMonth).year;
-  const bonusAssessment = assessAnnualDeterminationBonusAdjustment(bonusHistory, targetYear);
+  const bonusAssessment = assessOccasionalRevisionBonusAdjustment(bonusHistory, changeMonth);
   const monthlyBonusAddition = bonusAssessment.applied ? bonusAssessment.monthlyBonusAllocation : 0;
 
   return {

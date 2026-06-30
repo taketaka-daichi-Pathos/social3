@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Auth } from '@angular/fire/auth';
@@ -42,10 +42,17 @@ import {
 } from '../../utils/insurance-rate-history.utils';
 import {
   bonusPaymentSettingsFromFormValues,
+  compareBonusPaymentSettingsForDisplay,
+  isBonusPaymentRowEmpty,
   normalizeBonusPaymentSettingDate,
+  resolveBonusPaymentYear,
   resolveMinBonusPaymentDateFromSystemStart,
 } from '../../utils/bonus-payment-settings.utils';
-import { bonusPaymentDateNotBeforeSystemStartValidator } from '../../validators/bonus-payment-settings.validators';
+import {
+  bonusPaymentDateDuplicateValidator,
+  bonusPaymentDateNotBeforeSystemStartValidator,
+  DUPLICATE_BONUS_PAYMENT_DATE_ERROR_MESSAGE,
+} from '../../validators/bonus-payment-settings.validators';
 import {
   COMPANY_ALLOWANCE_FORM_FIELDS,
   companyAllowancesFromFormValues,
@@ -84,10 +91,20 @@ interface BonusPaymentRowView {
   group: BonusPaymentSettingFormGroup;
 }
 
+interface BonusPaymentYearGroupView {
+  year: number;
+  rows: BonusPaymentRowView[];
+}
+
+interface BonusPaymentDisplayRowView extends BonusPaymentRowView {
+  displayYear: number;
+  showYearDivider: boolean;
+}
+
 @Component({
   selector: 'app-company-settings',
   standalone: true,
-  imports: [ReactiveFormsModule, PostalCodeInputComponent, DecimalPipe, DatePipe, NgTemplateOutlet],
+  imports: [ReactiveFormsModule, PostalCodeInputComponent, DecimalPipe, DatePipe],
   templateUrl: './company-settings.component.html',
   styleUrl: './company-settings.component.scss',
 })
@@ -184,7 +201,32 @@ export class CompanySettingsComponent implements OnInit {
 
   /** 賞与支払日の「今年以降 / 過去」判定の基準年 */
   readonly bonusReferenceYear = new Date().getFullYear();
+  readonly duplicateBonusPaymentDateMessage = DUPLICATE_BONUS_PAYMENT_DATE_ERROR_MESSAGE;
+  /** FormArray の行追加・削除後にテンプレートへ変更を伝える */
+  readonly bonusRegistryRevision = signal(0);
+  readonly bonusPaymentDuplicateActive = computed(() => {
+    this.bonusRegistryRevision();
+    return this.detectBonusPaymentDuplicate();
+  });
   readonly showPastBonuses = signal(false);
+
+  readonly currentBonusPaymentDisplayRows = computed(() => {
+    this.bonusRegistryRevision();
+    return this.buildBonusPaymentDisplayRows((group) =>
+      this.isCurrentOrFutureBonusPayment(group)
+    );
+  });
+
+  readonly pastBonusPaymentDisplayRows = computed(() => {
+    this.bonusRegistryRevision();
+    return this.buildBonusPaymentDisplayRows(
+      (group) => !this.isCurrentOrFutureBonusPayment(group)
+    );
+  });
+
+  readonly pastBonusPaymentCount = computed(
+    () => this.pastBonusPaymentDisplayRows().length
+  );
 
   submitted = false;
   private successMessageTimer: ReturnType<typeof setTimeout> | null = null;
@@ -287,26 +329,87 @@ export class CompanySettingsComponent implements OnInit {
     );
   }
 
+  get currentBonusPaymentYearGroups(): BonusPaymentYearGroupView[] {
+    return this.buildBonusPaymentYearGroups(this.currentBonusPaymentRowViews);
+  }
+
   get pastBonusPaymentRowViews(): BonusPaymentRowView[] {
     return this.buildBonusPaymentRowViews().filter(
       (row) => !this.isCurrentOrFutureBonusPayment(row.group)
     );
   }
 
-  get pastBonusPaymentCount(): number {
-    return this.pastBonusPaymentRowViews.length;
+  get pastBonusPaymentYearGroups(): BonusPaymentYearGroupView[] {
+    return this.buildBonusPaymentYearGroups(this.pastBonusPaymentRowViews);
+  }
+
+  private bumpBonusRegistryRevision(): void {
+    this.bonusRegistryRevision.update((value) => value + 1);
+  }
+
+  private buildBonusPaymentDisplayRows(
+    includeRow: (group: BonusPaymentSettingFormGroup) => boolean
+  ): BonusPaymentDisplayRowView[] {
+    const rows = this.buildBonusPaymentRowViews().filter((row) => includeRow(row.group));
+    let previousYear: number | null = null;
+
+    return rows.map((row) => {
+      const displayYear =
+        resolveBonusPaymentYear(row.group.controls.paymentDate.value) ?? this.bonusReferenceYear;
+      const showYearDivider = previousYear !== displayYear;
+      previousYear = displayYear;
+
+      return {
+        ...row,
+        displayYear,
+        showYearDivider,
+      };
+    });
   }
 
   togglePastBonuses(): void {
     this.showPastBonuses.update((value) => !value);
   }
 
-  addBonusPaymentSetting(): void {
-    this.bonusPaymentSettingsArray.push(this.createBonusPaymentSettingGroup());
+  onAddBonusPaymentRow(): void {
+    this.addBonusPaymentSetting();
+    this.refreshBonusPaymentDateValidation();
+    this.bumpBonusRegistryRevision();
+
+    const newIndex = this.bonusPaymentSettingsArray.length - 1;
+    queueMicrotask(() => {
+      document.getElementById(`bonusName${newIndex}`)?.focus();
+    });
   }
 
-  removeBonusPaymentSetting(index: number): void {
-    this.bonusPaymentSettingsArray.removeAt(index);
+  isBonusPaymentDateDuplicate(index: number): boolean {
+    if (!this.bonusPaymentDuplicateActive()) {
+      return false;
+    }
+
+    const paymentDate = normalizeBonusPaymentSettingDate(
+      this.bonusPaymentSettingsArray.at(index).controls.paymentDate.value
+    );
+    if (!paymentDate) {
+      return false;
+    }
+
+    let matchCount = 0;
+    for (const group of this.bonusPaymentSettingsArray.controls) {
+      const otherDate = normalizeBonusPaymentSettingDate(group.controls.paymentDate.value);
+      if (otherDate === paymentDate) {
+        matchCount += 1;
+      }
+    }
+
+    return matchCount > 1;
+  }
+
+  private addBonusPaymentSetting(): void {
+    const group = this.createBonusPaymentSettingGroup();
+    this.bonusPaymentSettingsArray.push(group);
+    this.wireBonusPaymentRowChange(group);
+    this.syncBonusPaymentRowValidators(group);
   }
 
   onBonusPaymentDateBlur(index: number): void {
@@ -315,11 +418,20 @@ export class CompanySettingsComponent implements OnInit {
     if (normalized) {
       control.setValue(normalized, { emitEvent: false });
     }
-    control.updateValueAndValidity({ emitEvent: false });
+    this.refreshBonusPaymentDateValidation();
+    this.bumpBonusRegistryRevision();
   }
 
   showBonusPaymentFieldError(index: number, field: 'name' | 'paymentDate'): boolean {
     const control = this.bonusPaymentSettingsArray.at(index).controls[field];
+    if (
+      field === 'paymentDate' &&
+      control.hasError('duplicatePaymentDate') &&
+      this.bonusPaymentDuplicateActive()
+    ) {
+      return false;
+    }
+
     return control.invalid && (control.touched || control.dirty || this.submitted);
   }
 
@@ -341,7 +453,7 @@ export class CompanySettingsComponent implements OnInit {
   }
 
   bonusPaymentMinDate(): string {
-    return resolveMinBonusPaymentDateFromSystemStart(this.form.controls.systemStartDate.value) ?? '';
+    return resolveMinBonusPaymentDateFromSystemStart(this.getSystemStartDateValue()) ?? '';
   }
 
   private applyInitialTabFromQuery(): void {
@@ -354,24 +466,249 @@ export class CompanySettingsComponent implements OnInit {
   private createBonusPaymentSettingGroup(
     row?: Partial<BonusPaymentSetting>
   ): BonusPaymentSettingFormGroup {
-    return this.fb.group({
+    const group = this.fb.group({
       id: this.fb.control(row?.id ?? crypto.randomUUID()),
-      name: this.fb.control(row?.name ?? '', Validators.required),
-      paymentDate: this.fb.control(row?.paymentDate ?? '', this.buildBonusPaymentDateValidators()),
+      name: this.fb.control(row?.name ?? ''),
+      paymentDate: this.fb.control(row?.paymentDate ?? ''),
     });
+
+    this.syncBonusPaymentRowValidators(group);
+    return group;
   }
 
-  private buildBonusPaymentDateValidators(): ValidatorFn[] {
+  private buildBonusPaymentDateValidators(getRowId: () => string): ValidatorFn[] {
     return [
       Validators.required,
       (control) =>
         normalizeBonusPaymentSettingDate(String(control.value ?? '').trim())
           ? null
           : { invalidPaymentDate: true },
-      bonusPaymentDateNotBeforeSystemStartValidator(
-        () => this.form.controls.systemStartDate.value
-      ),
+      bonusPaymentDateNotBeforeSystemStartValidator(() => this.getSystemStartDateValue()),
+      bonusPaymentDateDuplicateValidator(() => this.bonusPaymentSettingsArray, getRowId),
     ];
+  }
+
+  private wireBonusPaymentRowChange(group: BonusPaymentSettingFormGroup): void {
+    group.controls.name.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.syncBonusPaymentRowValidators(group);
+      });
+
+    group.controls.paymentDate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.syncBonusPaymentRowValidators(group);
+        this.refreshBonusPaymentDateValidation();
+        this.bumpBonusRegistryRevision();
+      });
+  }
+
+  private syncBonusPaymentRowValidators(group: BonusPaymentSettingFormGroup): void {
+    const row = {
+      name: group.controls.name.value,
+      paymentDate: group.controls.paymentDate.value,
+    };
+
+    if (isBonusPaymentRowEmpty(row)) {
+      group.controls.name.clearValidators();
+      group.controls.paymentDate.clearValidators();
+    } else if (!this.isCurrentOrFutureBonusPayment(group)) {
+      group.controls.name.setValidators(Validators.required);
+      group.controls.paymentDate.setValidators([
+        Validators.required,
+        (control) =>
+          normalizeBonusPaymentSettingDate(String(control.value ?? '').trim())
+            ? null
+            : { invalidPaymentDate: true },
+        bonusPaymentDateDuplicateValidator(
+          () => this.bonusPaymentSettingsArray,
+          () => group.controls.id.value
+        ),
+      ]);
+    } else {
+      group.controls.name.setValidators(Validators.required);
+      group.controls.paymentDate.setValidators(
+        this.buildBonusPaymentDateValidators(() => group.controls.id.value)
+      );
+    }
+
+    group.controls.name.updateValueAndValidity({ emitEvent: false });
+    group.controls.paymentDate.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private syncAllBonusPaymentRowValidators(): void {
+    for (const group of this.bonusPaymentSettingsArray.controls) {
+      this.syncBonusPaymentRowValidators(group);
+    }
+  }
+
+  private bonusSaveDiagnosticFingerprint = '';
+
+  private getSystemStartDateValue(): string {
+    return String(this.form.getRawValue().systemStartDate ?? '').trim();
+  }
+
+  private logBonusSaveDiagnosticsIfNeeded(canSave: boolean): void {
+    if (canSave || this.activeTab() !== 'bonus') {
+      return;
+    }
+
+    const diagnostics = this.buildBonusSaveDiagnostics();
+    const fingerprint = JSON.stringify(diagnostics);
+    if (fingerprint === this.bonusSaveDiagnosticFingerprint) {
+      return;
+    }
+
+    this.bonusSaveDiagnosticFingerprint = fingerprint;
+    console.warn('[CompanySettings] 賞与タブ: 設定を保存が無効です', diagnostics);
+  }
+
+  private buildBonusSaveDiagnostics(): Record<string, unknown> {
+    const rows = this.bonusPaymentSettingsArray.controls.map((group, index) => ({
+      index,
+      id: group.controls.id.value,
+      name: group.controls.name.value,
+      paymentDate: group.controls.paymentDate.value,
+      isEmpty: isBonusPaymentRowEmpty({
+        name: group.controls.name.value,
+        paymentDate: group.controls.paymentDate.value,
+      }),
+      isCurrentOrFuture: this.isCurrentOrFutureBonusPayment(group),
+      nameErrors: group.controls.name.errors,
+      paymentDateErrors: group.controls.paymentDate.errors,
+    }));
+
+    return {
+      systemStartDate: this.getSystemStartDateValue(),
+      bonusPaymentMinDate: this.bonusPaymentMinDate(),
+      duplicateActive: this.bonusPaymentDuplicateActive(),
+      rowCount: this.bonusPaymentSettingsArray.length,
+      rows,
+      blockingReasons: this.collectBonusSaveBlockingReasons(rows),
+    };
+  }
+
+  private collectBonusSaveBlockingReasons(
+    rows: Array<{
+      index: number;
+      nameErrors: Record<string, unknown> | null;
+      paymentDateErrors: Record<string, unknown> | null;
+      isEmpty: boolean;
+      isCurrentOrFuture: boolean;
+    }>
+  ): string[] {
+    const reasons: string[] = [];
+
+    for (const row of rows) {
+      if (row.isEmpty || !row.isCurrentOrFuture) {
+        continue;
+      }
+
+      if (row.nameErrors) {
+        reasons.push(`行${row.index + 1} 賞与名: ${JSON.stringify(row.nameErrors)}`);
+      }
+
+      if (row.paymentDateErrors) {
+        reasons.push(`行${row.index + 1} 支払日: ${JSON.stringify(row.paymentDateErrors)}`);
+      }
+    }
+
+    if (this.bonusPaymentDuplicateActive()) {
+      reasons.push('支払年月日の重複');
+    }
+
+    return reasons;
+  }
+
+  private canSaveBonusTab(): boolean {
+    return this.evaluateBonusPaymentSettings(false);
+  }
+
+  private validateBonusPaymentSettings(markTouched: boolean): boolean {
+    this.refreshBonusPaymentDateValidation();
+    return this.evaluateBonusPaymentSettings(markTouched);
+  }
+
+  private evaluateBonusPaymentSettings(markTouched: boolean): boolean {
+    const enteredCurrentRows = this.bonusPaymentSettingsArray.controls.filter(
+      (group) =>
+        !isBonusPaymentRowEmpty({
+          name: group.controls.name.value,
+          paymentDate: group.controls.paymentDate.value,
+        }) && this.isCurrentOrFutureBonusPayment(group)
+    );
+
+    if (enteredCurrentRows.length === 0) {
+      return !this.detectBonusPaymentDuplicate();
+    }
+
+    let valid = true;
+
+    for (const group of enteredCurrentRows) {
+      for (const field of ['name', 'paymentDate'] as const) {
+        const control = group.controls[field];
+        control.updateValueAndValidity({ emitEvent: false });
+        if (control.invalid) {
+          valid = false;
+          if (markTouched) {
+            control.markAsTouched();
+          }
+        }
+      }
+    }
+
+    if (markTouched && this.detectBonusPaymentDuplicate()) {
+      for (let index = 0; index < this.bonusPaymentSettingsArray.length; index += 1) {
+        if (this.isBonusPaymentDateDuplicate(index)) {
+          this.bonusPaymentSettingsArray.at(index).controls.paymentDate.markAsTouched();
+        }
+      }
+    }
+
+    return valid && !this.detectBonusPaymentDuplicate();
+  }
+
+  private detectBonusPaymentDuplicate(): boolean {
+    const seenDates = new Set<string>();
+
+    for (const group of this.bonusPaymentSettingsArray.controls) {
+      const paymentDate = normalizeBonusPaymentSettingDate(
+        group.controls.paymentDate.value
+      );
+      if (!paymentDate) {
+        continue;
+      }
+
+      if (seenDates.has(paymentDate)) {
+        return true;
+      }
+
+      seenDates.add(paymentDate);
+    }
+
+    return false;
+  }
+
+  private purgeEmptyBonusPaymentRows(): void {
+    let removed = false;
+
+    for (let index = this.bonusPaymentSettingsArray.length - 1; index >= 0; index -= 1) {
+      const group = this.bonusPaymentSettingsArray.at(index);
+      if (
+        isBonusPaymentRowEmpty({
+          name: group.controls.name.value,
+          paymentDate: group.controls.paymentDate.value,
+        })
+      ) {
+        this.bonusPaymentSettingsArray.removeAt(index);
+        removed = true;
+      }
+    }
+
+    if (removed) {
+      this.bumpBonusRegistryRevision();
+    }
   }
 
   private refreshBonusPaymentDateValidation(): void {
@@ -385,10 +722,78 @@ export class CompanySettingsComponent implements OnInit {
     this.showPastBonuses.set(false);
 
     for (const row of settings ?? []) {
-      this.bonusPaymentSettingsArray.push(this.createBonusPaymentSettingGroup(row));
+      const group = this.createBonusPaymentSettingGroup(row);
+      this.bonusPaymentSettingsArray.push(group);
+      this.wireBonusPaymentRowChange(group);
     }
 
+    this.sortBonusPaymentFormArray();
     this.refreshBonusPaymentDateValidation();
+    this.bumpBonusRegistryRevision();
+  }
+
+  private buildBonusPaymentYearGroups(
+    rowViews: BonusPaymentRowView[]
+  ): BonusPaymentYearGroupView[] {
+    const sortedRows = [...rowViews].sort((left, right) =>
+      this.compareBonusPaymentRowViews(left, right)
+    );
+    const groups = new Map<number, BonusPaymentRowView[]>();
+
+    for (const row of sortedRows) {
+      const year =
+        resolveBonusPaymentYear(row.group.controls.paymentDate.value) ?? this.bonusReferenceYear;
+      const bucket = groups.get(year) ?? [];
+      bucket.push(row);
+      groups.set(year, bucket);
+    }
+
+    return [...groups.entries()]
+      .sort(([leftYear], [rightYear]) => leftYear - rightYear)
+      .map(([year, rows]) => ({ year, rows }));
+  }
+
+  private compareBonusPaymentRowViews(
+    left: BonusPaymentRowView,
+    right: BonusPaymentRowView
+  ): number {
+    return compareBonusPaymentSettingsForDisplay(
+      {
+        id: left.group.controls.id.value,
+        name: left.group.controls.name.value,
+        paymentDate: left.group.controls.paymentDate.value,
+      },
+      {
+        id: right.group.controls.id.value,
+        name: right.group.controls.name.value,
+        paymentDate: right.group.controls.paymentDate.value,
+      }
+    );
+  }
+
+  private sortBonusPaymentFormArray(): void {
+    const controls = [...this.bonusPaymentSettingsArray.controls];
+    controls.sort((left, right) =>
+      compareBonusPaymentSettingsForDisplay(
+        {
+          id: left.controls.id.value,
+          name: left.controls.name.value,
+          paymentDate: left.controls.paymentDate.value,
+        },
+        {
+          id: right.controls.id.value,
+          name: right.controls.name.value,
+          paymentDate: right.controls.paymentDate.value,
+        }
+      )
+    );
+
+    this.bonusPaymentSettingsArray.clear();
+    for (const group of controls) {
+      this.bonusPaymentSettingsArray.push(group);
+    }
+
+    this.bumpBonusRegistryRevision();
   }
 
   private buildBonusPaymentRowViews(): BonusPaymentRowView[] {
@@ -429,7 +834,9 @@ export class CompanySettingsComponent implements OnInit {
     }
 
     if (this.activeTab() === 'bonus') {
-      return !this.canSaveActiveTab();
+      const canSave = this.canSaveBonusTab();
+      this.logBonusSaveDiagnosticsIfNeeded(canSave);
+      return !canSave;
     }
 
     return false;
@@ -491,8 +898,17 @@ export class CompanySettingsComponent implements OnInit {
     this.saveError.set('');
     this.saveSuccess.set('');
 
+    if (this.activeTab() === 'bonus') {
+      this.purgeEmptyBonusPaymentRows();
+    }
+
     if (!this.validateActiveTab()) {
-      console.warn('[CompanySettings] バリデーションエラー', this.collectInvalidFieldsForActiveTab());
+      console.warn('[CompanySettings] バリデーションエラー', {
+        tab: this.activeTab(),
+        bonusDiagnostics:
+          this.activeTab() === 'bonus' ? this.buildBonusSaveDiagnostics() : null,
+        invalidFields: this.collectInvalidFieldsForActiveTab(),
+      });
       this.form.markAllAsTouched();
       return;
     }
@@ -535,6 +951,8 @@ export class CompanySettingsComponent implements OnInit {
         await this.adminEmployeeLinkService.reloadLink();
         this.showSaveSuccessMessage('基本情報を保存しました');
       } else if (this.activeTab() === 'bonus') {
+        this.sortBonusPaymentFormArray();
+        this.bumpBonusRegistryRevision();
         this.showSaveSuccessMessage('賞与支払日設定を保存しました');
       }
     } catch {
@@ -570,25 +988,7 @@ export class CompanySettingsComponent implements OnInit {
     }
 
     if (tab === 'bonus') {
-      if (this.bonusPaymentSettingsArray.length === 0) {
-        return true;
-      }
-
-      let valid = true;
-
-      for (const group of this.bonusPaymentSettingsArray.controls) {
-        for (const control of Object.values(group.controls)) {
-          control.updateValueAndValidity({ emitEvent: false });
-          if (control.invalid) {
-            valid = false;
-            if (markTouched) {
-              control.markAsTouched();
-            }
-          }
-        }
-      }
-
-      return valid;
+      return this.validateBonusPaymentSettings(markTouched);
     }
 
     if (tab === 'rates') {

@@ -60,6 +60,11 @@ import {
   loadStoredBonusPaymentDate,
   saveStoredBonusPaymentDate,
 } from '@features/payroll/utils/payroll-storage.utils';
+import {
+  formatAppliedAnnualDeterminationBonusLockMessage,
+  isBonusPaymentLockedByAppliedAnnualDetermination,
+  resolveAppliedAnnualDeterminationBonusLock,
+} from '@features/revision/utils/annual-determination-bonus-lock.utils';
 import { RetiredEmployeeBadgeComponent } from '@shared/components/retired-employee-badge/retired-employee-badge.component';
 import { SocialInsuranceTypeBadgeComponent } from '@shared/components/social-insurance-type-badge/social-insurance-type-badge.component';
 import {
@@ -275,6 +280,27 @@ export class CompensationEntryTableComponent implements OnInit {
     return Boolean(employee && paymentDate && isBonusPaymentBeforeHireDate(employee, paymentDate));
   }
 
+  isRowBlockedByAppliedAnnualDetermination(index: number): boolean {
+    const employee = this.employeeForRow(index);
+    const paymentDate = this.normalizedPaymentDate();
+    if (!employee || !paymentDate) {
+      return false;
+    }
+
+    return isBonusPaymentLockedByAppliedAnnualDetermination(employee, paymentDate);
+  }
+
+  appliedAnnualDeterminationLockMessage(index: number): string {
+    const employee = this.employeeForRow(index);
+    const paymentDate = this.normalizedPaymentDate();
+    if (!employee || !paymentDate) {
+      return '';
+    }
+
+    const lock = resolveAppliedAnnualDeterminationBonusLock(employee, paymentDate);
+    return lock ? formatAppliedAnnualDeterminationBonusLockMessage(lock) : '';
+  }
+
   /** 現在の支払日で保存済みか（HTML の readonly 判定の主条件） */
   isRowSavedForCurrentPaymentDate(index: number): boolean {
     return this.isRowLocked(index);
@@ -283,6 +309,10 @@ export class CompensationEntryTableComponent implements OnInit {
   /** 賞与額入力欄を読み取り専用にするか（FormControl は常に enable、UI のみロック） */
   isRowBonusAmountReadonly(index: number): boolean {
     if (!this.hasValidBonusPaymentSelection()) {
+      return true;
+    }
+
+    if (this.isRowBlockedByAppliedAnnualDetermination(index)) {
       return true;
     }
 
@@ -495,15 +525,29 @@ export class CompensationEntryTableComponent implements OnInit {
       const savedBonusAmount = this.resolveSavedBonusAmount(employeeId, paymentDate);
       group.controls.fixedWages.setValue(savedBonusAmount, { emitEvent: false });
       group.controls.nonFixedWages.setValue(0, { emitEvent: false });
-    } else if (!preserveUnlockedInput) {
+      group.controls.locked.setValue(true, { emitEvent: false });
+      this.syncRowControlState(group);
+      return;
+    }
+
+    const blockedByAnnualDetermination = employee
+      ? isBonusPaymentLockedByAppliedAnnualDetermination(employee, paymentDate)
+      : false;
+
+    if (blockedByAnnualDetermination) {
+      group.controls.fixedWages.setValue(0, { emitEvent: false });
+      group.controls.nonFixedWages.setValue(0, { emitEvent: false });
+      group.controls.locked.setValue(false, { emitEvent: false });
+      this.syncRowControlState(group);
+      return;
+    }
+
+    if (!preserveUnlockedInput) {
       group.controls.fixedWages.setValue(0, { emitEvent: false });
       group.controls.nonFixedWages.setValue(0, { emitEvent: false });
     }
 
-    group.controls.locked.setValue(
-      this.isEmployeeSavedForPaymentDate(employeeId, paymentDate),
-      { emitEvent: false }
-    );
+    group.controls.locked.setValue(false, { emitEvent: false });
     this.syncRowControlState(group);
   }
 
@@ -779,6 +823,19 @@ export class CompensationEntryTableComponent implements OnInit {
         return;
       }
 
+      if (this.isRowBlockedByAppliedAnnualDetermination(index)) {
+        const message = this.appliedAnnualDeterminationLockMessage(index);
+        this.saveError.set(message);
+        const employeeId = this.entries.at(index).controls.employeeId.value;
+        if (employeeId) {
+          this.rowErrors.update((errors) => ({
+            ...errors,
+            [employeeId]: message,
+          }));
+        }
+        return;
+      }
+
       const paymentDate = this.normalizedPaymentDate();
       const group = this.entries.at(index);
       const employeeId = group.controls.employeeId.value;
@@ -1015,6 +1072,11 @@ export class CompensationEntryTableComponent implements OnInit {
 
     for (const group of this.entries.controls) {
       if (group.controls.locked.value || group.controls.blockedByRetirement.value) {
+        continue;
+      }
+
+      const index = this.entries.controls.indexOf(group);
+      if (this.isRowBlockedByBeforeHire(index) || this.isRowBlockedByAppliedAnnualDetermination(index)) {
         continue;
       }
 

@@ -1,7 +1,7 @@
 <section class="company-settings">
   <div class="company-settings__card">
     <header class="company-settings__header">
-      <h2 class="company-settings__title">会社設定（事業所設定）</h2>
+      <h2 class="company-settings__title">会社設定</h2>
       <p class="company-settings__description">
         社会保険の届出に必要な事業所情報と料率を登録・更新します。
       </p>
@@ -591,97 +591,184 @@
             </div>
           </div>
         } @else if (activeTab() === 'bonus') {
-          <div class="company-settings__bonus-settings">
+          <div class="company-settings__bonus-registry" formArrayName="bonusPaymentSettings">
             <p class="company-settings__hint company-settings__hint--section">
               年間の賞与支払日を登録します。賞与入力画面ではここで登録した賞与を選択して入力します。
             </p>
 
-            <div class="company-settings__bonus-list" formArrayName="bonusPaymentSettings">
-              @if (bonusPaymentSettingsArray.length === 0) {
-                <p class="company-settings__hint">登録されている賞与支払日はありません。「行を追加」から登録してください。</p>
+            @if (bonusPaymentDuplicateActive()) {
+              <p class="company-settings__bonus-duplicate-alert" role="alert">
+                {{ duplicateBonusPaymentDateMessage }}
+              </p>
+            }
+
+            <div class="company-settings__bonus-registry-panel">
+              @if (currentBonusPaymentDisplayRows().length === 0) {
+                <p class="company-settings__hint company-settings__hint--empty-registry">
+                  登録されている賞与支払日はありません。「行を追加」から登録してください。
+                </p>
               }
 
-              <ng-template #bonusPaymentRow let-i="i">
-                <div class="company-settings__bonus-row" [formGroupName]="i">
-                  <input type="hidden" formControlName="id" />
-
-                  <div class="company-settings__field">
-                    <label class="company-settings__label" [for]="'bonusName' + i">賞与名</label>
-                    <input
-                      [id]="'bonusName' + i"
-                      type="text"
-                      class="company-settings__input"
-                      formControlName="name"
-                      placeholder="例: 夏季賞与"
-                      autocomplete="off"
-                    />
-                    @if (showBonusPaymentFieldError(i, 'name')) {
-                      <p class="company-settings__error">{{ bonusPaymentFieldErrorMessage(i, 'name') }}</p>
+              <div class="company-settings__bonus-registry-scroll">
+                <table class="company-settings__bonus-registry-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">賞与名</th>
+                      <th scope="col">支払年月日</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (rowView of currentBonusPaymentDisplayRows(); track rowView.group.controls.id.value) {
+                      @if (rowView.showYearDivider) {
+                        <tr class="company-settings__bonus-year-divider">
+                          <td colspan="2">{{ rowView.displayYear }}年</td>
+                        </tr>
+                      }
+                      <tr
+                        class="company-settings__bonus-registry-row"
+                        [class.company-settings__bonus-registry-row--duplicate]="
+                          isBonusPaymentDateDuplicate(rowView.index)
+                        "
+                        [formGroupName]="rowView.index"
+                      >
+                        <td>
+                          <input type="hidden" formControlName="id" />
+                          <input
+                            [id]="'bonusName' + rowView.index"
+                            type="text"
+                            class="company-settings__input company-settings__input--registry"
+                            formControlName="name"
+                            placeholder="例: 夏季賞与"
+                            autocomplete="off"
+                            aria-label="賞与名"
+                          />
+                          @if (showBonusPaymentFieldError(rowView.index, 'name')) {
+                            <p class="company-settings__error company-settings__error--registry">
+                              {{ bonusPaymentFieldErrorMessage(rowView.index, 'name') }}
+                            </p>
+                          }
+                        </td>
+                        <td>
+                          <input
+                            [id]="'bonusPaymentDate' + rowView.index"
+                            type="date"
+                            class="company-settings__input company-settings__input--registry company-settings__input--date"
+                            [class.company-settings__input--duplicate]="
+                              isBonusPaymentDateDuplicate(rowView.index)
+                            "
+                            formControlName="paymentDate"
+                            [min]="bonusPaymentMinDate()"
+                            autocomplete="off"
+                            aria-label="支払年月日"
+                            [attr.aria-invalid]="isBonusPaymentDateDuplicate(rowView.index)"
+                            (blur)="onBonusPaymentDateBlur(rowView.index)"
+                          />
+                          @if (showBonusPaymentFieldError(rowView.index, 'paymentDate')) {
+                            <p class="company-settings__error company-settings__error--registry">
+                              {{ bonusPaymentFieldErrorMessage(rowView.index, 'paymentDate') }}
+                            </p>
+                          }
+                        </td>
+                      </tr>
                     }
-                  </div>
-
-                  <div class="company-settings__field">
-                    <label class="company-settings__label" [for]="'bonusPaymentDate' + i">支払年月日</label>
-                    <input
-                      [id]="'bonusPaymentDate' + i"
-                      type="date"
-                      class="company-settings__input company-settings__input--date"
-                      formControlName="paymentDate"
-                      [min]="bonusPaymentMinDate()"
-                      autocomplete="off"
-                      (blur)="onBonusPaymentDateBlur(i)"
-                    />
-                    @if (showBonusPaymentFieldError(i, 'paymentDate')) {
-                      <p class="company-settings__error">{{ bonusPaymentFieldErrorMessage(i, 'paymentDate') }}</p>
-                    }
-                  </div>
-
-                  <button
-                    type="button"
-                    class="company-settings__bonus-remove"
-                    (click)="removeBonusPaymentSetting(i)"
-                  >
-                    削除
-                  </button>
-                </div>
-              </ng-template>
-
-              @for (rowView of currentBonusPaymentRowViews; track rowView.group.controls.id.value) {
-                <ng-container
-                  [ngTemplateOutlet]="bonusPaymentRow"
-                  [ngTemplateOutletContext]="{ i: rowView.index }"
-                />
-              }
-
-              @if (pastBonusPaymentCount > 0) {
-                <button
-                  type="button"
-                  class="company-settings__bonus-past-toggle"
-                  (click)="togglePastBonuses()"
-                >
-                  @if (showPastBonuses()) {
-                    過去の賞与を閉じる
-                  } @else {
-                    過去の賞与を表示する（{{ pastBonusPaymentCount }}件）
-                  }
-                </button>
-              }
-
-              @if (showPastBonuses()) {
-                <div class="company-settings__bonus-past-list">
-                  @for (rowView of pastBonusPaymentRowViews; track rowView.group.controls.id.value) {
-                    <ng-container
-                      [ngTemplateOutlet]="bonusPaymentRow"
-                      [ngTemplateOutletContext]="{ i: rowView.index }"
-                    />
-                  }
-                </div>
-              }
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <button type="button" class="company-settings__bonus-add" (click)="addBonusPaymentSetting()">
-              ＋ 行を追加
-            </button>
+            <div class="company-settings__bonus-registry-toolbar">
+              <button
+                type="button"
+                class="company-settings__bonus-add"
+                (click)="onAddBonusPaymentRow()"
+              >
+                ＋ 行を追加
+              </button>
+            </div>
+
+            @if (pastBonusPaymentCount() > 0) {
+              <button
+                type="button"
+                class="company-settings__bonus-past-toggle"
+                (click)="togglePastBonuses()"
+              >
+                @if (showPastBonuses()) {
+                  過去の賞与を閉じる
+                } @else {
+                  過去の賞与を表示する（{{ pastBonusPaymentCount() }}件）
+                }
+              </button>
+            }
+
+            @if (showPastBonuses() && pastBonusPaymentCount() > 0) {
+              <div class="company-settings__bonus-registry-panel company-settings__bonus-registry-panel--past">
+                <div class="company-settings__bonus-registry-scroll">
+                  <table class="company-settings__bonus-registry-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">賞与名</th>
+                        <th scope="col">支払年月日</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (rowView of pastBonusPaymentDisplayRows(); track rowView.group.controls.id.value) {
+                        @if (rowView.showYearDivider) {
+                          <tr class="company-settings__bonus-year-divider">
+                            <td colspan="2">{{ rowView.displayYear }}年</td>
+                          </tr>
+                        }
+                        <tr
+                          class="company-settings__bonus-registry-row"
+                          [class.company-settings__bonus-registry-row--duplicate]="
+                            isBonusPaymentDateDuplicate(rowView.index)
+                          "
+                          [formGroupName]="rowView.index"
+                        >
+                            <td>
+                              <input type="hidden" formControlName="id" />
+                              <input
+                                [id]="'bonusNamePast' + rowView.index"
+                                type="text"
+                                class="company-settings__input company-settings__input--registry"
+                                formControlName="name"
+                                placeholder="例: 夏季賞与"
+                                autocomplete="off"
+                                aria-label="賞与名"
+                              />
+                              @if (showBonusPaymentFieldError(rowView.index, 'name')) {
+                                <p class="company-settings__error company-settings__error--registry">
+                                  {{ bonusPaymentFieldErrorMessage(rowView.index, 'name') }}
+                                </p>
+                              }
+                            </td>
+                            <td>
+                              <input
+                                [id]="'bonusPaymentDatePast' + rowView.index"
+                                type="date"
+                                class="company-settings__input company-settings__input--registry company-settings__input--date"
+                                [class.company-settings__input--duplicate]="
+                                  isBonusPaymentDateDuplicate(rowView.index)
+                                "
+                                formControlName="paymentDate"
+                                [min]="bonusPaymentMinDate()"
+                                autocomplete="off"
+                                aria-label="支払年月日"
+                                [attr.aria-invalid]="isBonusPaymentDateDuplicate(rowView.index)"
+                                (blur)="onBonusPaymentDateBlur(rowView.index)"
+                              />
+                              @if (showBonusPaymentFieldError(rowView.index, 'paymentDate')) {
+                                <p class="company-settings__error company-settings__error--registry">
+                                  {{ bonusPaymentFieldErrorMessage(rowView.index, 'paymentDate') }}
+                                </p>
+                              }
+                            </td>
+                          </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
           </div>
         }
 
